@@ -1,0 +1,28 @@
+[package]
+name = "wasl-vfs-fuse"
+description = "Files on demand on Linux: a pair's on-demand view as a FUSE 3 mount, reading through wasl-vfs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wasl-vfs.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fuser.workspace = true
+nix.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+xattr.workspace = true
+
+[lints]
+workspace = true

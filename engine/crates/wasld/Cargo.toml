@@ -1,0 +1,78 @@
+[package]
+name = "wasld"
+description = "The Wasl desktop daemon: owns the engine, syncs on schedule and on change, serves the CLI and the tray app (SRS FR-B2, FR-E4)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "wasld"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wasld"
+path = "src/main.rs"
+
+# The Miqyas harness: two test devices on one machine (docs/testing/MIQYAS.md). Built only with
+# the `miqyas` feature, which no release build turns on.
+[[bin]]
+name = "wasl-miqyas"
+path = "src/bin/wasl-miqyas.rs"
+required-features = ["miqyas"]
+
+[[test]]
+name = "miqyas"
+required-features = ["miqyas"]
+
+[features]
+# A test build for Miqyas: test folder only, secrets in a file, loopback, no Google, and the
+# `wasl-miqyas` harness, which pairs two test devices without a person. Off in release builds.
+miqyas = []
+
+[dependencies]
+wasl-core.workspace = true
+wasl-store.workspace = true
+wasl-fs.workspace = true
+wasl-drive.workspace = true
+wasl-engine.workspace = true
+wasl-ipc.workspace = true
+wasl-net.workspace = true
+wasl-devices.workspace = true
+wasl-pairs.workspace = true
+wasl-chunk.workspace = true
+wasl-vfs.workspace = true
+wasl-crypto.workspace = true
+zeroize.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+sha2.workspace = true
+base64.workspace = true
+getrandom.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time", "signal"] }
+notify = "8.2"
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "async-secret-service", "tokio", "crypto-rust"] }
+webbrowser = "1.0"
+
+# Files on demand (read-only views, docs/ON_DEMAND.md §2.3): Cloud Files on Windows, FUSE on Linux.
+[target.'cfg(windows)'.dependencies]
+wasl-vfs-windows.workspace = true
+
+# Free space on a pair's drive (#91).
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["fs"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+wasl-vfs-fuse.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

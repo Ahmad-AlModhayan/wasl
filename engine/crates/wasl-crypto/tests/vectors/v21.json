@@ -1,0 +1,77 @@
+{
+  "cdc": {
+    "cuts": [
+      1350669,
+      296024,
+      1918527,
+      1479623,
+      379875,
+      1054261,
+      779490,
+      2182930,
+      1070953,
+      781896,
+      415110,
+      873554
+    ],
+    "generator": "splitmix64",
+    "len": 12582912,
+    "seed": 2026
+  },
+  "chunk": {
+    "chunk_id": "6bce72be420a15294c40d8ddeb2a167edef5a53a6a1c112e47791b3404a515c2",
+    "file_id": "07070707070707070707070707070707",
+    "nonce": "242424242424242424242424",
+    "plain": "7761736c20322e31",
+    "sealed_len": 4128,
+    "sealed_sha256": "20944f4e7b5762ed932b10e7573031b41a68f1ec8ae495b41e7eb1b83a4a5888"
+  },
+  "comment": "Vault format 2.1 known answers. Regenerate only for a deliberate format change: WASL_WRITE_VECTORS=1 cargo test -p wasl-crypto --test v21.",
+  "gear_head": [
+    "deaf5944d8b65dca",
+    "bad6641e7c7210bd",
+    "6ae41b4e5e658e02",
+    "2db98f15e1ad49c8"
+  ],
+  "ikm": "4242424242424242424242424242424242424242424242424242424242424242",
+  "kCdc": "f6baa1a8f459be83a94b19f8bc71ca61a12527fce4fb8ccc51c5c4db2aba76a1",
+  "kState": "aab5ffc7dc26df9c808990a12fb5c6abe5bf39275d08792232680eade1c5afda",
+  "padded_len": [
+    [
+      0,
+      4096
+    ],
+    [
+      1,
+      4096
+    ],
+    [
+      4092,
+      4096
+    ],
+    [
+      4093,
+      4352
+    ],
+    [
+      100000,
+      100352
+    ],
+    [
+      262144,
+      270336
+    ],
+    [
+      1048576,
+      1081344
+    ],
+    [
+      4194304,
+      4325376
+    ]
+  ],
+  "state": {
+    "digest": "eb593efd68f2791477f02c789a31733d2481f189d31dcb741a3c57f2454d39c3",
+    "record": "573253310102030405060708000000000000002a00000199c82cc000eb593efd68f2791477f02c789a31733d2481f189d31dcb741a3c57f2454d39c3f1214e703dba80e1d6e5fae5bc00b9b5cf3395dd2eeb24544887ec4b551e4256"
+  }
+}

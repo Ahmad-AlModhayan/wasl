@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Activity screens (status, history, run details, problems, conflict), diagnostics and pair status. -->
+<resources>
+    <!-- ActivityUi: event actions -->
+    <string name="activity_action_removed_on_phone">Removed on phone</string>
+    <string name="activity_action_removed_on_drive">Removed on Drive</string>
+    <string name="activity_action_couldnt_sync">Couldn\'t sync</string>
+    <string name="activity_action_note">Note</string>
+    <string name="activity_action_stopped_to_ask">Stopped to ask</string>
+
+    <!-- ActivityUi: times -->
+    <string name="activity_at_time">at %1$s</string>
+    <string name="activity_yesterday_at_time">yesterday at %1$s</string>
+    <string name="activity_tomorrow_at_time">tomorrow at %1$s</string>
+    <string name="activity_on_date">on %1$s</string>
+    <string name="activity_duration_seconds">%1$d s</string>
+    <string name="activity_duration_minutes_seconds">%1$d min %2$d s</string>
+    <string name="activity_duration_hours_minutes">%1$d h %2$d min</string>
+
+    <!-- ActivityUi: rows -->
+    <string name="activity_show_less">Show less</string>
+    <string name="activity_show_all">Show all</string>
+    <string name="activity_close_search">Close search</string>
+
+    <!-- ActivityUi: how a run ended -->
+    <string name="activity_run_partly_synced">Partly synced</string>
+    <string name="activity_run_didnt_start">Didn\'t start</string>
+
+    <!-- ActivityUi: run counts -->
+    <string name="activity_count_to_drive">%1$s to Drive</string>
+    <string name="activity_count_to_phone">%1$s to phone</string>
+    <string name="activity_count_to_bin">%1$s to the recycle bin</string>
+    <plurals name="activity_count_conflicts">
+        <item quantity="one">%1$s conflict</item>
+        <item quantity="other">%1$s conflicts</item>
+    </plurals>
+    <string name="activity_count_couldnt_sync">%1$s couldn\'t sync</string>
+    <string name="activity_no_changes">No changes</string>
+
+    <!-- ActivityUi: what started a sync -->
+    <string name="activity_trigger_manual">Started by you</string>
+    <string name="activity_trigger_periodic">Scheduled</string>
+    <string name="activity_trigger_local">Files changed on phone</string>
+    <string name="activity_trigger_remote">Files changed on Drive</string>
+    <string name="activity_trigger_boot">After a restart</string>
+    <string name="activity_trigger_share">Shared file</string>
+    <string name="activity_trigger_tile">Quick settings tile</string>
+    <string name="activity_trigger_widget">Widget</string>
+    <string name="activity_trigger_approved">Approved by you</string>
+    <string name="activity_trigger_restore">After a restore</string>
+    <string name="activity_trigger_conflict">After a conflict choice</string>
+    <string name="activity_trigger_resume">Resumed</string>
+    <string name="activity_trigger_version">After a version change</string>
+
+    <!-- ActivityUi: change rows -->
+    <string name="activity_change_uploaded">Uploaded</string>
+    <string name="activity_change_downloaded">Downloaded</string>
+    <string name="activity_change_removed_after_upload">Removed from phone after upload</string>
+    <string name="activity_change_empty_folder_removed">Empty folder removed</string>
+    <string name="activity_change_moved_to_bin">Moved to the recycle bin</string>
+    <string name="activity_change_moved_to_drive_bin">Moved to Drive\'s bin</string>
+    <string name="activity_change_both_kept">Both kept for now</string>
+
+    <!-- ActivityUi: skip reasons -->
+    <string name="activity_skip_size_limit">Larger than this pair\'s size limit</string>
+    <string name="activity_skip_deleted_on_drive">Deleted on Drive after it was uploaded</string>
+    <string name="activity_skip_removed_from_phone">Removed from phone after it was downloaded</string>
+    <string name="activity_skip_google_doc">Google Doc, not saved to phone</string>
+    <string name="activity_skip_no_export_format">Google file with no phone format</string>
+    <string name="activity_skip_changed_on_both">Changed on both, left for you</string>
+    <string name="activity_skip_folder_not_empty">Folder still has files on phone</string>
+
+    <!-- Conflict -->
+    <string name="activity_conflict_couldnt_open">Couldn\'t open this conflict</string>
+    <string name="activity_conflict_resolved_title">This conflict is resolved</string>
+    <string name="activity_conflict_resolved_body">It was resolved already, or its pair was removed. Nothing is waiting here.</string>
+    <string name="activity_conflict_pair_removed_title">This pair was removed</string>
+    <string name="activity_conflict_pair_removed_body">Files on your phone and on Drive were not touched.</string>
+    <string name="activity_conflict_resolved_named_body">%1$s was resolved already. Nothing is waiting here.</string>
+    <string name="activity_conflict_kept_both">Kept both copies of %1$s</string>
+    <string name="activity_conflict_kept_phone">Kept the phone version of %1$s</string>
+    <string name="activity_conflict_kept_drive">Kept the Drive version of %1$s</string>
+    <string name="activity_conflict_kept_both_body">Both copies stay on your phone and on Drive.</string>
+    <string name="activity_conflict_kept_phone_body">Drive\'s copy is in the recycle bin. The next sync updates Drive.</string>
+    <string name="activity_conflict_kept_drive_body">The phone\'s copy is in the recycle bin. The next sync removes it from Drive too.</string>
+    <string name="activity_conflict_subtitle_position">%1$s · %2$d of %3$d</string>
+    <string name="activity_conflict_applies_to_file">Applies to this file only</string>
+    <string name="activity_conflict_not_found">Not found</string>
+    <string name="activity_conflict_no_longer_on_phone">No longer on this phone</string>
+    <string name="activity_conflict_not_on_phone_yet">Not on this phone yet</string>
+    <string name="activity_conflict_keep_both_copy_named">The phone\'s copy stays beside it as “%1$s” on both sides.</string>
+    <string name="activity_conflict_keep_phone_version">Keep the phone version</string>
+    <string name="activity_conflict_keep_drive_version">Keep the Drive version</string>
+    <string name="activity_conflict_drive_copy_to_bin">Drive\'s copy goes to the recycle bin.</string>
+    <string name="activity_conflict_phone_copy_to_bin">The phone\'s copy goes to the recycle bin.</string>
+    <string name="activity_conflict_phone_copy_gone">The phone\'s copy is no longer there.</string>
+    <string name="activity_conflict_version_history_summary">Earlier copies of this file on Drive and on this phone</string>
+    <string name="activity_conflict_safest">Safest</string>
+    <string name="activity_conflict_keep_phone">Keep phone copy</string>
+    <string name="activity_conflict_keep_drive">Keep Drive copy</string>
+    <string name="activity_internal_storage">Internal storage</string>
+
+    <!-- History -->
+    <string name="activity_removed_pair">Removed pair</string>
+    <string name="activity_history_title">History</string>
+    <string name="activity_clear_history">Clear history</string>
+    <string name="activity_history_empty_title">No syncs yet</string>
+    <string name="activity_history_empty_body">Every sync is listed here with what it copied and removed.</string>
+    <string name="activity_history_all_pairs">All pairs</string>
+    <string name="activity_history_any_result">Any result</string>
+    <string name="activity_history_no_match">No syncs match these filters.</string>
+    <string name="activity_history_clear_filters">Clear filters</string>
+    <string name="activity_clear_history_title">Clear the sync history?</string>
+    <string name="activity_clear_history_body">Every sync record and its log are deleted from this phone. Your files and their sync state aren\'t affected. This can\'t be undone.</string>
+
+    <!-- Problems -->
+    <plurals name="activity_problems_deletions_waiting">
+        <item quantity="one">%1$s deletion waiting · %2$s</item>
+        <item quantity="other">%1$s deletions waiting · %2$s</item>
+    </plurals>
+    <string name="activity_problems_first_sync_ok">First sync needs your OK · %1$s</string>
+    <string name="activity_problems_deleted_on_phone">Deleted on your phone %1$s. Drive still has them.</string>
+    <string name="activity_problems_deleted_on_drive">Deleted on Drive %1$s. Your phone still has them.</string>
+    <string name="activity_problems_stopped_before_finish">It stopped before it finished.</string>
+    <string name="activity_problems_sign_in_again_as">Sign in again as %1$s</string>
+    <string name="activity_problems_sign_in_again_body">Google asked you to sign in again. Pairs on this account wait until you do.</string>
+    <string name="activity_problems_conflict_body">Changed on phone and on Drive. Both kept.</string>
+    <string name="activity_problems_choose">Choose</string>
+    <string name="activity_problems_syncing_again">Syncing %1$s again</string>
+    <string name="activity_problems_allow_all_files">Open Android settings and allow All files access for Wasl.</string>
+    <string name="activity_problems_no_storage_app">No app on this phone can open Drive\'s storage page.</string>
+    <string name="activity_problems_title">Problems</string>
+    <string name="activity_sync_status">Sync status</string>
+    <string name="activity_problems_needs_you">Needs you · %1$s</string>
+    <string name="activity_problems_retrying">Retrying on its own · %1$s</string>
+    <string name="activity_problems_recent_warnings">Recent warnings · %1$s</string>
+    <string name="activity_problems_hide_warnings">Hide recent warnings</string>
+    <string name="activity_problems_show_warnings">Show recent warnings</string>
+    <string name="activity_problems_shown">Shown</string>
+    <string name="activity_problems_hidden">Hidden</string>
+    <string name="activity_problems_open_sync">Open this sync</string>
+    <string name="activity_problems_all_clear_title">Nothing needs you</string>
+    <string name="activity_problems_all_clear_body">Conflicts, failed syncs and deletions waiting for approval will show up here.</string>
+    <string name="activity_problems_open_diagnostics">Open diagnostics</string>
+
+    <!-- Run details -->
+    <string name="activity_run_view_changes">Changes</string>
+    <string name="activity_run_view_problems">Problems</string>
+    <string name="activity_run_view_log">Full log</string>
+    <string name="activity_run_title_fallback">Sync</string>
+    <string name="activity_run_clip_label">Sync log</string>
+    <plurals name="activity_run_copied_lines">
+        <item quantity="one">Copied %1$s log line</item>
+        <item quantity="other">Copied %1$s log lines</item>
+    </plurals>
+    <string name="activity_run_copy_log">Copy log</string>
+    <string name="activity_run_gone_title">This sync is no longer in the history</string>
+    <string name="activity_run_gone_body">Older syncs drop out of the history, or the history was cleared.</string>
+    <string name="activity_run_no_changes">No files changed in this sync.</string>
+    <string name="activity_run_no_problems">Nothing went wrong in this sync.</string>
+    <string name="activity_run_nothing_logged">Nothing was logged for this sync.</string>
+    <string name="activity_run_took">Took %1$s</string>
+    <string name="activity_run_still_going">Still going</string>
+    <string name="activity_run_to_bin">To the recycle bin</string>
+    <string name="activity_run_conflicts">Conflicts</string>
+    <string name="activity_run_open_pair">Open pair</string>
+
+    <!-- Status screen -->
+    <string name="activity_status_scheduled_sync">Scheduled sync · %1$s</string>
+    <string name="activity_status_sync_waiting">Sync waiting to start</string>
+    <string name="activity_status_waiting_other_sync">Waiting for another sync to finish</string>
+    <string name="activity_status_waiting_for_time">Waiting for its time</string>
+    <string name="activity_status_waiting_to_start">Waiting to start</string>
+    <string name="activity_status_next">next %1$s</string>
+    <string name="activity_status_stopped_all">Stopped every sync. Files synced so far stay synced.</string>
+    <string name="activity_status_stop_all">Stop all</string>
+    <string name="activity_status_empty_title">Nothing is syncing</string>
+    <string name="activity_status_empty_body">Syncs start on their schedule, when files change, or when you tap Sync now.</string>
+    <string name="activity_status_see_history">See history</string>
+    <string name="activity_status_queued">Queued</string>
+    <string name="activity_status_queued_hint">Queued syncs wait for a connection and for Android to allow background work.</string>
+
+    <!-- Pair status -->
+    <string name="status_last_synced">Last synced %1$s</string>
+    <string name="status_synced_when">Synced %1$s</string>
+    <plurals name="status_conflicts">
+        <item quantity="one">Conflict</item>
+        <item quantity="other">%1$d conflicts</item>
+    </plurals>
+    <string name="status_comparing_folders">Comparing folders…</string>
+    <string name="status_syncing_percent">Syncing %1$s</string>
+    <string name="status_waiting_for_preview">Waiting for your preview</string>
+    <string name="status_waiting_for_preview_detail">Nothing syncs until you start it from the preview.</string>
+    <string name="status_turned_off">Turned off</string>
+    <string name="status_turned_off_detail">Turn it on to sync again.</string>
+    <string name="status_retrying_soon">Retrying soon</string>
+    <string name="status_wifi_only">Wi‑Fi only</string>
+    <string name="status_while_charging">while charging</string>
+    <string name="status_when_files_change">when files change</string>
+
+    <!-- Diagnostics screen -->
+    <string name="diagnostics_couldnt_open_settings">Couldn\'t open Android\'s settings. Open Settings › Apps › Wasl.</string>
+    <string name="diagnostics_couldnt_open_battery">Couldn\'t open Android\'s battery settings.</string>
+    <string name="diagnostics_no_browser_storage">No browser can open Google\'s storage page.</string>
+    <string name="diagnostics_run_checks_again">Run checks again</string>
+    <string name="diagnostics_copy_report">Copy diagnostics report</string>
+    <string name="diagnostics_report_label">Wasl diagnostics</string>
+    <string name="diagnostics_copied_report">Copied the diagnostics report</string>
+    <string name="diagnostics_share_report">Share diagnostics report</string>
+    <string name="diagnostics_no_app_for_report">No app can receive the report.</string>
+    <string name="diagnostics_background_guide">Background guide for this phone</string>
+    <string name="diagnostics_no_browser_dontkillmyapp">No browser can open dontkillmyapp.com.</string>
+    <string name="diagnostics_more_options">More options</string>
+    <string name="diagnostics_checking">Checking…</string>
+    <string name="diagnostics_checked_at">Checked %1$s</string>
+    <string name="diagnostics_export_log">Export log</string>
+    <string name="diagnostics_health">Health</string>
+    <string name="diagnostics_vendor_phones">%1$s phones</string>
+    <string name="diagnostics_open_background_settings">Open background settings</string>
+    <string name="diagnostics_opened_app_settings">Opened Wasl\'s app settings. Look for Autostart or Battery there.</string>
+    <string name="diagnostics_last_24_hours">Last 24 hours</string>
+    <string name="diagnostics_log">Log</string>
+    <string name="diagnostics_filter_all">All</string>
+    <string name="diagnostics_filter_errors">Errors</string>
+    <string name="diagnostics_loading_log">Loading the log…</string>
+    <string name="diagnostics_nothing_logged">Nothing logged in the last 24 hours.</string>
+    <string name="diagnostics_no_lines_match">No lines match these filters.</string>
+    <string name="diagnostics_no_app_for_log">No app can receive the log.</string>
+    <string name="diagnostics_export_body">The last 24 hours as plain text, for an app you choose next. Wasl doesn\'t send it anywhere by itself.</string>
+    <string name="diagnostics_include_file_names">Include file names</string>
+    <string name="diagnostics_include_names_on">File, folder and pair names are included</string>
+    <string name="diagnostics_include_names_off">Off: names become codes; sizes and times stay</string>
+    <string name="diagnostics_log_line">Log line</string>
+    <string name="diagnostics_copy_line">Copy line</string>
+    <string name="diagnostics_log_line_clip_label">Wasl log line</string>
+    <string name="diagnostics_detail">Detail</string>
+    <plurals name="diagnostics_stat_syncs">
+        <item quantity="one">sync</item>
+        <item quantity="other">syncs</item>
+    </plurals>
+    <plurals name="diagnostics_stat_files_moved">
+        <item quantity="one">file moved</item>
+        <item quantity="other">files moved</item>
+    </plurals>
+    <plurals name="diagnostics_stat_errors">
+        <item quantity="one">error</item>
+        <item quantity="other">errors</item>
+    </plurals>
+    <string name="diagnostics_show_whole_line">Show the whole line</string>
+
+    <!-- Diagnostics view model -->
+    <string name="diagnostics_sign_in_again">Sign in again</string>
+    <string name="diagnostics_rearm_ok">Scheduled checks are on again</string>
+    <string name="diagnostics_rearm_failed">Couldn\'t schedule the background check. Try again.</string>
+
+    <!-- Health checks -->
+    <string name="diagnostics_folder_access">Folder access</string>
+    <string name="diagnostics_folder_access_off">All files access is off, so pairs can\'t read their phone folders</string>
+    <string name="diagnostics_folder_access_allowed">All files access allowed</string>
+    <string name="diagnostics_folder_access_not_needed">Off. Not needed for folders you pick with Android\'s picker</string>
+    <plurals name="diagnostics_folders_reachable">
+        <item quantity="one">%1$d of %2$d folder reachable</item>
+        <item quantity="other">%1$d of %2$d folders reachable</item>
+    </plurals>
+    <string name="diagnostics_folder_gone">%1$s: the folder is gone, or its SD card is out</string>
+    <string name="diagnostics_no_account">No account connected, so nothing can sync</string>
+    <string name="diagnostics_add_account">Add account</string>
+    <string name="diagnostics_account_sign_in_again">%1$s needs you to sign in again</string>
+    <plurals name="diagnostics_accounts_sign_in_again">
+        <item quantity="one">%1$d account needs you to sign in again</item>
+        <item quantity="other">%1$d accounts need you to sign in again</item>
+    </plurals>
+    <string name="diagnostics_signed_in_as">Signed in as %1$s</string>
+    <plurals name="diagnostics_accounts_signed_in">
+        <item quantity="one">%1$d account signed in</item>
+        <item quantity="other">%1$d accounts signed in</item>
+    </plurals>
+    <string name="diagnostics_checked_lower">checked %1$s</string>
+    <string name="diagnostics_battery">Battery</string>
+    <string name="diagnostics_battery_ok">Not optimised: syncs start on time</string>
+    <string name="diagnostics_battery_optimised">Optimised: syncs may start late</string>
+    <string name="diagnostics_battery_optimised_vendor">Optimised: syncs may start late. %1$s phones also stop apps in the background</string>
+    <string name="diagnostics_fix">Fix</string>
+    <string name="diagnostics_background_work">Background work</string>
+    <string name="diagnostics_no_scheduled_checks">No scheduled checks, so pairs sync only when you start them</string>
+    <string name="diagnostics_rearm">Re-arm</string>
+    <string name="diagnostics_instant_stopped">Instant sync stopped: Android closed it in the background</string>
+    <string name="diagnostics_next_scheduled_check">Next scheduled check %1$s</string>
+    <string name="diagnostics_scheduled_checks_on">Scheduled checks on</string>
+    <string name="diagnostics_instant_sync_on">instant sync on</string>
+    <string name="diagnostics_last_stopped">last stopped: %1$s</string>
+    <string name="diagnostics_tomorrow_clock">tomorrow %1$s</string>
+    <string name="diagnostics_wifi_rules_need_location">Wi‑Fi name rules need location access to read the network name</string>
+    <string name="diagnostics_allow_location">Allow location</string>
+    <string name="diagnostics_offline">Offline: syncs wait for a connection</string>
+    <string name="diagnostics_wifi">Wi‑Fi</string>
+    <string name="diagnostics_metered">metered</string>
+    <string name="diagnostics_vpn">VPN</string>
+    <string name="diagnostics_mobile_data">Mobile data</string>
+    <string name="diagnostics_roaming">roaming</string>
+    <string name="diagnostics_mobile_data_wifi_waiting">Mobile data · Wi‑Fi-only pairs waiting</string>
+    <string name="diagnostics_not_checked_yet">Not checked yet</string>
+    <string name="diagnostics_storage_no_limit">%1$s used, no limit</string>
+    <string name="diagnostics_storage_full">Drive is full, so uploads stop</string>
+    <string name="diagnostics_storage_low">Low space: %1$s free of %2$s</string>
+    <string name="diagnostics_storage_used">%1$s of %2$s used</string>
+    <string name="diagnostics_notifications">Notifications</string>
+    <string name="diagnostics_notifications_off">Off: you won\'t hear about conflicts or failures</string>
+    <string name="diagnostics_allow">Allow</string>
+
+    <!-- Why Android stopped background work (shown in the Health section) -->
+    <string name="diagnostics_stop_not_stopped">not stopped</string>
+    <string name="diagnostics_stop_cancelled_by_app">cancelled by the app</string>
+    <string name="diagnostics_stop_preempted">preempted by higher-priority work</string>
+    <string name="diagnostics_stop_timeout">timed out (ran longer than allowed)</string>
+    <string name="diagnostics_stop_device_state">device state changed (Doze, screen off, …)</string>
+    <string name="diagnostics_stop_battery_low">battery became low</string>
+    <string name="diagnostics_stop_charger">charger was disconnected</string>
+    <string name="diagnostics_stop_network">network connection was lost</string>
+    <string name="diagnostics_stop_not_idle">device stopped being idle</string>
+    <string name="diagnostics_stop_storage_low">storage became low</string>
+    <string name="diagnostics_stop_quota">background execution quota exhausted (app standby bucket)</string>
+    <string name="diagnostics_stop_restricted">background restriction: the app is restricted in battery settings</string>
+    <string name="diagnostics_stop_bucket">app standby bucket too restrictive</string>
+    <string name="diagnostics_stop_user">stopped by the user (force stop / swiped away)</string>
+    <string name="diagnostics_stop_system">system needed the resources</string>
+    <string name="diagnostics_stop_launch_time">estimated app launch time changed</string>
+    <string name="diagnostics_stop_fgs_limit">foreground service time limit reached (Android 15 dataSync cap)</string>
+    <string name="diagnostics_stop_unknown">unknown</string>
+    <string name="diagnostics_stop_code">code %1$d</string>
+</resources>

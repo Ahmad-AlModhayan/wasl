@@ -1,0 +1,23 @@
+[package]
+name = "wasl-vfs"
+description = "Files on demand: byte ranges through a bounded block cache with pins, shared by every platform back end"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wasl-fs.workspace = true
+async-trait.workspace = true
+blake3.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+proptest.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

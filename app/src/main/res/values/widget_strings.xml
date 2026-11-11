@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the widget, the launcher shortcuts and the share target. Android requires resource
+     references (not literals) for appwidget-provider descriptions and shortcut labels. -->
+<resources>
+    <string name="widget_description">Sync status at a glance, with a Sync now button.</string>
+    <string name="widget_label">Wasl</string>
+    <string name="shortcut_sync_now_short">Sync now</string>
+    <string name="shortcut_sync_now_long">Sync all folder pairs now</string>
+    <string name="shortcut_pause_all_short">Pause all</string>
+    <string name="shortcut_pause_all_long">Pause all folder pairs</string>
+    <string name="shortcut_resume_all_short">Resume all</string>
+    <string name="shortcut_resume_all_long">Resume all folder pairs</string>
+    <string name="shortcut_disabled">Open Wasl to set up folder pairs first</string>
+    <string name="share_target_label">Add to Wasl</string>
+</resources>

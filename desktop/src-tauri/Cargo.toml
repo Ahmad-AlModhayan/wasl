@@ -1,0 +1,99 @@
+[package]
+name = "wasl-desktop"
+description = "Wasl's tray app for Windows, macOS and Linux (SRS FR-B5, FR-E4)"
+version = "0.4.0"
+edition = "2024"
+rust-version = "1.88"
+license = "PolyForm-Shield-1.0.0"
+publish = false
+
+# Its own workspace: not a member of engine/ (which it only borrows crates from by path).
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.3", features = [] }
+
+[dependencies]
+# macos-private-api: a transparent webview, so the macOS window effect shows behind the sidebar (#61). It must
+# match `app.macOSPrivateApi` in tauri.conf.json on every platform, so both are shared; it does nothing elsewhere.
+tauri = { version = "=2.12.4", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-dialog = "=2.8.3"
+tauri-plugin-single-instance = "=2.5.4"
+# Notifications for decisions and failures (#71): notify-rust underneath; it reports a click on macOS and Windows
+# (while the toast is on screen), but can't replace a shown notification there, so src/notify.rs never repeats one.
+tauri-plugin-notification = "=2.7.0"
+# The agent-changes confirmation (src/confirm.rs) runs before Tauri starts: the same native
+# dialogs tauri-plugin-dialog uses, called directly.
+rfd = { version = "0.16", default-features = false, features = ["common-controls-v6"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The update check (src/update.rs, #196): one plain GET of the site's version file. The engine already builds
+# this reqwest with rustls, so it adds no crate.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["sync", "time", "macros"] }
+uuid = { version = "1", features = ["v4"] }
+
+wasl-ipc = { path = "../../engine/crates/wasl-ipc" }
+wasl-store = { path = "../../engine/crates/wasl-store" }
+wasl-engine = { path = "../../engine/crates/wasl-engine" }
+wasl-core = { path = "../../engine/crates/wasl-core" }
+
+# The Windows title bar (src/chrome_windows.rs): the native window over the maximize button that keeps Snap Layouts,
+# and the system menu; the person's accent colour for Settings (#68). Already in the lockfile through tao.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+# The tray icon follows the taskbar's theme (src/tray_windows.rs). Already in the lockfile through the engine's wasl-vfs-windows.
+windows-registry = "0.6"
+
+# The macOS window chrome (src/chrome_macos.rs) and the menu bar popover (src/tray_macos.rs): AppKit through objc2's
+# safe bindings, already in the tree through tao. No `unsafe` (see lints).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSEnumerator", "NSString", "NSUserDefaults"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "objc2-core-foundation",
+    "NSAccessibility",
+    "NSApplication",
+    "NSButton",
+    "NSControl",
+    "NSEvent",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSScreen",
+    "NSUserInterfaceLayout",
+    "NSView",
+    "NSWindow",
+    "NSWorkspace",
+] }
+
+[lints.rust]
+# Deny, not forbid: src/chrome_windows.rs alone allows it, for the Win32 calls Snap Layouts need.
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.dev]
+# Line numbers in backtraces, not full debug info. Full debug info made `target/` grow past 200 GB
+# (mostly test binaries and incremental caches). For a debugger session:
+# CARGO_PROFILE_DEV_DEBUG=true cargo build
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 1
+# Dependencies are not stepped through: no debug info for them.
+debug = false
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

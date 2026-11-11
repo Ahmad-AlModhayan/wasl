@@ -1,0 +1,15 @@
+# Wasl's secret scan. The only hits in the tree are made-up test values and keyboard-shortcut names:
+# crypto test vectors and fixtures, a test-only automation secret, and `keys:` in the shortcut table.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test vectors, fixtures and keyboard-shortcut names (none is a credential)"
+paths = [
+  '''app/src/test/java/com/almodhayan/drivesync/crypto/Vault(Names|Manifest)Test\.kt''',
+  '''app/src/test/java/com/almodhayan/drivesync/scheduler/AutomationGateTest\.kt''',
+  '''engine/crates/wasl-crypto/tests/(names|manifest)\.rs''',
+  '''engine/crates/wasl-crypto/tests/vectors/v2\.json''',
+  '''engine/crates/wasl-ffi/tests/contract\.rs''',
+  '''desktop/src/shell/keys\.ts''',
+]

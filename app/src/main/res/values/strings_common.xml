@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Words used across screens. Area strings live in strings_<area>.xml. -->
+<resources>
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_done">Done</string>
+    <string name="common_close">Close</string>
+    <string name="common_back">Back</string>
+    <string name="common_try_again">Try again</string>
+    <string name="common_undo">Undo</string>
+    <string name="common_save">Save</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_restore">Restore</string>
+    <string name="common_pause">Pause</string>
+    <string name="common_resume">Resume</string>
+    <string name="common_settings">Settings</string>
+    <string name="common_recommended">Recommended</string>
+    <string name="common_optional">Optional</string>
+    <string name="common_drive">Drive</string>
+    <string name="common_phone">Phone</string>
+    <string name="common_google_account">Google account</string>
+    <string name="common_shared_drive">Shared drive</string>
+    <string name="common_drive_storage">Drive storage</string>
+    <string name="common_network">Network</string>
+    <string name="common_just_now">Just now</string>
+    <string name="common_yesterday">Yesterday</string>
+    <string name="common_syncing">Syncing</string>
+    <string name="common_synced">Synced</string>
+    <string name="common_paused">Paused</string>
+    <string name="common_stopped">Stopped</string>
+    <string name="common_skipped">Skipped</string>
+    <string name="common_conflict">Conflict</string>
+    <string name="common_not_synced_yet">Not synced yet</string>
+    <string name="common_waiting_for_you">Waiting for you</string>
+    <string name="common_to_phone">To phone</string>
+    <string name="common_to_drive">To Drive</string>
+    <string name="common_keep_both">Keep both</string>
+    <string name="common_new_folder">New folder</string>
+    <string name="common_version_history">Version history</string>
+    <string name="common_sync_history">Sync history</string>
+    <string name="common_sync_now">Sync now</string>
+    <string name="common_remove_pair">Remove pair</string>
+    <string name="common_your_pairs">Your pairs</string>
+    <string name="common_all_files_access">All files access</string>
+    <string name="common_check_for_changes">Check for changes</string>
+    <string name="common_minimum_battery">Minimum battery</string>
+    <string name="common_automation">Automation</string>
+    <string name="common_diagnostics">Diagnostics</string>
+</resources>

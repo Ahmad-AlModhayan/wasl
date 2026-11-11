@@ -1,0 +1,29 @@
+{
+  "name": "wasl-desktop",
+  "private": true,
+  "version": "0.4.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:mock": "NODE_ENV=development vite build --mode development --outDir dist-mock --emptyOutDir",
+    "preview:mock": "vite preview --outDir dist-mock --port 4173 --strictPort",
+    "test": "vitest run",
+    "test:layout": "node scripts/layout-check.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "tauri": "tauri",
+    "stage-engine": "node scripts/stage-engine.mjs",
+    "package": "node scripts/stage-engine.mjs && tauri build --config src-tauri/tauri.bundle.conf.json"
+  },
+  "dependencies": {
+    "@kahf/design": "github:Ahmad-AlModhayan/kahf-design#v1.1.0",
+    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/plugin-dialog": "2.8.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.3",
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  }
+}

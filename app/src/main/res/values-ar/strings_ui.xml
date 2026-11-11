@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- UI area: shared components, Fmt, vaults, onboarding, Drive browser, accounts. -->
+<resources>
+
+    <!-- components: files, conflicts, versions, health, log -->
+    <string name="components_action_to_bin">إلى سلة المحذوفات</string>
+    <string name="components_action_move">نقل</string>
+    <plurals name="components_unchanged_files">
+        <item quantity="zero">ملف مطابق ولن يُمسّ</item>
+        <item quantity="one">ملف مطابق ولن يُمسّ</item>
+        <item quantity="two">ملفان مطابقان ولن يُمسّا</item>
+        <item quantity="few">ملفات مطابقة ولن تُمسّ</item>
+        <item quantity="many">ملفًا مطابقًا ولن يُمسّ</item>
+        <item quantity="other">ملف مطابق ولن يُمسّ</item>
+    </plurals>
+    <string name="components_summary_a11y">%1$s %2$s</string>
+    <string name="components_conflict_changed_both">تغيّر على الجانبين</string>
+    <string name="components_conflict_on_phone">على الهاتف</string>
+    <string name="components_conflict_on_drive">على Drive</string>
+    <string name="components_conflict_keep_phone">الاحتفاظ بنسخة الهاتف</string>
+    <string name="components_conflict_keep_drive">الاحتفاظ بنسخة Drive</string>
+    <string name="components_conflict_bin_note">النسخة التي لا تحتفظ بها تذهب إلى سلة المحذوفات لمدة 30 يومًا.</string>
+    <string name="components_version_edited_phone">عُدّل على الهاتف</string>
+    <string name="components_version_edited_drive">عُدّل على Drive</string>
+    <string name="components_version_conflict_copy">نسخة تعارض</string>
+    <string name="components_version_restored">مستعادة</string>
+    <string name="components_version_current">الحالية</string>
+    <string name="components_version_save_copy">حفظ كنسخة</string>
+    <string name="components_health_check">تحقّق</string>
+    <string name="components_health_problem">مشكلة</string>
+    <string name="components_health_waiting">في الانتظار</string>
+    <string name="components_log_empty">لا شيء في السجل بعد.</string>
+
+    <!-- components: pairs, storage, paths -->
+    <string name="components_direction_two_way">في الاتجاهين</string>
+    <string name="components_direction_phone_to_drive">الهاتف ← Drive</string>
+    <string name="components_direction_drive_to_phone">Drive ← الهاتف</string>
+    <string name="components_storage_this_pair">هذا الربط</string>
+    <string name="components_storage_a11y">%1$s: %2$s %3$s، أخرى %4$s، متاح %5$s من %6$s</string>
+    <string name="components_storage_low_space">"مساحة منخفضة · "</string>
+    <string name="components_storage_free_of">%1$s متاحة من %2$s</string>
+    <string name="components_storage_legend_pair">%1$s %2$s</string>
+    <string name="components_storage_legend_other">أخرى %1$s</string>
+    <string name="components_storage_legend_free">متاح %1$s</string>
+    <string name="components_choose_phone_folder">اختيار مجلد الهاتف</string>
+    <string name="components_choose_drive_folder">اختيار مجلد Drive</string>
+    <string name="components_choose_a_folder">اختر مجلدًا</string>
+    <string name="components_more_for">المزيد لـ %1$s</string>
+    <string name="components_more_options">خيارات أخرى</string>
+
+    <!-- components: progress and status -->
+    <string name="components_progress_uploading">جارٍ رفع %1$s من %2$s</string>
+    <string name="components_progress_downloading">جارٍ تنزيل %1$s من %2$s</string>
+    <string name="components_progress_syncing">جارٍ مزامنة %1$s من %2$s</string>
+    <string name="components_progress_comparing">جارٍ مقارنة المجلدات…</string>
+    <plurals name="components_progress_comparing_checked">
+        <item quantity="zero">جارٍ مقارنة المجلدات… لم يُفحص أي ملف</item>
+        <item quantity="one">جارٍ مقارنة المجلدات… فُحص ملف واحد</item>
+        <item quantity="two">جارٍ مقارنة المجلدات… فُحص ملفان</item>
+        <item quantity="few">جارٍ مقارنة المجلدات… فُحصت %1$s ملفات</item>
+        <item quantity="many">جارٍ مقارنة المجلدات… فُحص %1$s ملفًا</item>
+        <item quantity="other">جارٍ مقارنة المجلدات… فُحص %1$s ملف</item>
+    </plurals>
+    <string name="components_progress_bytes">%1$s من %2$s</string>
+    <string name="components_status_syncing_percent">جارٍ المزامنة %1$s</string>
+    <plurals name="components_status_conflicts">
+        <item quantity="zero">%1$d تعارض</item>
+        <item quantity="one">تعارض واحد</item>
+        <item quantity="two">تعارضان</item>
+        <item quantity="few">%1$d تعارضات</item>
+        <item quantity="many">%1$d تعارضًا</item>
+        <item quantity="other">%1$d تعارض</item>
+    </plurals>
+    <plurals name="components_status_failed">
+        <item quantity="zero">فشل %1$d</item>
+        <item quantity="one">فشل واحد</item>
+        <item quantity="two">فشل اثنان</item>
+        <item quantity="few">فشل %1$d</item>
+        <item quantity="many">فشل %1$d</item>
+        <item quantity="other">فشل %1$d</item>
+    </plurals>
+
+    <!-- components: navigation, dialogs, permissions -->
+    <string name="components_nav_pairs">الروابط</string>
+    <string name="components_nav_problems">المشكلات</string>
+    <string name="components_nav_recycle_bin">سلة المحذوفات</string>
+    <string name="components_nav_bin">السلة</string>
+    <plurals name="components_nav_problems_need_you">
+        <item quantity="zero">لا شيء يحتاج إليك</item>
+        <item quantity="one">مشكلة واحدة تحتاج إليك</item>
+        <item quantity="two">مشكلتان تحتاجان إليك</item>
+        <item quantity="few">%1$d مشكلات تحتاج إليك</item>
+        <item quantity="many">%1$d مشكلة تحتاج إليك</item>
+        <item quantity="other">%1$d مشكلة تحتاج إليك</item>
+    </plurals>
+    <string name="components_breadcrumb_go_to">الانتقال إلى %1$s</string>
+    <string name="components_permission_allow">سماح</string>
+    <string name="components_permission_allowed">مسموح</string>
+
+    <!-- Fmt: numbers, times, intervals, paths. fmt_locale and fmt_pattern_* drive day and month names. -->
+    <string name="fmt_locale">ar</string>
+    <string name="fmt_pattern_day">EEEE</string>
+    <string name="fmt_pattern_date">d MMM</string>
+    <string name="fmt_pattern_date_year">d MMM yyyy</string>
+    <string name="fmt_pattern_date_time">d MMM، HH:mm</string>
+    <plurals name="fmt_files">
+        <item quantity="zero">%1$s ملف</item>
+        <item quantity="one">ملف واحد</item>
+        <item quantity="two">ملفان</item>
+        <item quantity="few">%1$s ملفات</item>
+        <item quantity="many">%1$s ملفًا</item>
+        <item quantity="other">%1$s ملف</item>
+    </plurals>
+    <string name="fmt_just_now_lower">الآن</string>
+    <string name="fmt_yesterday_lower">أمس</string>
+    <plurals name="fmt_minutes_ago">
+        <item quantity="zero">منذ %1$d دقيقة</item>
+        <item quantity="one">منذ دقيقة</item>
+        <item quantity="two">منذ دقيقتين</item>
+        <item quantity="few">منذ %1$d دقائق</item>
+        <item quantity="many">منذ %1$d دقيقة</item>
+        <item quantity="other">منذ %1$d دقيقة</item>
+    </plurals>
+    <plurals name="fmt_hours_ago">
+        <item quantity="zero">منذ %1$d ساعة</item>
+        <item quantity="one">منذ ساعة</item>
+        <item quantity="two">منذ ساعتين</item>
+        <item quantity="few">منذ %1$d ساعات</item>
+        <item quantity="many">منذ %1$d ساعة</item>
+        <item quantity="other">منذ %1$d ساعة</item>
+    </plurals>
+    <string name="fmt_today_at">اليوم %1$s</string>
+    <string name="fmt_yesterday_at">أمس %1$s</string>
+    <plurals name="fmt_eta_minutes">
+        <item quantity="zero">بقي نحو %1$d دقيقة</item>
+        <item quantity="one">بقيت نحو دقيقة</item>
+        <item quantity="two">بقي نحو دقيقتين</item>
+        <item quantity="few">بقي نحو %1$d دقائق</item>
+        <item quantity="many">بقي نحو %1$d دقيقة</item>
+        <item quantity="other">بقي نحو %1$d دقيقة</item>
+    </plurals>
+    <plurals name="fmt_eta_hours">
+        <item quantity="zero">بقي نحو %1$d ساعة</item>
+        <item quantity="one">بقيت نحو ساعة</item>
+        <item quantity="two">بقي نحو ساعتين</item>
+        <item quantity="few">بقي نحو %1$d ساعات</item>
+        <item quantity="many">بقي نحو %1$d ساعة</item>
+        <item quantity="other">بقي نحو %1$d ساعة</item>
+    </plurals>
+    <plurals name="fmt_every_days">
+        <item quantity="zero">كل %1$d يوم</item>
+        <item quantity="one">كل يوم</item>
+        <item quantity="two">كل يومين</item>
+        <item quantity="few">كل %1$d أيام</item>
+        <item quantity="many">كل %1$d يومًا</item>
+        <item quantity="other">كل %1$d يوم</item>
+    </plurals>
+    <plurals name="fmt_every_hours">
+        <item quantity="zero">كل %1$d ساعة</item>
+        <item quantity="one">كل ساعة</item>
+        <item quantity="two">كل ساعتين</item>
+        <item quantity="few">كل %1$d ساعات</item>
+        <item quantity="many">كل %1$d ساعة</item>
+        <item quantity="other">كل %1$d ساعة</item>
+    </plurals>
+    <plurals name="fmt_every_minutes">
+        <item quantity="zero">كل %1$d دقيقة</item>
+        <item quantity="one">كل دقيقة</item>
+        <item quantity="two">كل دقيقتين</item>
+        <item quantity="few">كل %1$d دقائق</item>
+        <item quantity="many">كل %1$d دقيقة</item>
+        <item quantity="other">كل %1$d دقيقة</item>
+    </plurals>
+    <string name="fmt_chosen_folder">المجلد المختار</string>
+    <string name="fmt_sd_card">بطاقة SD</string>
+    <string name="fmt_sd_card_path">بطاقة SD / %1$s</string>
+    <string name="fmt_internal_storage">وحدة التخزين الداخلية</string>
+
+    <!-- vaults -->
+    <string name="vaults_title">الخزائن</string>
+    <string name="vaults_join_from_other_phone">الانضمام إلى خزنة من هاتف آخر</string>
+    <string name="vaults_new_vault">خزنة جديدة</string>
+    <string name="vaults_empty_title">لا توجد خزائن بعد</string>
+    <string name="vaults_empty_body">تشفّر الخزنة الربط على هذا الهاتف قبل أن يصل أي شيء إلى Google Drive. لا يمكن قراءة أسماء الملفات ولا محتواها دون عبارة المرور الخاصة بها.</string>
+    <string name="vaults_create_vault">إنشاء خزنة</string>
+    <string name="vaults_join_a_vault">الانضمام إلى خزنة</string>
+    <string name="vaults_intro">تحتفظ الخزنة المفتوحة بمفاتيحها على هذا الهاتف، محمية بمخزن مفاتيح Android، لتعمل المزامنة في الخلفية. أقفلها لتُطلب منك عبارة المرور من جديد.</string>
+    <string name="vaults_in_use_title">هذه الخزنة مستخدمة</string>
+    <plurals name="vaults_in_use_body">
+        <item quantity="zero">%1$d ربط يستخدم «%2$s». احذفها أو انقلها إلى خزنة أخرى أولًا، وإلا فلن تُقرأ ملفاتها المشفّرة أبدًا.</item>
+        <item quantity="one">ربط واحد يستخدم «%2$s». احذفه أو انقله إلى خزنة أخرى أولًا، وإلا فلن تُقرأ ملفاته المشفّرة أبدًا.</item>
+        <item quantity="two">ربطان يستخدمان «%2$s». احذفهما أو انقلهما إلى خزنة أخرى أولًا، وإلا فلن تُقرأ ملفاتهما المشفّرة أبدًا.</item>
+        <item quantity="few">%1$d روابط تستخدم «%2$s». احذفها أو انقلها إلى خزنة أخرى أولًا، وإلا فلن تُقرأ ملفاتها المشفّرة أبدًا.</item>
+        <item quantity="many">%1$d ربطًا يستخدم «%2$s». احذفها أو انقلها إلى خزنة أخرى أولًا، وإلا فلن تُقرأ ملفاتها المشفّرة أبدًا.</item>
+        <item quantity="other">%1$d ربط يستخدم «%2$s». احذفها أو انقلها إلى خزنة أخرى أولًا، وإلا فلن تُقرأ ملفاتها المشفّرة أبدًا.</item>
+    </plurals>
+    <string name="vaults_delete_title">حذف الخزنة «%1$s»؟</string>
+    <string name="vaults_delete_body">يزيل هذا الخزنة ومفاتيحها من هذا الهاتف، ولا يمكن التراجع عنه هنا. تبقى الملفات المشفّرة على Drive كما هي، ويمكنك الانضمام إلى الخزنة مجددًا ببيانها وعبارة المرور. ودون عبارة المرور لا يمكن قراءتها أبدًا.</string>
+    <string name="vaults_delete_vault">حذف الخزنة</string>
+    <string name="vaults_unlocked_on_phone">مفتوحة على هذا الهاتف</string>
+    <string name="vaults_locked">مقفلة</string>
+    <string name="vaults_show_manifest">عرض البيان</string>
+    <string name="vaults_used_by">مستخدمة في</string>
+    <string name="vaults_no_pairs">لا روابط</string>
+    <plurals name="vaults_pairs">
+        <item quantity="zero">%1$d ربط</item>
+        <item quantity="one">ربط واحد</item>
+        <item quantity="two">ربطان</item>
+        <item quantity="few">%1$d روابط</item>
+        <item quantity="many">%1$d ربطًا</item>
+        <item quantity="other">%1$d ربط</item>
+    </plurals>
+    <string name="vaults_created">أُنشئت</string>
+    <string name="vaults_key">المفتاح</string>
+    <string name="vaults_key_value">PBKDF2-SHA256، %1$s دورة</string>
+    <string name="vaults_key_value_v2">Argon2id، صيغة الخزنة 2</string>
+    <string name="vaults_key_value_v21">Argon2id، صيغة الخزنة 2.1</string>
+    <plurals name="vaults_locked_callout">
+        <item quantity="zero">لا يمكن لـ %1$d ربط المزامنة حتى تُفتح هذه الخزنة.</item>
+        <item quantity="one">لا يمكن لربط واحد المزامنة حتى تُفتح هذه الخزنة.</item>
+        <item quantity="two">لا يمكن لربطين المزامنة حتى تُفتح هذه الخزنة.</item>
+        <item quantity="few">لا يمكن لـ %1$d روابط المزامنة حتى تُفتح هذه الخزنة.</item>
+        <item quantity="many">لا يمكن لـ %1$d ربطًا المزامنة حتى تُفتح هذه الخزنة.</item>
+        <item quantity="other">لا يمكن لـ %1$d ربط المزامنة حتى تُفتح هذه الخزنة.</item>
+    </plurals>
+    <string name="vaults_lock">قفل</string>
+    <string name="vaults_unlock">فتح</string>
+    <string name="vaults_hide_passphrase">إخفاء عبارة المرور</string>
+    <string name="vaults_show_passphrase">إظهار عبارة المرور</string>
+    <string name="vaults_vault_name">اسم الخزنة</string>
+    <string name="vaults_passphrase">عبارة المرور</string>
+    <string name="vaults_passphrase_helper">%1$d أحرف على الأقل. جملة من عدة كلمات سهلة التذكّر وقوية.</string>
+    <string name="vaults_strength">القوة: %1$s</string>
+    <string name="vaults_repeat_passphrase">أعد إدخال عبارة المرور</string>
+    <string name="vaults_passphrase_mismatch">عبارتا المرور غير متطابقتين</string>
+    <string name="vaults_lose_passphrase_warning">إن فقدت عبارة المرور، فُقدت ملفات هذه الخزنة. لا أحد يستطيع استعادتها: لا Google ولا وصل. اكتبها واحفظها في مكان آمن.</string>
+    <string name="vaults_making_keys">جارٍ إنشاء المفاتيح. يستغرق هذا بضع ثوانٍ عن قصد.</string>
+    <string name="vaults_unlock_title">فتح «%1$s»</string>
+    <string name="vaults_unlock_body">أدخل عبارة مرور الخزنة. تبقى المفاتيح على هذا الهاتف حتى تقفل الخزنة.</string>
+    <string name="vaults_checking_passphrase">جارٍ التحقق من عبارة المرور. يستغرق هذا بضع ثوانٍ عن قصد.</string>
+    <string name="vaults_join_vault">انضمام</string>
+    <string name="vaults_join_body">لخزنة أُنشئت على هاتف آخر. الصق بيانها (الخزائن › عرض البيان › نسخ البيان هناك، أو vault.json من مجلد Drive)، ثم أدخل عبارة المرور نفسها.</string>
+    <string name="vaults_manifest_label">البيان (vault.json)</string>
+    <string name="vaults_clipboard_empty">الحافظة فارغة. انسخ البيان أولًا.</string>
+    <string name="vaults_paste_clipboard">لصق من الحافظة</string>
+    <string name="vaults_name_on_phone">الاسم على هذا الهاتف (اختياري)</string>
+    <string name="vaults_name_on_phone_helper">اتركه فارغًا للإبقاء على اسم الخزنة الأصلي</string>
+    <string name="vaults_manifest_title">بيان «%1$s»</string>
+    <string name="vaults_copied">نُسخ</string>
+    <string name="vaults_copy_manifest">نسخ البيان</string>
+    <string name="vaults_manifest_body">هذا هو ملف vault.json المحفوظ في مجلد الخزنة على Drive. يحوي الملح وأداة للتحقق من عبارة المرور، ولا يحوي مفاتيح: دون عبارة المرور لا فائدة منه. الصقه على هاتف آخر في الخزائن › الانضمام إلى خزنة.</string>
+    <string name="vaults_failed_create">تعذّر إنشاء الخزنة: %1$s</string>
+    <string name="vaults_failed_unlock">تعذّر الفتح: %1$s</string>
+    <string name="vaults_failed_lock">تعذّر القفل: %1$s</string>
+    <string name="vaults_failed_delete">تعذّر الحذف: %1$s</string>
+    <string name="vaults_failed_join">تعذّر الانضمام: %1$s</string>
+    <string name="vaults_msg_created">الخزنة «%1$s» جاهزة ومفتوحة. اربطها بربط مجلدات (التشفير بخزنة) لبدء التشفير.</string>
+    <string name="vaults_wrong_passphrase">عبارة المرور خاطئة. تحقّق منها وحاول مجددًا.</string>
+    <string name="vaults_msg_locked">أُقفلت الخزنة. تتوقف الروابط التي تستخدمها عن المزامنة حتى تُفتح من جديد.</string>
+    <string name="vaults_msg_deleted">أُزيلت الخزنة من هذا الجهاز. لم تُمسّ الملفات المشفّرة على Drive.</string>
+    <string name="vaults_wrong_passphrase_join">عبارة المرور خاطئة لهذه الخزنة. تحقّق منها وحاول مجددًا.</string>
+    <string name="vaults_msg_joined">انضممت إلى الخزنة «%1$s». إنها مفتوحة على هذا الجهاز.</string>
+    <string name="vaults_strength_too_short">قصيرة جدًا</string>
+    <string name="vaults_strength_weak">ضعيفة</string>
+    <string name="vaults_strength_fair">مقبولة</string>
+    <string name="vaults_strength_good">جيدة</string>
+    <string name="vaults_strength_strong">قوية</string>
+    <string name="vaults_hint_too_short">قصيرة جدًا: استخدم %1$d أحرف على الأقل. جملة من عدة كلمات سهلة التذكّر وقوية.</string>
+    <string name="vaults_hint_weak">ضعيفة: أضف كلمات أو أرقامًا أو رموزًا.</string>
+    <string name="vaults_hint_fair">مقبولة: عبارة أطول ستكون أكثر أمانًا.</string>
+    <string name="vaults_hint_good">جيدة.</string>
+    <string name="vaults_hint_strong">قوية.</string>
+
+    <!-- onboarding -->
+    <string name="onboarding_autostart_missing">هذه الشاشة غير موجودة على هذا الهاتف، لذا فُتحت إعدادات التطبيق في Android. ابحث هناك عن البطارية أو التشغيل التلقائي أو الخلفية.</string>
+    <string name="onboarding_set_up_later">الإعداد لاحقًا</string>
+    <string name="onboarding_get_started">لنبدأ</string>
+    <string name="onboarding_continue">متابعة</string>
+    <string name="onboarding_open_android_settings">فتح إعدادات Android</string>
+    <string name="onboarding_welcome_title">هاتفك وDrive، متطابقان دائمًا</string>
+    <string name="onboarding_welcome_body">اربط مجلدًا على هذا الهاتف بمجلد في Google Drive، أو بحاسوبك مباشرةً. يُبقيهما وصل متطابقين، بهدوء، في الاتجاهين.</string>
+    <string name="onboarding_promise_preview_title">ترى التغييرات قبل حدوثها</string>
+    <string name="onboarding_promise_preview_body">كل ربط جديد يبدأ بمعاينة.</string>
+    <string name="onboarding_promise_bin_title">لا يضيع شيء لمدة 30 يومًا</string>
+    <string name="onboarding_promise_bin_body">تنتظر الملفات المحذوفة في سلة المحذوفات.</string>
+    <string name="onboarding_promise_privacy_title">لا إعلانات ولا تتبّع</string>
+    <string name="onboarding_promise_privacy_body">تنتقل ملفاتك إلى Drive الخاص بك وإلى أجهزتك. ولا مكان غيرها.</string>
+    <string name="onboarding_needs_title">ما يحتاجه وصل</string>
+    <string name="onboarding_needs_body">الأول وحده مطلوب. لكلٍّ منها مهمة واحدة.</string>
+    <string name="onboarding_perm_drive_title">Google Drive</string>
+    <string name="onboarding_perm_drive_why">قراءة مجلدات Drive التي تربطها والكتابة فيها.</string>
+    <string name="onboarding_sign_in">تسجيل الدخول</string>
+    <string name="onboarding_signing_in">جارٍ تسجيل الدخول…</string>
+    <string name="onboarding_perm_files_title">الملفات على هذا الهاتف</string>
+    <string name="onboarding_perm_files_why">اختيار المجلدات بمسارها. بدونه يستخدم كل ربط أداة اختيار المجلدات في Android.</string>
+    <string name="onboarding_perm_notifications_title">الإشعارات</string>
+    <string name="onboarding_perm_notifications_why">التقدّم، وتنبيه عند الحاجة.</string>
+    <string name="onboarding_perm_background_title">الخلفية</string>
+    <string name="onboarding_perm_background_why">بدء المزامنات المجدولة في وقتها.</string>
+    <string name="onboarding_vendor_title">هواتف %1$s تحتاج خطوة إضافية</string>
+    <string name="onboarding_open_autostart">فتح إعدادات التشغيل التلقائي</string>
+    <string name="onboarding_storage_title">كيف يصل وصل إلى ملفاتك؟</string>
+    <string name="onboarding_storage_body">في الحالتين، لا يزامن إلا المجلدات التي تربطها.</string>
+    <string name="onboarding_storage_all_files_body">تصفّح أي مجلد من داخل وصل، بما فيه Download. يعرض Android مفتاحًا لتفعيله.</string>
+    <string name="onboarding_storage_one_folder_title">مجلد واحد في كل مرة</string>
+    <string name="onboarding_storage_one_folder_body">استخدم أداة اختيار المجلدات في Android لكل ربط. بعض المجلدات، مثل Download، لا يمكن اختيارها بهذه الطريقة.</string>
+    <string name="onboarding_storage_android_data">لا يسمح Android أبدًا للتطبيقات بمزامنة Android/data أو Android/obb، أيًّا كان اختيارك.</string>
+    <string name="onboarding_step_of">الخطوة %1$d من %2$d</string>
+    <string name="onboarding_vendor_xiaomi">يوقف MIUI وHyperOS التطبيقات في الخلفية ما لم يكن التشغيل التلقائي مفعّلًا وتوفير البطارية مضبوطًا على «بلا قيود». تطبيق الأمان ← إدارة التطبيقات ← وصل ← فعّل التشغيل التلقائي، ثم توفير البطارية ← بلا قيود. وثبّت التطبيق أيضًا في التطبيقات الأخيرة (اسحبه لأسفل واضغط القفل).</string>
+    <string name="onboarding_vendor_huawei">يغلق EMUI وMagic UI التطبيقات غير المضبوطة على «الإدارة يدويًا». الإعدادات ← التطبيقات ← تشغيل التطبيقات ← وصل ← أوقف الإدارة التلقائية، ثم فعّل التشغيل التلقائي والتشغيل الثانوي والعمل في الخلفية.</string>
+    <string name="onboarding_vendor_samsung">يضع One UI التطبيقات غير المستخدمة في وضع السكون. الإعدادات ← البطارية ← حدود الاستخدام في الخلفية ← تأكد أن وصل ليس في «التطبيقات النائمة» أو «التطبيقات في سبات عميق» وأضفه إلى «التطبيقات التي لا تنام أبدًا». وإن بقيت المزامنة متوقفة، أوقف «وضع التطبيقات غير المستخدمة في السكون» والبطارية التكيّفية.</string>
+    <string name="onboarding_vendor_oppo">يمنع ColorOS وRealme UI العمل في الخلفية ما لم يُسمح بالتشغيل التلقائي. الإعدادات ← التطبيقات ← وصل ← اسمح بالتشغيل التلقائي، ثم البطارية ← السماح بالنشاط في الخلفية. وثبّت التطبيق أيضًا في التطبيقات الأخيرة.</string>
+    <string name="onboarding_vendor_vivo">يحتاج Funtouch OS وOriginOS إلى السماح بالتشغيل التلقائي في الخلفية واستهلاك الطاقة العالي في الخلفية. i Manager ← مدير التطبيقات ← مدير التشغيل التلقائي ← فعّل وصل، ثم الإعدادات ← البطارية ← إدارة استهلاك الطاقة في الخلفية ← اسمح لوصل.</string>
+    <string name="onboarding_vendor_oneplus">يُحسّن OxygenOS البطارية بشدة. الإعدادات ← البطارية ← تحسين البطارية ← وصل ← عدم التحسين، ثم الإعدادات ← التطبيقات ← وصل ← استخدام البطارية ← السماح بالنشاط في الخلفية. وأوقف «تحسين الاستعداد أثناء النوم» إن وُجد.</string>
+    <string name="onboarding_vendor_asus">قد يوقف Mobile Manager التطبيقات في الخلفية. Mobile Manager ← PowerMaster ← مدير التشغيل التلقائي ← اسمح لوصل، وأوقف «التنظيف عند التعليق» و«منع التشغيل التلقائي للتطبيقات».</string>
+    <string name="onboarding_vendor_lenovo">تأتي بعض طرازات Lenovo وMotorola بمدير للتطبيقات في الخلفية يغلقها. الإعدادات ← البطارية ← تحسين البطارية ← وصل ← عدم التحسين، وابحث في الإعدادات عن «تطبيقات الخلفية» أو «مدير الطاقة».</string>
+    <string name="onboarding_vendor_nothing">نظام Nothing OS قريب من Android الأصلي، والإعفاء المعتاد من تحسين البطارية يكفي عادةً. وإن بقيت المزامنة متوقفة: الإعدادات ← التطبيقات ← وصل ← البطارية ← غير مقيّد.</string>
+
+    <!-- drive browser -->
+    <string name="drive_place_my_drive">ملفاتي</string>
+    <string name="drive_place_shared_with_me">تمت مشاركتها معي</string>
+    <string name="drive_place_shared_drives">مساحات الدرايف المشتركة</string>
+    <string name="drive_account_not_connected">الحساب %1$s غير متصل على هذا الهاتف.</string>
+    <string name="drive_folder">مجلد</string>
+    <string name="drive_note_kept_offline">سيُحتفظ بـ«%1$s» دون اتصال</string>
+    <string name="drive_note_no_longer_offline">لم يعد «%1$s» محفوظًا دون اتصال</string>
+    <string name="drive_failure_keep_offline">تعذّر الاحتفاظ بـ«%1$s» دون اتصال</string>
+    <string name="drive_failure_change">تعذّر تغيير «%1$s»</string>
+    <string name="drive_busy_saving">جارٍ حفظ %1$s…</string>
+    <string name="drive_cannot_export">لا يمكن تصدير هذا النوع من ملفات Google.</string>
+    <string name="drive_busy_exporting_kb">جارٍ تصدير %1$s… %2$d كيلوبايت</string>
+    <string name="drive_busy_saving_percent">جارٍ حفظ %1$s… %2$d%%</string>
+    <string name="drive_busy_saving_kb">جارٍ حفظ %1$s… %2$d كيلوبايت</string>
+    <string name="drive_saved_to_downloads">حُفظ في Downloads/%1$s</string>
+    <string name="drive_failure_save">تعذّر حفظ «%1$s»</string>
+    <string name="drive_no_files_app">لا يوجد تطبيق ملفات على هذا الهاتف يستطيع فتح ملفات وصل</string>
+    <string name="drive_no_drive_app">لا يوجد تطبيق على هذا الهاتف يستطيع فتح روابط Google Drive</string>
+    <string name="drive_search_drive">البحث في Drive</string>
+    <string name="drive_browse_drive">تصفّح Drive</string>
+    <string name="drive_refresh_folder">تحديث هذا المجلد</string>
+    <string name="drive_open_in_files">فتح في تطبيق الملفات</string>
+    <string name="drive_search_label">اسم الملف أو المجلد</string>
+    <string name="drive_search_indexing">يعتمد البحث على فهرس Drive، وما زال قيد الإنشاء. حاول مجددًا بعد بضع دقائق.</string>
+    <string name="drive_indexing_shared">جارٍ فهرسة Drive. تظهر العناصر المشتركة مع اكتمال الفهرس.</string>
+    <string name="drive_indexing_folders">جارٍ فهرسة Drive. تُعرض المجلدات مباشرة من Drive حتى يجهز الفهرس.</string>
+    <string name="drive_dismiss">إغلاق</string>
+    <string name="drive_search_prompt">اكتب للبحث في كل ملفات هذا الحساب ومجلداته.</string>
+    <string name="drive_no_matches">لا نتائج</string>
+    <string name="drive_no_matches_body">لا شيء في الفهرس يطابق «%1$s».</string>
+    <string name="drive_listing">جارٍ العرض…</string>
+    <string name="drive_list_failed">تعذّر عرض هذا المجلد</string>
+    <string name="drive_searching">جارٍ البحث…</string>
+    <string name="drive_stop_keeping_offline">إيقاف الحفظ دون اتصال</string>
+    <string name="drive_keep_offline">الحفظ دون اتصال</string>
+    <string name="drive_open_folder">فتح المجلد</string>
+    <string name="drive_pair_with_phone_folder">ربطه بمجلد على الهاتف</string>
+    <string name="drive_save_office_copy">حفظ كملف Office في Downloads</string>
+    <string name="drive_save_copy">حفظ نسخة في Downloads</string>
+    <string name="drive_open_in_google_drive">فتح في Google Drive</string>
+    <string name="drive_offline">دون اتصال</string>
+    <string name="drive_type_doc">مستند Google</string>
+    <string name="drive_type_sheet">جدول بيانات Google</string>
+    <string name="drive_type_slides">عرض تقديمي من Google</string>
+    <string name="drive_type_form">نموذج Google</string>
+    <string name="drive_type_drawing">رسم Google</string>
+    <string name="drive_type_google_file">ملف Google</string>
+    <string name="drive_shortcut">اختصار</string>
+    <plurals name="drive_shared_with_people">
+        <item quantity="zero">مشترك · لا أحد يرى التغييرات</item>
+        <item quantity="one">مشترك · شخص واحد يرى التغييرات</item>
+        <item quantity="two">مشترك · شخصان يريان التغييرات</item>
+        <item quantity="few">مشترك · %1$d أشخاص يرون التغييرات</item>
+        <item quantity="many">مشترك · %1$d شخصًا يرون التغييرات</item>
+        <item quantity="other">مشترك · %1$d شخص يرون التغييرات</item>
+    </plurals>
+    <string name="drive_shared">مشترك</string>
+    <string name="drive_empty_folder">هذا المجلد فارغ</string>
+    <string name="drive_empty_shared_with_me">لا شيء تمت مشاركته معك</string>
+    <string name="drive_empty_shared_drives">لا توجد مساحات درايف مشتركة</string>
+    <string name="drive_empty_my_drive">«ملفاتي» فارغ</string>
+
+    <!-- accounts -->
+    <string name="accounts_setup_title">تسجيل الدخول عبر Google غير مُعدّ لهذا الإصدار</string>
+    <string name="accounts_setup_body">رفضت Google تسجيل الدخول لأن اسم حزمة هذا الإصدار وشهادة توقيعه غير مسجّلين كعميل OAuth لنظام Android في مشروع Google Cloud المفعّل فيه Drive API. الخطوات في docs/SETUP.md.</string>
+    <string name="accounts_hide">إخفاء</string>
+    <string name="accounts_msg_signin_screen_failed">تعذّر فتح شاشة تسجيل الدخول عبر Google. حاول مجددًا.</string>
+    <string name="accounts_msg_signin_cancelled">أُلغي تسجيل الدخول. لم يتغيّر شيء.</string>
+    <string name="accounts_no_email">لم تشارك Google عنوان البريد الإلكتروني للحساب. حاول مجددًا.</string>
+    <plurals name="accounts_msg_restored_pairs">
+        <item quantity="zero">يمكن لـ %1$d ربط مُستعاد المزامنة من جديد.</item>
+        <item quantity="one">يمكن لربط مُستعاد واحد المزامنة من جديد.</item>
+        <item quantity="two">يمكن لربطين مُستعادين المزامنة من جديد.</item>
+        <item quantity="few">يمكن لـ %1$d روابط مُستعادة المزامنة من جديد.</item>
+        <item quantity="many">يمكن لـ %1$d ربطًا مُستعادًا المزامنة من جديد.</item>
+        <item quantity="other">يمكن لـ %1$d ربط مُستعاد المزامنة من جديد.</item>
+    </plurals>
+    <string name="accounts_msg_added_other">اخترت %1$s وليس %2$s، لذا أُضيف كحساب آخر.</string>
+    <string name="accounts_msg_added">أُضيف %1$s. جارٍ قراءة قائمة مجلداته على Drive.</string>
+    <string name="accounts_msg_signed_in_again">سُجّل الدخول إلى %1$s من جديد.</string>
+    <string name="accounts_reauth_required">يلزم تسجيل الدخول من جديد</string>
+    <string name="accounts_msg_updated">حُدّث %1$s: تم تسجيل الدخول وفُحصت المساحة.</string>
+    <string name="accounts_msg_disconnected">فُصل %1$s. لم تُمسّ الملفات على هاتفك ولا على Drive.</string>
+    <string name="accounts_msg_access_revoked">سُحب إذن وصل إلى حساب Google هذا.</string>
+    <string name="accounts_msg_access_not_revoked">تعذّر الوصول إلى Google لسحب إذن وصل؛ أزله من حساب Google، ثم الأمان، ثم الاتصالات بجهات خارجية.</string>
+    <string name="accounts_title">حسابات Google</string>
+    <string name="accounts_disconnect_title">فصل %1$s؟</string>
+    <string name="accounts_disconnect_body_none">سينسى وصل هذا الحساب. تبقى الملفات على هاتفك وعلى Drive في مكانها. لا يمكن التراجع عن هذا: للمزامنة مجددًا، سجّل الدخول وأعد إعداد الروابط.</string>
+    <plurals name="accounts_disconnect_body">
+        <item quantity="zero">تتوقف مزامنة روابطه الـ%1$s، وينساها وصل. تبقى الملفات على هاتفك وعلى Drive في مكانها. لا يمكن التراجع عن هذا: للمزامنة مجددًا، سجّل الدخول وأعد إعداد الروابط.</item>
+        <item quantity="one">تتوقف مزامنة ربطه الوحيد، وينساه وصل. تبقى الملفات على هاتفك وعلى Drive في مكانها. لا يمكن التراجع عن هذا: للمزامنة مجددًا، سجّل الدخول وأعد إعداد الروابط.</item>
+        <item quantity="two">تتوقف مزامنة ربطيه، وينساهما وصل. تبقى الملفات على هاتفك وعلى Drive في مكانها. لا يمكن التراجع عن هذا: للمزامنة مجددًا، سجّل الدخول وأعد إعداد الروابط.</item>
+        <item quantity="few">تتوقف مزامنة روابطه الـ%1$s، وينساها وصل. تبقى الملفات على هاتفك وعلى Drive في مكانها. لا يمكن التراجع عن هذا: للمزامنة مجددًا، سجّل الدخول وأعد إعداد الروابط.</item>
+        <item quantity="many">تتوقف مزامنة روابطه الـ%1$s، وينساها وصل. تبقى الملفات على هاتفك وعلى Drive في مكانها. لا يمكن التراجع عن هذا: للمزامنة مجددًا، سجّل الدخول وأعد إعداد الروابط.</item>
+        <item quantity="other">تتوقف مزامنة روابطه الـ%1$s، وينساها وصل. تبقى الملفات على هاتفك وعلى Drive في مكانها. لا يمكن التراجع عن هذا: للمزامنة مجددًا، سجّل الدخول وأعد إعداد الروابط.</item>
+    </plurals>
+    <string name="accounts_disconnect">فصل</string>
+    <string name="accounts_refresh">تحديث</string>
+    <string name="accounts_working">جارٍ العمل على هذا الحساب</string>
+    <string name="accounts_sign_in_again">تسجيل الدخول من جديد</string>
+    <string name="accounts_storage_used_no_limit">المستخدم %1$s · لا حد للمساحة</string>
+    <string name="accounts_storage_not_checked">لم تُفحص المساحة بعد</string>
+    <string name="accounts_no_pairs_yet">لا روابط بعد</string>
+    <plurals name="accounts_pairs">
+        <item quantity="zero">%1$s ربط</item>
+        <item quantity="one">ربط واحد</item>
+        <item quantity="two">ربطان</item>
+        <item quantity="few">%1$s روابط</item>
+        <item quantity="many">%1$s ربطًا</item>
+        <item quantity="other">%1$s ربط</item>
+    </plurals>
+    <string name="accounts_index_reading">جارٍ قراءة قائمة مجلداتك على Drive. تستغرق مساحات Drive الكبيرة بضع دقائق، ويمكنك إضافة روابط في الأثناء.</string>
+    <string name="accounts_index_failed">تعذّرت قراءة قائمة مجلدات Drive. %1$s</string>
+    <string name="accounts_index_never">لم تُقرأ قائمة مجلدات Drive بعد. تحتاجها أدوات اختيار المجلدات والمعاينات.</string>
+    <string name="accounts_index_read_now">اقرأها الآن</string>
+    <string name="accounts_index_updated">%1$s · حُدّثت قائمة المجلدات %2$s</string>
+    <string name="accounts_intro_title">لا يوجد حساب Google بعد</string>
+    <string name="accounts_intro_body">أضف حساب Google الذي تريد مزامنة Drive الخاص به. كل ربط ينتمي إلى حساب واحد. تتولى خدمات Google Play تسجيل الدخول، فلا يرى وصل كلمة مرورك أبدًا.</string>
+    <string name="accounts_waiting_for_google">في انتظار Google…</string>
+    <string name="accounts_add_google_account">إضافة حساب Google</string>
+    <string name="accounts_add_scope_note">تطلب Google الوصول إلى Drive بالكامل، ليمكن مزامنة أي مجلد تختاره، بما في ذلك مساحات الدرايف المشتركة.</string>
+    <string name="accounts_restore_from_backup">استعادة الروابط من نسخة احتياطية</string>
+    <!-- TalkBack name of a permission button: the action, then the row it belongs to. -->
+    <string name="components_permission_button_described">%1$s، %2$s</string>
+</resources>

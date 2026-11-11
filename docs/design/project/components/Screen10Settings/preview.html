@@ -1,0 +1,37 @@
+<!-- @dsCard group="Screens" page height=1110 width=868 subtitle="10 · Settings" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Settings screen — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+const { Showcase, PhoneFrame, Screen, TopAppBar, IconButton, Button, NavigationBar, SettingRow, SectionHeader, StorageBar, Icon } = window.DriveSync;
+function Top() {
+  return /* @__PURE__ */ React.createElement(Screen, { appbar: /* @__PURE__ */ React.createElement(TopAppBar, { nav: null, title: "Settings" }), nav: /* @__PURE__ */ React.createElement(NavigationBar, { active: "settings" }) }, /* @__PURE__ */ React.createElement("div", { style: { margin: "0 16px 4px", padding: 16, borderRadius: 16, background: "var(--surface-container-low)", border: "1px solid var(--outline-variant)", display: "grid", gap: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "grid", placeItems: "center", width: 40, height: 40, borderRadius: 20, background: "var(--tertiary-container)", color: "var(--on-tertiary-container)", font: "600 16px/1 var(--font-sans)" } }, "A"), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { className: "title-medium" }, "Google account"), /* @__PURE__ */ React.createElement("div", { className: "body-medium", style: { color: "var(--on-surface-variant)" } }, "you@gmail.com")), /* @__PURE__ */ React.createElement(Button, { variant: "outlined", size: "sm" }, "Switch")), /* @__PURE__ */ React.createElement(StorageBar, { side: "drive", total: 15, pair: 6.8, other: 2.7, compact: true, label: "Drive storage" })), /* @__PURE__ */ React.createElement(SectionHeader, null, "Sync"), /* @__PURE__ */ React.createElement(SettingRow, { icon: "pause", title: "Pause all syncing", control: "switch", on: false }), /* @__PURE__ */ React.createElement(SettingRow, { icon: "wifi", title: "Only on Wi-Fi", summary: "Default for new pairs", control: "switch", on: true }), /* @__PURE__ */ React.createElement(SettingRow, { icon: "schedule", title: "Check for changes", summary: "When files change, and every 6 hours", control: "chevron" }), /* @__PURE__ */ React.createElement(SectionHeader, null, "Safety"), /* @__PURE__ */ React.createElement(SettingRow, { icon: "front_hand", title: "Ask before large deletes", summary: "More than 20 files or 5% of a folder", control: "switch", on: true }), /* @__PURE__ */ React.createElement(SettingRow, { icon: "call_split", title: "When both copies change", summary: "Keep both and ask me", control: "chevron" }));
+}
+function Lower() {
+  return /* @__PURE__ */ React.createElement(Screen, { appbar: /* @__PURE__ */ React.createElement(TopAppBar, { nav: null, title: "Settings", scrolled: true }), nav: /* @__PURE__ */ React.createElement(NavigationBar, { active: "settings" }) }, /* @__PURE__ */ React.createElement(SettingRow, { icon: "auto_delete", title: "Keep removed files", summary: "Recycle bin", control: "value", value: "30 days" }), /* @__PURE__ */ React.createElement(SectionHeader, null, "Appearance"), /* @__PURE__ */ React.createElement(SettingRow, { icon: "palette", title: "Colours from wallpaper", summary: "Off: Drive Sync green", control: "switch", on: true }), /* @__PURE__ */ React.createElement(SettingRow, { icon: "dark_mode", title: "Theme", control: "value", value: "System" }), /* @__PURE__ */ React.createElement(SectionHeader, null, "About"), /* @__PURE__ */ React.createElement(SettingRow, { icon: "monitor_heart", title: "Diagnostics", control: "chevron" }), /* @__PURE__ */ React.createElement(SettingRow, { icon: "shield", title: "Privacy", summary: "No ads, no analytics. Files go only to your Drive.", control: "chevron" }), /* @__PURE__ */ React.createElement(SettingRow, { icon: "logout", title: "Disconnect Google account", danger: true, control: null }));
+}
+function App() {
+  return /* @__PURE__ */ React.createElement(
+    Showcase,
+    {
+      narrow: true,
+      title: "Settings",
+      intro: "Defaults for new pairs, the safety rules, and appearance. Every setting that weakens a safety default says so in its summary.",
+      notes: [
+        ["Safety has its own section", "Large-delete approval, conflict handling, bin retention and versions sit together, so their trade-offs are read together."],
+        ["Dynamic colour is optional", "On by default on Android 12+. Off, the app uses the Drive Sync green palette. Status colours never change either way."],
+        ["One destructive row", "Disconnect is the only red row; it confirms, and it stops syncing without deleting any file."]
+      ]
+    },
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Account, sync and safety" }, /* @__PURE__ */ React.createElement(Top, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Scrolled: bin, appearance, about" }, /* @__PURE__ */ React.createElement(Lower, null))
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
+})();
+</script>
+</body>
+</html>

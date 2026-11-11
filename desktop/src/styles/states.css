@@ -1,0 +1,142 @@
+/* First run, the app-wide banner's quiet tone, empty panes and a screen's own failure (#70, design S.onboarding,
+   S.empty, S.errors). Logical properties only, so Arabic mirrors. */
+
+/* ---------- The banner's quiet tone: starting, offline (design .banner.k-wait) ---------- */
+.shell-banner.status-waiting {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 4%, var(--kf-desk-content));
+  color: var(--md-sys-color-on-surface);
+  box-shadow: inset 0 0 0 1px var(--kf-desk-separator);
+}
+.shell-banner.status-waiting > .line-icon { color: var(--md-sys-color-on-surface-variant); }
+.shell-banner-text p + p { opacity: 0.88; }
+@media (prefers-reduced-motion: no-preference) {
+  .shell-banner[aria-busy="true"] > .line-icon { animation: spin 2.4s linear infinite; }
+}
+
+/* ---------- Empty panes ---------- */
+.state-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: var(--kf-space-8) var(--kf-space-6); text-align: center;
+}
+.state-empty > .line-icon { color: var(--md-sys-color-on-surface-variant); stroke-width: 1.4; }
+.state-empty-title { margin: 0; font: var(--kf-desk-font-title); }
+.state-empty-body { margin: 0; max-inline-size: 420px; color: var(--md-sys-color-on-surface-variant); }
+.state-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-block-start: 4px; }
+
+/* ---------- A screen's own failure, in the pane ---------- */
+.state-callout {
+  display: flex; align-items: center; gap: 12px; margin: 0 0 var(--kf-space-3); padding: 10px 14px;
+  border-radius: var(--kf-desk-radius-pane); background: var(--status-bg); color: var(--status-fg);
+}
+.state-callout > .line-icon { color: var(--status-fg); }
+.state-callout-text { flex: 1; min-inline-size: 0; margin: 0; }
+.state-callout .kf-desk-btn { color: var(--md-sys-color-on-surface); }
+
+/* A plain button (Skip for now): no border, no fill until hovered. */
+.kf-desk-btn.kf-desk-btn-plain { border-color: transparent; }
+
+/* ---------- First run ---------- */
+.first-run { display: flex; block-size: 100%; min-block-size: 0; background: var(--kf-desk-content); color: var(--md-sys-color-on-surface); }
+.first-run-side {
+  display: flex; flex-direction: column; gap: 18px; flex: none; inline-size: 230px; box-sizing: border-box;
+  padding: 20px 16px; border-inline-end: 1px solid var(--kf-desk-separator);
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 3%, var(--kf-desk-content));
+}
+/* macOS: the traffic lights sit over the top of the window. */
+.kf-desktop[data-kf-platform="mac"] .first-run-side { padding-block-start: 52px; }
+.first-run-brand { display: flex; align-items: center; gap: 8px; color: var(--md-sys-color-primary); }
+.first-run-brand b { font-size: 17px; color: var(--md-sys-color-on-surface); }
+.first-run-steps { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.first-run-step {
+  display: flex; align-items: center; gap: 10px; min-block-size: 30px; padding-inline: 8px; border-radius: 8px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.first-run-step b {
+  display: grid; place-items: center; flex: none; inline-size: 20px; block-size: 20px; border-radius: 50%;
+  font-size: 11px; box-shadow: inset 0 0 0 1px var(--md-sys-color-outline);
+}
+.first-run-step.done { color: var(--md-sys-color-on-surface); }
+.first-run-step.done b { background: var(--wasl-synced); color: var(--kf-desk-content); box-shadow: none; }
+.first-run-step.cur { color: var(--md-sys-color-on-surface); font-weight: 600; background: var(--kf-desk-selection-soft); }
+.first-run-step.cur b { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); box-shadow: none; }
+.first-run-note { margin: auto 0 0; font: var(--kf-desk-font-caption); line-height: 1.5; color: var(--md-sys-color-on-surface-variant); }
+
+.first-run-pane { display: flex; flex-direction: column; flex: 1 1 auto; min-inline-size: 0; }
+.first-run-body {
+  display: flex; flex-direction: column; gap: 12px; flex: 1 1 auto; min-block-size: 0; overflow-y: auto;
+  padding: 24px 28px; box-sizing: border-box; max-inline-size: 640px;
+}
+.kf-desktop[data-kf-platform="mac"] .first-run-body { padding-block-start: 44px; }
+.first-run-body h1 { margin: 0; font: 600 20px/28px var(--font-ui); outline: none; }
+.first-run-muted { margin: 0; color: var(--md-sys-color-on-surface-variant); }
+.first-run-done { display: flex; align-items: center; gap: 8px; margin: 0; }
+.first-run-done > .line-icon { color: var(--wasl-synced); }
+.first-run-box {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px; text-align: center;
+  border: 1px solid var(--kf-desk-separator); border-radius: 14px;
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 2%, var(--kf-desk-content));
+}
+.first-run-box > .line-icon { color: var(--md-sys-color-on-surface-variant); stroke-width: 1.4; }
+.first-run-path { margin: 0; font: var(--kf-desk-font-mono); overflow-wrap: anywhere; }
+.first-run-foot {
+  display: flex; align-items: center; gap: 8px; flex: none; padding: 12px 24px;
+  border-block-start: 1px solid var(--kf-desk-separator);
+}
+.first-run-grow { flex: 1; }
+
+/* Windows: the title bar's search has nothing to search during the first run. */
+.wasl-first-run .wtb-search { visibility: hidden; }
+
+/* A narrow window: the steps go on top. */
+@media (max-width: 640px) {
+  .first-run { flex-direction: column; }
+  .first-run-side { inline-size: auto; border-inline-end: 0; border-block-end: 1px solid var(--kf-desk-separator); }
+  .first-run-note { display: none; }
+}
+
+@media (prefers-contrast: more) {
+  .first-run-step b, .first-run-box, .shell-banner.status-waiting { box-shadow: inset 0 0 0 1px CanvasText; }
+  .first-run-muted, .first-run-note, .state-empty-body { color: var(--md-sys-color-on-surface); }
+}
+@media (forced-colors: active) {
+  .first-run-step.cur { outline: 2px solid Highlight; }
+  .first-run-step.done b, .first-run-step.cur b { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  .state-callout, .shell-banner.status-waiting { border: 1px solid CanvasText; }
+  .state-callout > .line-icon, .state-empty > .line-icon { color: CanvasText; }
+}
+
+/* Folder drop (#71, design "Empty"): the whole window becomes the drop target while a drag is over it. It never
+   takes the pointer, so the drop lands on the window itself. */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--kf-space-6);
+  background: color-mix(in srgb, var(--kf-desk-content) 82%, transparent);
+  pointer-events: none;
+}
+.drop-overlay[hidden] { display: none; }
+.drop-overlay-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kf-space-3);
+  inline-size: 100%;
+  block-size: 100%;
+  border: 2px dashed var(--md-sys-color-primary);
+  border-radius: var(--kf-desk-radius-pane);
+  color: var(--md-sys-color-on-surface);
+  text-align: center;
+}
+.drop-overlay-panel svg { color: var(--md-sys-color-primary); }
+.drop-overlay-text { margin: 0; font-weight: 600; font-size: 1.15em; }
+.pairs-drop-hint { color: var(--md-sys-color-on-surface-variant); font-size: var(--kf-desk-font-caption, 12px); }
+@media (forced-colors: active) {
+  .drop-overlay { background: Canvas; }
+  .drop-overlay-panel { border-color: Highlight; color: CanvasText; }
+}
+/* The first run's menu bar / notification-area step: Settings › General's row, as a box in the pane. */
+.first-run-settings { text-align: start; }

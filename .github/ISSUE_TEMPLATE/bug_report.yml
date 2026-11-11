@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in Wasl does the wrong thing
+labels: [needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problem? Do not file it here; use the private report link on the issue chooser.
+        Do not paste tokens, vault passwords or private file names.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options: [Android app, Windows app, macOS app, Linux app, wasld or the wasl command line, Google Drive sync, Device sync, Vaults, Website, Docs, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Steps, or a test that goes red on this bug.
+  - type: input
+    id: version
+    attributes:
+      label: Wasl version and operating system

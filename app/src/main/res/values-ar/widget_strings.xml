@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the widget, the launcher shortcuts and the share target. Android requires resource
+     references (not literals) for appwidget-provider descriptions and shortcut labels. -->
+<resources>
+    <string name="widget_description">حالة المزامنة بنظرة سريعة، مع زر زامن الآن.</string>
+    <string name="widget_label">وصل</string>
+    <string name="shortcut_sync_now_short">زامن الآن</string>
+    <string name="shortcut_sync_now_long">زامن كل روابط المجلدات الآن</string>
+    <string name="shortcut_pause_all_short">إيقاف الكل مؤقتًا</string>
+    <string name="shortcut_pause_all_long">إيقاف كل روابط المجلدات مؤقتًا</string>
+    <string name="shortcut_resume_all_short">استئناف الكل</string>
+    <string name="shortcut_resume_all_long">استئناف كل روابط المجلدات</string>
+    <string name="shortcut_disabled">افتح وصل لإعداد روابط المجلدات أولًا</string>
+    <string name="share_target_label">إضافة إلى وصل</string>
+</resources>

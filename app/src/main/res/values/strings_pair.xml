@@ -1,0 +1,556 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pair screens: detail, editor, pickers, preview, review deletions, selective sync. -->
+<resources>
+    <!-- PairUi -->
+    <string name="pair_status_partly_synced">Partly synced</string>
+    <string name="pair_status_failed">Failed</string>
+    <string name="pair_status_needs_approval">Needs approval</string>
+    <string name="pair_status_turned_off">Turned off</string>
+    <string name="pair_status_line_needs_approval">Needs approval: %1$s</string>
+    <string name="pair_status_line_approval_default">a large deletion is waiting for your OK</string>
+    <string name="pair_status_line_paused_reason">Paused: %1$s</string>
+    <string name="pair_phase_preparing">Getting ready</string>
+    <string name="pair_phase_listing_remote">Reading the Drive folder</string>
+    <string name="pair_phase_scanning_local">Reading the phone folder</string>
+    <string name="pair_phase_planning">Comparing folders</string>
+    <string name="pair_phase_transferring">Copying files</string>
+    <string name="pair_phase_deleting">Applying deletions</string>
+    <string name="pair_phase_finishing">Finishing</string>
+    <string name="pair_interval_app_default">App default</string>
+    <plurals name="pair_interval_every_minutes">
+        <item quantity="one">Every minute</item>
+        <item quantity="other">Every %1$d minutes</item>
+    </plurals>
+    <plurals name="pair_interval_every_hours">
+        <item quantity="one">Every hour</item>
+        <item quantity="other">Every %1$d hours</item>
+    </plurals>
+    <plurals name="pair_interval_every_days">
+        <item quantity="one">Every day</item>
+        <item quantity="other">Every %1$d days</item>
+    </plurals>
+    <string name="pair_duration_seconds">%1$ds</string>
+    <string name="pair_duration_minutes_seconds">%1$dm %2$ds</string>
+    <string name="pair_duration_hours_minutes">%1$dh %2$dm</string>
+    <string name="pair_mode_warning_upload_mirror">Drive becomes an exact copy of this phone folder. Drive files that aren\'t on this phone move to Drive\'s bin.</string>
+    <string name="pair_mode_warning_download_mirror">This phone folder becomes an exact copy of the Drive folder. Phone files that aren\'t on Drive move to the recycle bin.</string>
+    <string name="pair_mode_warning_upload_then_delete">Files are deleted from this phone once Drive has them.</string>
+    <string name="pair_mode_warning_download_then_delete">Files move to Drive\'s bin once this phone has them.</string>
+    <string name="pair_toast_no_app_for_link">No app on this phone can open this link</string>
+    <string name="pair_toast_no_files_app">No Files app on this phone could open this folder</string>
+    <string name="pair_storage">Storage</string>
+    <string name="pair_folder_name">Folder name</string>
+    <string name="pair_create_folder">Create folder</string>
+    <string name="pair_folder_empty">Empty</string>
+    <plurals name="pair_files_at_least">
+        <item quantity="one">%1$s+ file</item>
+        <item quantity="other">%1$s+ files</item>
+    </plurals>
+    <string name="pair_this_pair">This pair</string>
+    <string name="pair_removed_title">This pair was removed</string>
+    <string name="pair_removed_body">Files on your phone and on Drive were not touched.</string>
+
+    <!-- Plan reasons (preview rows) -->
+    <string name="pair_reason_google_doc">Google Doc from Drive</string>
+    <string name="pair_reason_changed_on_both">Changed on both</string>
+    <string name="pair_reason_both_phone_wins">Changed on both, phone copy wins</string>
+    <string name="pair_reason_missing_on_drive">Missing on Drive</string>
+    <string name="pair_reason_deleted_on_drive_copied_back">Deleted on Drive, copied back</string>
+    <string name="pair_reason_drive_changed_phone_wins">Changed on Drive, phone copy wins</string>
+    <string name="pair_reason_changed_on_phone">Changed on phone</string>
+    <string name="pair_reason_new">New</string>
+    <string name="pair_reason_both_drive_wins">Changed on both, Drive copy wins</string>
+    <string name="pair_reason_deleted_on_phone_copied_back">Deleted on phone, copied back</string>
+    <string name="pair_reason_drive_changed_after_phone_delete">Changed on Drive after it was deleted on phone</string>
+    <string name="pair_reason_missing_on_phone">Missing on phone</string>
+    <string name="pair_reason_phone_changed_drive_wins">Changed on phone, Drive copy wins</string>
+    <string name="pair_reason_changed_on_drive">Changed on Drive</string>
+    <string name="pair_reason_new_on_drive">New on Drive</string>
+    <string name="pair_reason_replaced_on_drive">Replaced on Drive</string>
+    <string name="pair_reason_folder_not_on_drive">Folder not on Drive</string>
+    <string name="pair_reason_folder_not_on_phone">Folder not on phone</string>
+    <string name="pair_reason_not_on_drive">Not on Drive</string>
+    <string name="pair_reason_not_on_phone">Not on phone</string>
+    <string name="pair_reason_folder_deleted_on_drive">Folder deleted on Drive</string>
+    <string name="pair_reason_folder_deleted_on_phone">Folder deleted on phone</string>
+    <string name="pair_reason_deleted_on_drive">Deleted on Drive</string>
+    <string name="pair_reason_deleted_on_phone">Deleted on phone</string>
+
+    <!-- DryRunScreen -->
+    <string name="pair_dryrun_filter_all">All</string>
+    <string name="pair_dryrun_filter_to_bin">To bin</string>
+    <string name="pair_dryrun_filter_conflicts">Conflicts</string>
+    <string name="pair_dryrun_title_first_sync">Preview first sync</string>
+    <string name="pair_dryrun_title_changes">Preview changes</string>
+    <string name="pair_dryrun_search_changes">Search changes</string>
+    <string name="pair_dryrun_nothing_until_decide">Nothing changes until you decide.</string>
+    <string name="pair_dryrun_start_sync">Start sync</string>
+    <string name="pair_dryrun_compare_failed">Couldn\'t compare the folders</string>
+    <string name="pair_dryrun_comparing">Comparing folders…</string>
+    <string name="pair_dryrun_preview_changes_nothing">Nothing on your phone or Drive changes during a preview.</string>
+    <string name="pair_dryrun_already_match">Phone and Drive already match. Nothing will be copied or removed.</string>
+    <string name="pair_dryrun_no_match">No changes match.</string>
+    <string name="pair_dryrun_notes">Notes</string>
+    <string name="pair_dryrun_open_pair">Open pair</string>
+    <string name="pair_dryrun_sync_details">Sync details</string>
+    <string name="pair_dryrun_title_sync">Sync</string>
+    <string name="pair_dryrun_started_at">started %1$s</string>
+    <string name="pair_dryrun_can_leave">You can leave this screen. Progress stays in your notifications.</string>
+    <string name="pair_dryrun_section_done">Done</string>
+    <string name="pair_dryrun_nothing_changed">Nothing changed.</string>
+    <string name="pair_dryrun_files_show_up">Files show up here as they finish.</string>
+    <plurals name="pair_dryrun_see_all">
+        <item quantity="one">See all %1$s in the sync details</item>
+        <item quantity="other">See all %1$s in the sync details</item>
+    </plurals>
+    <string name="pair_dryrun_couldnt_sync">Couldn\'t sync</string>
+    <string name="pair_dryrun_paused_body">Files synced so far stay synced. Resume to carry on.</string>
+    <string name="pair_dryrun_waiting_connection">Waiting for a connection</string>
+    <string name="pair_dryrun_starts_when_online">Sync starts as soon as the phone is online.</string>
+    <string name="pair_dryrun_result_in_sync">%1$s is in sync</string>
+    <string name="pair_dryrun_result_partial">Some files couldn\'t sync</string>
+    <string name="pair_dryrun_result_skipped">This sync didn\'t start</string>
+    <string name="pair_dryrun_result_finished_at">Finished %1$s.</string>
+    <plurals name="pair_dryrun_result_partial_body">
+        <item quantity="one">%1$s file couldn\'t sync. It\'s listed below and is tried again on the next sync.</item>
+        <item quantity="other">%1$s files couldn\'t sync. They\'re listed below and are tried again on the next sync.</item>
+    </plurals>
+    <string name="pair_dryrun_result_cancelled_body">Files synced so far stay synced.</string>
+    <string name="pair_dryrun_took">Took %1$s</string>
+
+    <!-- Folder pickers (shared) -->
+    <string name="pair_picker_choose_folder">Choose folder</string>
+    <string name="pair_picker_use_this_folder">Use this folder</string>
+    <string name="pair_picker_reading_folder">Reading folder…</string>
+    <string name="pair_picker_counting">Counting…</string>
+    <string name="pair_allow_all_files_access">Allow all files access</string>
+    <string name="pair_new_folder_open_first">Open a folder first</string>
+    <string name="pair_new_folder_enter_name">Enter a folder name</string>
+    <string name="pair_new_folder_bad_name">Folder names can\'t contain / or be . or ..</string>
+    <string name="pair_new_folder_exists">Something named “%1$s” is already here</string>
+
+    <!-- LocalFolderPickerScreen -->
+    <string name="pair_local_n_paired">%1$d paired</string>
+    <string name="pair_local_read_denied">Android didn\'t allow reading this folder.</string>
+    <string name="pair_local_mkdir_denied">Android didn\'t allow a new folder here. Some system folders are read-only.</string>
+    <string name="pair_local_internal_storage">Internal storage</string>
+    <string name="pair_local_sd_card">SD card</string>
+    <string name="pair_local_on_this_phone">On this phone</string>
+    <string name="pair_local_hide_hidden">Hide hidden folders</string>
+    <string name="pair_local_show_hidden">Show hidden folders</string>
+    <string name="pair_local_no_access_title">Wasl can\'t open phone folders</string>
+    <string name="pair_local_no_access_body">Android lets apps sync ordinary folders only with All files access.</string>
+    <string name="pair_local_opening_storage">Opening storage…</string>
+    <string name="pair_local_cant_open">Can\'t open %1$s</string>
+    <string name="pair_local_go_up">Go up a level</string>
+    <string name="pair_local_hint_open_folder">Open a folder to choose it.</string>
+    <plurals name="pair_local_hint_android_pairable">
+        <item quantity="one">Android · %1$d folder can be paired</item>
+        <item quantity="other">Android · %1$d folders can be paired</item>
+    </plurals>
+    <string name="pair_local_no_folders">No folders here. Use this folder as it is, or add one with New folder.</string>
+    <string name="pair_local_android_private">Since Android 11, data and obb are private to each app. No sync app can read them.</string>
+    <string name="pair_local_protected_reason">Android doesn\'t let apps sync this folder</string>
+    <string name="pair_local_only_media">Only Android/media can be paired</string>
+    <string name="pair_local_media_supporting">WhatsApp, Telegram and other app media</string>
+
+    <!-- PairDetailViewModel: the live log -->
+    <string name="pair_detail_state_reset">Sync state reset. The next sync compares every file again.</string>
+    <string name="pair_live_uploaded">Uploaded</string>
+    <string name="pair_live_downloaded">Downloaded</string>
+    <string name="pair_live_exported">Saved from Google Docs</string>
+    <string name="pair_live_removed_after_upload">Removed from phone after upload</string>
+    <string name="pair_live_folder_removed_on_phone">Folder removed on phone</string>
+    <string name="pair_live_binned_on_phone">Moved to bin on phone</string>
+    <string name="pair_live_binned_on_drive_after_download">Moved to Drive\'s bin after download</string>
+    <string name="pair_live_binned_on_drive">Moved to bin on Drive</string>
+    <string name="pair_live_both_kept">Both kept for now</string>
+    <string name="pair_live_left_in_place">Left in place</string>
+
+    <!-- PairDetailScreen -->
+    <string name="pair_selective_sync">Selective sync</string>
+    <string name="pair_detail_no_app_for_page">Nothing on this phone can open that page.</string>
+    <string name="pair_detail_no_files_app">No Files app on this phone can open that folder.</string>
+    <string name="pair_detail_no_app_for_drive">No app on this phone can open Drive links.</string>
+    <string name="pair_detail_paused_name">Paused %1$s</string>
+    <string name="pair_detail_open_phone_folder">Open phone folder</string>
+    <string name="pair_detail_open_in_drive">Open in Drive</string>
+    <string name="pair_detail_reset_state">Reset sync state</string>
+    <string name="pair_detail_more_for">More for %1$s</string>
+    <string name="pair_detail_removed_body">No files were deleted. Files on your phone and on Drive stay where they are.</string>
+    <string name="pair_detail_back_to_pairs">Back to pairs</string>
+    <string name="pair_detail_reset_title">Reset sync state?</string>
+    <string name="pair_detail_reset_body">Wasl forgets what it has synced for %1$s. The next sync compares every file on your phone and on Drive again. Files that match stay as they are; files that differ follow the pair\'s conflict rule, and anything replaced goes to the recycle bin. The reset itself deletes nothing and can\'t be undone.</string>
+    <plurals name="pair_detail_earlier_changes">
+        <item quantity="one">And %1$s earlier change in this sync</item>
+        <item quantity="other">And %1$s earlier changes in this sync</item>
+    </plurals>
+    <plurals name="pair_n_conflicts">
+        <item quantity="one">%1$s conflict</item>
+        <item quantity="other">%1$s conflicts</item>
+    </plurals>
+    <string name="pair_detail_conflict_both_kept">Changed on phone and on Drive. Both kept.</string>
+    <string name="pair_detail_conflict_both_kept_in">%1$s · Changed on phone and on Drive. Both kept.</string>
+    <string name="pair_detail_recent_syncs">Recent syncs</string>
+    <string name="pair_detail_no_syncs">No syncs yet.</string>
+    <string name="pair_detail_all_history">All history</string>
+    <string name="pair_detail_details">Details</string>
+    <string name="pair_detail_free">%1$s free</string>
+    <string name="pair_detail_skipped_last">%1$s skipped in the last completed sync</string>
+    <string name="pair_detail_when_it_syncs">When it syncs</string>
+    <string name="pair_detail_encrypted">Encrypted on Drive</string>
+    <string name="pair_detail_encrypted_body">Files are encrypted with a vault before they leave this phone.</string>
+    <string name="pair_detail_shared_drive">In a shared drive</string>
+    <string name="pair_detail_shared_drive_body">Everyone with access to the shared drive sees the changes.</string>
+    <string name="pair_detail_pending_local">Changed on phone since the last sync</string>
+    <string name="pair_detail_turn_on">Turn on</string>
+    <string name="pair_detail_preview">Preview</string>
+    <string name="pair_detail_edit">Edit</string>
+
+    <!-- Run rows (pair detail and History) -->
+    <plurals name="pair_run_n_failed">
+        <item quantity="one">%1$s failed</item>
+        <item quantity="other">%1$s failed</item>
+    </plurals>
+    <string name="pair_trigger_manual">Manual</string>
+    <string name="pair_trigger_scheduled">Scheduled</string>
+    <string name="pair_trigger_phone_change">Phone change</string>
+    <string name="pair_trigger_drive_change">Drive change</string>
+    <string name="pair_trigger_after_restart">After restart</string>
+    <string name="pair_trigger_shared_file">Shared file</string>
+    <string name="pair_trigger_quick_tile">Quick tile</string>
+    <string name="pair_trigger_widget">Widget</string>
+    <string name="pair_trigger_after_ok">After your OK</string>
+    <string name="pair_trigger_resumed">Resumed</string>
+    <string name="pair_run_to_drive">%1$s to Drive</string>
+    <string name="pair_run_to_drive_bytes">%1$s to Drive (%2$s)</string>
+    <string name="pair_run_to_phone">%1$s to phone</string>
+    <string name="pair_run_to_phone_bytes">%1$s to phone (%2$s)</string>
+    <string name="pair_run_to_bin">%1$s to recycle bin</string>
+    <string name="pair_run_skipped">%1$s skipped</string>
+    <string name="pair_run_no_changes">No changes</string>
+    <string name="pair_run_duration_s">%1$d s</string>
+    <string name="pair_run_duration_min">%1$d min</string>
+    <string name="pair_run_duration_min_s">%1$d min %2$d s</string>
+    <string name="pair_run_duration_h">%1$d h</string>
+    <string name="pair_run_duration_h_min">%1$d h %2$d min</string>
+
+    <!-- PairEditorScreen -->
+    <string name="pair_loading">Loading…</string>
+    <string name="pair_editor_removed_name">Removed %1$s</string>
+    <string name="pair_editor_removed_the_pair">Removed the pair</string>
+    <string name="pair_editor_title_new">New pair</string>
+    <string name="pair_editor_title_edit">Edit pair</string>
+    <string name="pair_editor_hint_fix_overlap">Fix the overlap to continue.</string>
+    <string name="pair_editor_hint_nothing_before_preview">Nothing syncs before the preview.</string>
+    <string name="pair_editor_missing_title">This pair no longer exists</string>
+    <string name="pair_editor_missing_body">It was removed. Go back to see your pairs.</string>
+    <string name="pair_editor_removed_title">Pair removed</string>
+    <string name="pair_editor_removed_body">Files on your phone and on Drive stay where they are.</string>
+    <string name="pair_editor_cant_save_yet">Can\'t save yet</string>
+    <string name="pair_editor_save_failed">Couldn\'t save the pair</string>
+    <string name="pair_editor_name">Name</string>
+    <string name="pair_editor_folders">Folders</string>
+    <string name="pair_editor_choose_account">Choose an account</string>
+    <string name="pair_editor_choose_another_folder">Choose another folder</string>
+    <string name="pair_editor_add_account_body">Add a Google account to choose a Drive folder.</string>
+    <string name="pair_editor_add_account">Add account</string>
+    <string name="pair_editor_counting_files">Counting files…</string>
+    <string name="pair_editor_no_access_body">Android lets apps sync ordinary folders only with All files access. Without it, choose the folder in Android\'s own picker.</string>
+    <string name="pair_editor_path_choose_another">Choose another folder by path</string>
+    <string name="pair_editor_path_choose_instead">Choose by path instead (needs All files access)</string>
+    <string name="pair_editor_overlaps">Overlaps %1$s</string>
+    <string name="pair_editor_accept_devices_closed">Device sync isn\'t running right now, so the offer wasn\'t accepted. Keep Wasl open on Wi-Fi and accept it again.</string>
+    <string name="pair_editor_drive_folder">Drive folder</string>
+    <string name="pair_editor_folders_changed">This pair starts over with the new folder. The next sync compares both folders from scratch, like a first sync.</string>
+    <string name="pair_editor_folders_syncing">%1$s is syncing. Pause it or let it finish, then change its folders.</string>
+    <string name="pair_editor_folders_changed_shared">It also stops syncing with your devices: after its preview, turn on Sync with my devices again.</string>
+    <string name="pair_editor_overlap_body">%1$s is already synced by another pair. Two pairs on the same files can undo each other.</string>
+    <string name="pair_editor_drive_not_empty_two_way">The Drive folder already has files. The first sync merges both folders and deletes nothing.</string>
+    <string name="pair_editor_drive_not_empty_upload">The Drive folder already has files. They stay, and files from this phone are added next to them.</string>
+    <string name="pair_editor_sync_mode">Sync mode</string>
+    <string name="pair_mode_two_way_restore">Edits go both ways. Deleted files come back from the other side.</string>
+    <string name="pair_mode_two_way">Edits go both ways. Deletions wait in the bin.</string>
+    <string name="pair_mode_upload_move">Moves files to Drive, then removes them from your phone.</string>
+    <string name="pair_mode_upload_mirror">Drive matches your phone, deletions included. Never changes your phone.</string>
+    <string name="pair_mode_upload">Copies to Drive. Never changes your phone.</string>
+    <string name="pair_mode_download_move">Moves files to your phone, then to Drive\'s bin.</string>
+    <string name="pair_mode_download_mirror">Your phone matches Drive, deletions included. Never changes Drive.</string>
+    <string name="pair_mode_download">Copies to your phone. Never changes Drive.</string>
+
+    <!-- PairEditorSections: deletions -->
+    <string name="pair_del_header">Deletions</string>
+    <string name="pair_del_header_upload">Deletions · Phone → Drive</string>
+    <string name="pair_del_header_download">Deletions · Drive → Phone</string>
+    <string name="pair_del_turn_off_mirror">Turn off Mirror deletions</string>
+    <string name="pair_del_sync_deletions">Sync deletions</string>
+    <plurals name="pair_del_sync_deletions_on">
+        <item quantity="one">Deleted on one side, moved to the recycle bin on the other for %1$d day</item>
+        <item quantity="other">Deleted on one side, moved to the recycle bin on the other for %1$d days</item>
+    </plurals>
+    <string name="pair_del_sync_deletions_off">Off: a file deleted on one side comes back from the other</string>
+    <string name="pair_del_mirror">Mirror deletions</string>
+    <string name="pair_del_mirror_upload_on">Delete on Drive when deleted on this phone</string>
+    <string name="pair_del_mirror_upload_off">Off: Drive keeps files you delete here</string>
+    <string name="pair_del_mirror_upload_warning">Deleting photos here to free space will delete them on Drive too, and Drive files that aren\'t on this phone are removed. Drive keeps them in its bin for 30 days.</string>
+    <string name="pair_del_mirror_upload_warning_title">Freeing space will empty your backup</string>
+    <string name="pair_del_move_upload">Remove from phone after upload</string>
+    <string name="pair_del_move_upload_on">Each file leaves this phone once Drive has it</string>
+    <string name="pair_del_move_upload_off">Off: files stay on this phone</string>
+    <string name="pair_del_move_upload_warning">Each file is deleted here as soon as Drive has a copy. It doesn\'t go to the recycle bin, because Drive keeps it.</string>
+    <string name="pair_del_move_upload_warning_title">Files leave this phone</string>
+    <string name="pair_del_keep_on_phone">Keep files on this phone</string>
+    <string name="pair_del_mirror_download_on">Delete on this phone when deleted on Drive</string>
+    <string name="pair_del_mirror_download_off">Off: this phone keeps files deleted on Drive</string>
+    <plurals name="pair_del_mirror_download_warning">
+        <item quantity="one">Deleting files on Drive will delete them on this phone too, and phone files that aren\'t on Drive are removed. They wait in the recycle bin for %1$d day.</item>
+        <item quantity="other">Deleting files on Drive will delete them on this phone too, and phone files that aren\'t on Drive are removed. They wait in the recycle bin for %1$d days.</item>
+    </plurals>
+    <string name="pair_del_mirror_download_warning_title">Cleaning up Drive will empty this folder</string>
+    <string name="pair_del_move_download">Remove from Drive after download</string>
+    <string name="pair_del_move_download_on">Each file moves to Drive\'s bin once this phone has it</string>
+    <string name="pair_del_move_download_off">Off: files stay on Drive</string>
+    <string name="pair_del_move_download_warning">Each file moves to Drive\'s bin as soon as this phone has a copy. Drive empties its bin after 30 days.</string>
+    <string name="pair_del_move_download_warning_title">Files leave Drive</string>
+    <string name="pair_del_keep_on_drive">Keep files on Drive</string>
+    <string name="pair_del_guard">Ask before large deletes</string>
+    <plurals name="pair_del_guard_on">
+        <item quantity="one">More than %1$d file or %2$d%% of the folder</item>
+        <item quantity="other">More than %1$d files or %2$d%% of the folder</item>
+    </plurals>
+    <string name="pair_del_guard_off">Off: large deletes run without asking</string>
+    <string name="pair_del_guard_off_warning">A sync that deletes many files at once runs straight away. Deleted files can still be restored for 30 days.</string>
+    <string name="pair_del_guard_off_warning_title">Large deletes won\'t wait for your OK</string>
+    <string name="pair_del_guard_turn_on">Turn on Ask before large deletes</string>
+
+    <!-- PairEditorSections: when to sync -->
+    <string name="pair_when_header">When to sync</string>
+    <string name="pair_when_wifi_only">Only on Wi‑Fi</string>
+    <string name="pair_when_wifi_only_off_metered">Off: mobile data allowed</string>
+    <string name="pair_when_wifi_only_off_unmetered">Off: unmetered networks only</string>
+    <string name="pair_when_large_first_sync">On mobile data this may use your plan\'s allowance.</string>
+    <string name="pair_when_large_first_sync_title">First sync is about %1$s</string>
+    <string name="pair_when_turn_on_wifi_only">Turn on Only on Wi‑Fi</string>
+    <string name="pair_when_charging_only">Only while charging</string>
+    <string name="pair_when_more_conditions">More conditions</string>
+    <string name="pair_when_interval_app_default">%1$s (app default)</string>
+    <string name="pair_when_on_change_and">When files change, and %1$s</string>
+    <string name="pair_when_more_roaming">roaming allowed</string>
+    <string name="pair_when_more_vpn">VPN required</string>
+    <string name="pair_when_more_battery">battery at least %1$d%%</string>
+    <plurals name="pair_when_more_only_on_networks">
+        <item quantity="one">only on %1$s Wi‑Fi network</item>
+        <item quantity="other">only on %1$s Wi‑Fi networks</item>
+    </plurals>
+    <plurals name="pair_when_more_never_on_networks">
+        <item quantity="one">never on %1$s Wi‑Fi network</item>
+        <item quantity="other">never on %1$s Wi‑Fi networks</item>
+    </plurals>
+    <string name="pair_when_more_summary_empty">Roaming, VPN, battery and Wi‑Fi networks</string>
+    <string name="pair_list_separator">", "</string>
+    <string name="pair_when_metered">Allow metered networks</string>
+    <string name="pair_when_metered_wifi_only">Only on Wi‑Fi is on</string>
+    <string name="pair_when_metered_on">Mobile data and paid hotspots allowed</string>
+    <string name="pair_when_metered_off">Off: waits for an unmetered network</string>
+    <string name="pair_when_roaming">Allow roaming</string>
+    <string name="pair_when_roaming_on">Syncs while the phone is roaming</string>
+    <string name="pair_when_roaming_off">Off: waits while the phone is roaming</string>
+    <string name="pair_when_vpn">Require VPN</string>
+    <string name="pair_when_vpn_on">Waits until a VPN is connected</string>
+    <string name="pair_when_vpn_off">Off: syncs with or without a VPN</string>
+    <string name="pair_when_ssid_allow">Only on these Wi‑Fi networks</string>
+    <string name="pair_when_ssid_allow_helper">Network names, separated by commas. Empty means any network.</string>
+    <string name="pair_when_ssid_deny">Never on these Wi‑Fi networks</string>
+    <string name="pair_when_ssid_deny_helper">Network names, separated by commas.</string>
+    <string name="pair_when_location_needed">Android shows Wi‑Fi names only to apps with location access. Without it these lists can\'t be checked, and the pair won\'t sync on Wi‑Fi.</string>
+    <string name="pair_when_location_needed_title">Location access needed</string>
+    <string name="pair_when_allow_location">Allow location access</string>
+    <string name="pair_when_location_note">Network lists need location access, because Android shows Wi‑Fi names only to apps that have it.</string>
+    <string name="pair_when_sync_now_ignores">Sync now ignores these conditions, but still needs a connection.</string>
+    <string name="pair_when_battery_off">Off: syncs at any battery level</string>
+    <string name="pair_when_battery_on">Waits below %1$d%% unless charging</string>
+    <string name="pair_percent">%1$d%%</string>
+    <string name="pair_when_on_change">When files change</string>
+    <string name="pair_when_on_change_on">Syncs within moments of a change</string>
+    <string name="pair_when_on_change_needs_instant">Needs Instant sync, which is off in Settings</string>
+    <string name="pair_when_and_schedule">And on a schedule</string>
+    <string name="pair_when_app_default_choice">App default (%1$s)</string>
+    <string name="pair_when_android_may_delay">Android may delay background checks to save battery.</string>
+
+    <!-- PairEditorSections: skip -->
+    <string name="pair_skip_header">Skip</string>
+    <string name="pair_skip_pattern_help">Pattern help</string>
+    <string name="pair_skip_matching">Skip files matching</string>
+    <string name="pair_skip_matching_helper">Separate patterns with commas</string>
+    <string name="pair_skip_hidden_files">Hidden files</string>
+    <string name="pair_skip_videos">Videos</string>
+    <string name="pair_skip_choose_subfolders">Choose subfolders</string>
+    <string name="pair_skip_over_2gb">Over 2 GB</string>
+    <string name="pair_skip_over_size">Over %1$s</string>
+    <string name="pair_skip_all_subfolders">All subfolders sync</string>
+    <plurals name="pair_skip_subfolders_skipped">
+        <item quantity="one">%1$s subfolder skipped</item>
+        <item quantity="other">%1$s subfolders skipped</item>
+    </plurals>
+
+    <!-- PairEditorSections: advanced -->
+    <string name="pair_expanded">Expanded</string>
+    <string name="pair_collapsed">Collapsed</string>
+    <string name="pair_hide_x">Hide %1$s</string>
+    <string name="pair_show_x">Show %1$s</string>
+    <string name="pair_selected">Selected</string>
+    <string name="pair_adv_header">Advanced</string>
+    <string name="pair_adv_hide">Hide advanced settings</string>
+    <string name="pair_adv_show">Show advanced settings</string>
+    <string name="pair_adv_conflict_policy">When a file changed on both sides</string>
+    <string name="pair_adv_docs">Copy Google Docs</string>
+    <string name="pair_adv_docs_no_downloads">Only when files come to this phone</string>
+    <string name="pair_adv_docs_on">Docs, Sheets and Slides arrive as read-only copies and never go back to Drive</string>
+    <string name="pair_adv_docs_off">Off: Google Docs stay on Drive only</string>
+    <string name="pair_adv_docs_as">Copy Docs as</string>
+    <string name="pair_adv_mtime">Keep file times</string>
+    <string name="pair_adv_mtime_on">Files from Drive keep their last-modified time</string>
+    <string name="pair_adv_mtime_off">Off: files from Drive get the time they arrive</string>
+    <string name="pair_adv_include">Only sync files matching</string>
+    <string name="pair_adv_include_helper">Empty means every file. Separate patterns with commas.</string>
+    <string name="pair_adv_size_limit">Skip files larger than, in MB</string>
+    <string name="pair_adv_size_limit_helper">0 means no size limit</string>
+    <string name="pair_adv_encrypt">Encrypt files on Drive</string>
+    <string name="pair_adv_encrypt_on">Files are encrypted on this phone before upload. Drive only stores scrambled data.</string>
+    <string name="pair_adv_encrypt_off">Off: Drive stores files as they are</string>
+    <string name="pair_adv_vault">Vault</string>
+    <string name="pair_adv_no_vaults">No vaults yet</string>
+    <string name="pair_adv_choose_vault">Choose a vault</string>
+    <string name="pair_adv_manage_vaults">Manage vaults</string>
+    <string name="pair_adv_vault_empty_folder">The Drive folder must be empty or already hold this vault\'s files. Plain and encrypted files can\'t share a folder.</string>
+    <string name="pair_adv_vault_empty_folder_title">Use an empty Drive folder</string>
+    <string name="pair_adv_encryption_changed">Changing encryption starts this pair over. The next sync compares both folders from scratch.</string>
+    <string name="pair_adv_remove_summary">Stops syncing. Files on your phone and on Drive stay where they are.</string>
+    <string name="pair_conflict_keep_both">Keep both copies</string>
+    <string name="pair_conflict_newer">Keep the newer copy</string>
+    <string name="pair_conflict_phone">Keep the phone copy</string>
+    <string name="pair_conflict_drive">Keep the Drive copy</string>
+    <string name="pair_conflict_skip">Skip the file and report it</string>
+    <string name="pair_docs_office">Word, Excel and PowerPoint files</string>
+    <string name="pair_docs_pdf">PDF files</string>
+
+    <!-- Pattern help sheet -->
+    <string name="pair_glob_title">Patterns</string>
+    <string name="pair_glob_intro">Patterns match paths inside the pair\'s folders and ignore upper and lower case. Separate them with commas.</string>
+    <string name="pair_glob_question">Any one character except /</string>
+    <string name="pair_glob_star">Any characters except /</string>
+    <string name="pair_glob_double_star">Any characters, including /, so any depth</string>
+    <string name="pair_glob_class">One of the listed characters. Ranges like [a-z] work.</string>
+    <string name="pair_glob_negated_class">Any character except the listed ones</string>
+    <string name="pair_glob_range">A number in the range, as in IMG_{2020..2026}*.jpg</string>
+    <string name="pair_glob_alternatives">Either choice, as in *.{jpg,png}</string>
+    <string name="pair_glob_leading_slash">A leading / ties the pattern to the pair\'s top folder. Without it, the pattern matches at any depth.</string>
+    <string name="pair_glob_trailing_slash">A trailing / matches folders only</string>
+    <string name="pair_glob_examples">Examples</string>
+    <string name="pair_glob_example_tmp">Temporary files anywhere in the pair</string>
+    <string name="pair_glob_example_backups">Everything in the top-level Backups folder</string>
+    <string name="pair_glob_example_office_lock">Office lock files</string>
+    <string name="pair_glob_example_part">Unfinished downloads</string>
+    <string name="pair_glob_footer">Only sync files matching applies to files. Folders are always opened unless a skip pattern or Choose subfolders leaves them out.</string>
+
+    <!-- PairEditorViewModel: problems, each worded as the fix -->
+    <string name="pair_problem_name">Give this pair a name</string>
+    <string name="pair_problem_no_access">Wasl can\'t open phone folders yet</string>
+    <string name="pair_problem_folder_gone">This folder was moved or deleted. Choose it again.</string>
+    <string name="pair_problem_choose_phone_folder">Choose a phone folder</string>
+    <string name="pair_problem_choose_account">Choose a Google account first</string>
+    <string name="pair_problem_choose_drive_folder">Choose a Drive folder</string>
+    <string name="pair_problem_choose_vault">Choose a vault, or turn encryption off</string>
+    <string name="pair_problem_drive_is_unknown_vault">This Drive folder is an encrypted vault made on another device. Join it first (Settings › Vaults › Join a vault), then come back and choose it under Encrypt files on Drive.</string>
+    <string name="pair_problem_drive_is_vault">This Drive folder is the encrypted vault %1$s: turn on Encrypt files on Drive and choose that vault.</string>
+    <string name="pair_problem_bad_pattern">Check this pattern: %1$s</string>
+
+    <!-- RemoteFolderPickerScreen -->
+    <string name="pair_remote_my_drive">My Drive</string>
+    <string name="pair_remote_shared_with_me">Shared with me</string>
+    <string name="pair_remote_shared_drives">Shared drives</string>
+    <string name="pair_remote_account_missing">This Google account isn\'t signed in on this phone. Add it in Accounts, then try again.</string>
+    <string name="pair_remote_bad_name">Folder names can\'t contain /</string>
+    <string name="pair_remote_in_drive">In Google Drive</string>
+    <string name="pair_remote_search_drive">Search Drive</string>
+    <string name="pair_remote_use_name">Use %1$s</string>
+    <string name="pair_remote_cant_reach">Can\'t reach Google Drive</string>
+    <string name="pair_remote_connecting">Connecting to Google Drive…</string>
+    <string name="pair_remote_hint_open_drive">Open a shared drive, then a folder.</string>
+    <string name="pair_remote_indexing">Reading your Drive for the first time. Until it\'s done, folders load straight from Drive and sizes aren\'t shown.</string>
+    <string name="pair_remote_listing">Listing folders…</string>
+    <string name="pair_remote_no_shared_drives">No shared drives on this account.</string>
+    <string name="pair_remote_nothing_shared">Nothing is shared with this account yet.</string>
+    <string name="pair_remote_folder_empty">This folder is empty. Use it as it is, or add one with New folder.</string>
+    <string name="pair_remote_shortcut_reason">Shortcuts can\'t be paired, only folders</string>
+    <string name="pair_remote_file_reason">Files can\'t be paired, only folders</string>
+    <plurals name="pair_remote_shared_people">
+        <item quantity="one">Shared · %1$s person sees changes</item>
+        <item quantity="other">Shared · %1$s people see changes</item>
+    </plurals>
+    <string name="pair_remote_search_folders">Search folders</string>
+    <string name="pair_remote_close_search">Close search</string>
+    <string name="pair_remote_search_indexing">Your Drive is still being read, so some folders may be missing.</string>
+    <string name="pair_remote_search_type">Type part of a folder name.</string>
+    <string name="pair_remote_search_no_match">No folders match “%1$s”.</string>
+
+    <!-- ReviewDeletionsScreen -->
+    <string name="pair_review_restored_to_phone">Restored %1$s to your phone</string>
+    <string name="pair_review_restored_to_drive">Restored %1$s to Drive</string>
+    <string name="pair_review_title">Review deletions</string>
+    <string name="pair_review_opening_first_sync">Opening the first sync preview…</string>
+    <string name="pair_review_check_failed">Couldn\'t check the deletions</string>
+    <string name="pair_review_nothing_title">Nothing to review</string>
+    <string name="pair_review_nothing_body">Phone and Drive no longer differ by more than your limit. The next sync carries on as usual.</string>
+    <string name="pair_review_drive_empty">The Drive folder is empty</string>
+    <string name="pair_review_phone_empty">Your phone\'s folder is empty</string>
+    <string name="pair_review_deleted_on_drive">%1$s deleted on Drive</string>
+    <string name="pair_review_deleted_on_phone">%1$s deleted on your phone</string>
+    <string name="pair_review_wipe_phone">It was synced before, so Wasl won\'t empty your phone to match it.</string>
+    <string name="pair_review_wipe_drive">It was synced before, so Wasl won\'t empty Drive to match it.</string>
+    <string name="pair_review_over_percent">That\'s %1$d%% of this folder, more than your %2$d%% limit, so Wasl stopped and asked.</string>
+    <plurals name="pair_review_over_files">
+        <item quantity="one">That\'s more than your limit of %1$s file at once, so Wasl stopped and asked.</item>
+        <item quantity="other">That\'s more than your limit of %1$s files at once, so Wasl stopped and asked.</item>
+    </plurals>
+    <string name="pair_review_phone_has_all">Your phone still has every file.</string>
+    <string name="pair_review_drive_has_all">Drive still has every file.</string>
+    <string name="pair_review_body">%1$s %2$s</string>
+    <string name="pair_review_deleted_at">Deleted %1$s</string>
+    <string name="pair_review_restore_on_phone">Restore on phone</string>
+    <string name="pair_review_delete_on_drive">Delete on Drive</string>
+    <string name="pair_review_hint_from_drive">“%1$s” moves them to the recycle bin for 30 days. “%2$s” copies them back from your phone.</string>
+    <string name="pair_review_hint_from_phone">“%1$s” moves them to Drive\'s bin for 30 days. “%2$s” copies them back from Drive.</string>
+    <string name="pair_review_whole_folder">Whole folder</string>
+    <string name="pair_review_gone_from_phone">Gone from phone</string>
+    <string name="pair_review_gone_from_drive">Gone from Drive</string>
+    <string name="pair_review_restored">Restored %1$s.</string>
+    <string name="pair_review_restoring">Restoring %1$s…</string>
+    <string name="pair_review_starting_sync">Starting the sync…</string>
+
+    <!-- SelectiveSyncScreen -->
+    <string name="pair_selective_missing">This pair no longer exists. Go back to see your pairs.</string>
+    <string name="pair_selective_drive_stale">Drive couldn\'t be checked just now: %1$s Showing the Drive folders from the last check.</string>
+    <string name="pair_selective_drive_unavailable">Drive folders aren\'t available: %1$s</string>
+    <string name="pair_selective_all_sync">All subfolders sync.</string>
+    <plurals name="pair_selective_n_skipped">
+        <item quantity="one">%1$s subfolder is skipped. Files already synced in it stay where they are.</item>
+        <item quantity="other">%1$s subfolders are skipped. Files already synced in them stay where they are.</item>
+    </plurals>
+    <string name="pair_selective_loading">Reading folders on your phone and on Drive…</string>
+    <string name="pair_selective_load_failed">Can\'t load the folders</string>
+    <string name="pair_selective_none_title">No subfolders yet</string>
+    <string name="pair_selective_none_body">This pair\'s folders have no subfolders on your phone or on Drive.</string>
+    <string name="pair_selective_intro">Untick a folder to leave it out of the sync. Everything inside it is skipped too.</string>
+    <string name="pair_selective_save_failed">Couldn\'t save</string>
+    <string name="pair_selective_subfolders">Subfolders</string>
+    <string name="pair_selective_on_both">On phone and Drive</string>
+    <string name="pair_selective_only_phone">Only on this phone</string>
+    <string name="pair_selective_only_drive">Only on Drive</string>
+    <string name="pair_selective_collapse">Collapse %1$s</string>
+    <string name="pair_selective_expand">Expand %1$s</string>
+    <string name="pair_selective_counting">counting…</string>
+    <string name="pair_selective_inherited">Skipped with its parent folder</string>
+    <string name="pair_editor_grant_failed">Android didn\'t let Wasl keep access to this folder, so it would stop syncing after a restart. Choose it again, or choose another folder.</string>
+    <string name="pair_when_on_change_other_app">This folder comes from another app, so Wasl can\'t see its changes. It checks on the schedule.</string>
+</resources>

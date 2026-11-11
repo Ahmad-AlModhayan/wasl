@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "windows-chrome",
+  "description": "Windows only: the caption buttons Wasl draws in its own title bar (dragging is in default.json).",
+  "windows": ["main"],
+  "platforms": ["windows"],
+  "permissions": [
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize"
+  ]
+}

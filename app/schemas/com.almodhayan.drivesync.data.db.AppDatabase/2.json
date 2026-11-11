@@ -1,0 +1,1189 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "addab70ff2f77eee9f6b6419efaaabbb",
+    "entities": [
+      {
+        "tableName": "accounts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `displayName` TEXT, `photoUrl` TEXT, `rootFolderId` TEXT, `changesToken` TEXT, `lastCrawlAt` INTEGER, `lastDeltaAt` INTEGER, `storageUsed` INTEGER, `storageLimit` INTEGER, `addedAt` INTEGER NOT NULL, `authError` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "photoUrl",
+            "columnName": "photoUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "rootFolderId",
+            "columnName": "rootFolderId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "changesToken",
+            "columnName": "changesToken",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastCrawlAt",
+            "columnName": "lastCrawlAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastDeltaAt",
+            "columnName": "lastDeltaAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "storageUsed",
+            "columnName": "storageUsed",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "storageLimit",
+            "columnName": "storageLimit",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "addedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authError",
+            "columnName": "authError",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "folder_pairs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `accountId` TEXT NOT NULL, `name` TEXT NOT NULL, `localPath` TEXT NOT NULL, `remoteFolderId` TEXT NOT NULL, `remotePath` TEXT NOT NULL, `driveId` TEXT, `mode` TEXT NOT NULL, `enabled` INTEGER NOT NULL, `wifiOnly` INTEGER NOT NULL, `allowMetered` INTEGER NOT NULL, `allowRoaming` INTEGER NOT NULL, `requireCharging` INTEGER NOT NULL, `minBatteryPercent` INTEGER NOT NULL, `ssidAllow` TEXT NOT NULL, `ssidDeny` TEXT NOT NULL, `requireVpn` INTEGER NOT NULL, `includePatterns` TEXT NOT NULL, `excludePatterns` TEXT NOT NULL, `excludedSubfolders` TEXT NOT NULL, `syncHidden` INTEGER NOT NULL, `maxFileSizeBytes` INTEGER NOT NULL, `conflictPolicy` TEXT NOT NULL, `propagateDeletions` INTEGER NOT NULL, `massDeleteGuard` INTEGER NOT NULL, `docsExport` INTEGER NOT NULL, `docsFormat` TEXT NOT NULL, `preserveMtime` INTEGER NOT NULL, `encrypted` INTEGER NOT NULL, `vaultId` TEXT, `intervalMinutes` INTEGER NOT NULL, `instantSync` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `lastRunAt` INTEGER, `lastSuccessAt` INTEGER, `lastStatus` TEXT, `lastError` TEXT, `pendingApproval` INTEGER NOT NULL, `pendingApprovalSummary` TEXT, `approveOnce` INTEGER NOT NULL, `paused` INTEGER NOT NULL, `pauseReason` TEXT, `pendingLocalChanges` INTEGER NOT NULL, `lastErrorKind` TEXT, `consecutiveFailures` INTEGER NOT NULL DEFAULT 0, `holdForPreview` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localPath",
+            "columnName": "localPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteFolderId",
+            "columnName": "remoteFolderId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remotePath",
+            "columnName": "remotePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "driveId",
+            "columnName": "driveId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "mode",
+            "columnName": "mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wifiOnly",
+            "columnName": "wifiOnly",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowMetered",
+            "columnName": "allowMetered",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowRoaming",
+            "columnName": "allowRoaming",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requireCharging",
+            "columnName": "requireCharging",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minBatteryPercent",
+            "columnName": "minBatteryPercent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ssidAllow",
+            "columnName": "ssidAllow",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ssidDeny",
+            "columnName": "ssidDeny",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requireVpn",
+            "columnName": "requireVpn",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "includePatterns",
+            "columnName": "includePatterns",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "excludePatterns",
+            "columnName": "excludePatterns",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "excludedSubfolders",
+            "columnName": "excludedSubfolders",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncHidden",
+            "columnName": "syncHidden",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxFileSizeBytes",
+            "columnName": "maxFileSizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conflictPolicy",
+            "columnName": "conflictPolicy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "propagateDeletions",
+            "columnName": "propagateDeletions",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "massDeleteGuard",
+            "columnName": "massDeleteGuard",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "docsExport",
+            "columnName": "docsExport",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "docsFormat",
+            "columnName": "docsFormat",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preserveMtime",
+            "columnName": "preserveMtime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encrypted",
+            "columnName": "encrypted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vaultId",
+            "columnName": "vaultId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "intervalMinutes",
+            "columnName": "intervalMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "instantSync",
+            "columnName": "instantSync",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRunAt",
+            "columnName": "lastRunAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastSuccessAt",
+            "columnName": "lastSuccessAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastStatus",
+            "columnName": "lastStatus",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "pendingApproval",
+            "columnName": "pendingApproval",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pendingApprovalSummary",
+            "columnName": "pendingApprovalSummary",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "approveOnce",
+            "columnName": "approveOnce",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paused",
+            "columnName": "paused",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pauseReason",
+            "columnName": "pauseReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "pendingLocalChanges",
+            "columnName": "pendingLocalChanges",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastErrorKind",
+            "columnName": "lastErrorKind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "consecutiveFailures",
+            "columnName": "consecutiveFailures",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "holdForPreview",
+            "columnName": "holdForPreview",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_folder_pairs_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_folder_pairs_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "file_states",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`pairId` TEXT NOT NULL, `key` TEXT NOT NULL, `localRel` TEXT NOT NULL, `isDir` INTEGER NOT NULL, `localSize` INTEGER NOT NULL, `localMtime` INTEGER NOT NULL, `localHash` TEXT, `remoteId` TEXT, `remoteMd5` TEXT, `remoteSize` INTEGER, `remoteMtime` INTEGER, `remoteVersion` INTEGER, `exportMime` TEXT, `syncedAt` INTEGER NOT NULL, PRIMARY KEY(`pairId`, `key`))",
+        "fields": [
+          {
+            "fieldPath": "pairId",
+            "columnName": "pairId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localRel",
+            "columnName": "localRel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDir",
+            "columnName": "isDir",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localSize",
+            "columnName": "localSize",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localMtime",
+            "columnName": "localMtime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localHash",
+            "columnName": "localHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "remoteMd5",
+            "columnName": "remoteMd5",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "remoteSize",
+            "columnName": "remoteSize",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "remoteMtime",
+            "columnName": "remoteMtime",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "remoteVersion",
+            "columnName": "remoteVersion",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "exportMime",
+            "columnName": "exportMime",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "syncedAt",
+            "columnName": "syncedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "pairId",
+            "key"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_file_states_pairId",
+            "unique": false,
+            "columnNames": [
+              "pairId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_file_states_pairId` ON `${TABLE_NAME}` (`pairId`)"
+          },
+          {
+            "name": "index_file_states_remoteId",
+            "unique": false,
+            "columnNames": [
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_file_states_remoteId` ON `${TABLE_NAME}` (`remoteId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sync_runs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `pairId` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `finishedAt` INTEGER, `status` TEXT NOT NULL, `trigger` TEXT NOT NULL, `uploaded` INTEGER NOT NULL, `downloaded` INTEGER NOT NULL, `deletedLocal` INTEGER NOT NULL, `deletedRemote` INTEGER NOT NULL, `conflicts` INTEGER NOT NULL, `skipped` INTEGER NOT NULL, `errors` INTEGER NOT NULL, `bytesUp` INTEGER NOT NULL, `bytesDown` INTEGER NOT NULL, `message` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pairId",
+            "columnName": "pairId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finishedAt",
+            "columnName": "finishedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trigger",
+            "columnName": "trigger",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uploaded",
+            "columnName": "uploaded",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downloaded",
+            "columnName": "downloaded",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedLocal",
+            "columnName": "deletedLocal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedRemote",
+            "columnName": "deletedRemote",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conflicts",
+            "columnName": "conflicts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skipped",
+            "columnName": "skipped",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "errors",
+            "columnName": "errors",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bytesUp",
+            "columnName": "bytesUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bytesDown",
+            "columnName": "bytesDown",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sync_runs_pairId",
+            "unique": false,
+            "columnNames": [
+              "pairId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_runs_pairId` ON `${TABLE_NAME}` (`pairId`)"
+          },
+          {
+            "name": "index_sync_runs_startedAt",
+            "unique": false,
+            "columnNames": [
+              "startedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_runs_startedAt` ON `${TABLE_NAME}` (`startedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sync_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `runId` TEXT NOT NULL, `pairId` TEXT NOT NULL, `at` INTEGER NOT NULL, `level` TEXT NOT NULL, `action` TEXT NOT NULL, `path` TEXT, `message` TEXT NOT NULL, `detail` TEXT, `bytes` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runId",
+            "columnName": "runId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pairId",
+            "columnName": "pairId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "at",
+            "columnName": "at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "level",
+            "columnName": "level",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "action",
+            "columnName": "action",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "path",
+            "columnName": "path",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "detail",
+            "columnName": "detail",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bytes",
+            "columnName": "bytes",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sync_events_runId",
+            "unique": false,
+            "columnNames": [
+              "runId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_events_runId` ON `${TABLE_NAME}` (`runId`)"
+          },
+          {
+            "name": "index_sync_events_pairId",
+            "unique": false,
+            "columnNames": [
+              "pairId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_events_pairId` ON `${TABLE_NAME}` (`pairId`)"
+          },
+          {
+            "name": "index_sync_events_at",
+            "unique": false,
+            "columnNames": [
+              "at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_events_at` ON `${TABLE_NAME}` (`at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "conflicts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `pairId` TEXT NOT NULL, `key` TEXT NOT NULL, `detectedAt` INTEGER NOT NULL, `policy` TEXT NOT NULL, `localCopyRel` TEXT, `remoteFileId` TEXT, `message` TEXT NOT NULL, `resolved` INTEGER NOT NULL, `resolvedAt` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pairId",
+            "columnName": "pairId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "detectedAt",
+            "columnName": "detectedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "policy",
+            "columnName": "policy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localCopyRel",
+            "columnName": "localCopyRel",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "remoteFileId",
+            "columnName": "remoteFileId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resolved",
+            "columnName": "resolved",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resolvedAt",
+            "columnName": "resolvedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_conflicts_pairId",
+            "unique": false,
+            "columnNames": [
+              "pairId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_conflicts_pairId` ON `${TABLE_NAME}` (`pairId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "trash_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `pairId` TEXT NOT NULL, `originalPath` TEXT NOT NULL, `trashPath` TEXT NOT NULL, `size` INTEGER NOT NULL, `reason` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `side` TEXT NOT NULL DEFAULT 'phone', `accountId` TEXT, `remoteFileId` TEXT, `displayName` TEXT, `pairName` TEXT, `syncKey` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pairId",
+            "columnName": "pairId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalPath",
+            "columnName": "originalPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trashPath",
+            "columnName": "trashPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "size",
+            "columnName": "size",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "side",
+            "columnName": "side",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'phone'"
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "remoteFileId",
+            "columnName": "remoteFileId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "pairName",
+            "columnName": "pairName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "syncKey",
+            "columnName": "syncKey",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_trash_entries_pairId",
+            "unique": false,
+            "columnNames": [
+              "pairId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_trash_entries_pairId` ON `${TABLE_NAME}` (`pairId`)"
+          },
+          {
+            "name": "index_trash_entries_createdAt",
+            "unique": false,
+            "columnNames": [
+              "createdAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_trash_entries_createdAt` ON `${TABLE_NAME}` (`createdAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "drive_nodes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`accountId` TEXT NOT NULL, `id` TEXT NOT NULL, `name` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `parentId` TEXT, `driveId` TEXT, `size` INTEGER, `md5` TEXT, `modifiedTime` INTEGER NOT NULL, `version` INTEGER, `trashed` INTEGER NOT NULL, `isFolder` INTEGER NOT NULL, `isShortcut` INTEGER NOT NULL, `shortcutTargetId` TEXT, `shortcutTargetMime` TEXT, `shared` INTEGER NOT NULL DEFAULT 0, `permissionCount` INTEGER, PRIMARY KEY(`accountId`, `id`))",
+        "fields": [
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentId",
+            "columnName": "parentId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "driveId",
+            "columnName": "driveId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "size",
+            "columnName": "size",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "md5",
+            "columnName": "md5",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "modifiedTime",
+            "columnName": "modifiedTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "trashed",
+            "columnName": "trashed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFolder",
+            "columnName": "isFolder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isShortcut",
+            "columnName": "isShortcut",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "shortcutTargetId",
+            "columnName": "shortcutTargetId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "shortcutTargetMime",
+            "columnName": "shortcutTargetMime",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "shared",
+            "columnName": "shared",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "permissionCount",
+            "columnName": "permissionCount",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "accountId",
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_drive_nodes_accountId_parentId",
+            "unique": false,
+            "columnNames": [
+              "accountId",
+              "parentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_drive_nodes_accountId_parentId` ON `${TABLE_NAME}` (`accountId`, `parentId`)"
+          },
+          {
+            "name": "index_drive_nodes_accountId_driveId",
+            "unique": false,
+            "columnNames": [
+              "accountId",
+              "driveId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_drive_nodes_accountId_driveId` ON `${TABLE_NAME}` (`accountId`, `driveId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "upload_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `sessionUri` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `bytesSent` INTEGER NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionUri",
+            "columnName": "sessionUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bytesSent",
+            "columnName": "bytesSent",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "pins",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`accountId` TEXT NOT NULL, `fileId` TEXT NOT NULL, `isFolder` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `lastSyncedAt` INTEGER, PRIMARY KEY(`accountId`, `fileId`))",
+        "fields": [
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileId",
+            "columnName": "fileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFolder",
+            "columnName": "isFolder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSyncedAt",
+            "columnName": "lastSyncedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "accountId",
+            "fileId"
+          ]
+        }
+      },
+      {
+        "tableName": "vaults",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `saltB64` TEXT NOT NULL, `iterations` INTEGER NOT NULL, `keyCheckB64` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "saltB64",
+            "columnName": "saltB64",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "iterations",
+            "columnName": "iterations",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "keyCheckB64",
+            "columnName": "keyCheckB64",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "blocked_plans",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`pairId` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `summaryJson` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`pairId`))",
+        "fields": [
+          {
+            "fieldPath": "pairId",
+            "columnName": "pairId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "summaryJson",
+            "columnName": "summaryJson",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "pairId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'addab70ff2f77eee9f6b6419efaaabbb')"
+    ]
+  }
+}

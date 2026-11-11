@@ -1,0 +1,57 @@
+name: engine
+
+# Linux only by default; the PR label `full-ci` (or a manual run with "full") adds Windows and macOS.
+# Runs on pull requests and on main, a newer commit cancels the older run.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    paths: ['engine/**', '.github/workflows/engine.yml']
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths: ['engine/**', '.github/workflows/engine.yml']
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Also Windows and macOS
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: engine
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(((github.event_name == 'workflow_dispatch' && inputs.full) || contains(github.event.pull_request.labels.*.name, 'full-ci')) && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # The on-demand FUSE mount tests (wasl-vfs-fuse/tests/mount.rs) mount for real: fuse3 gives
+      # the fusermount3 helper; /dev/fuse is opened as the runner user. Linux only, a few seconds.
+      - name: FUSE for the mount tests
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends fuse3 || { sudo apt-get update -q && sudo apt-get install -y --no-install-recommends fuse3; }
+          sudo chmod 666 /dev/fuse
+      - run: cargo test --workspace
+        env:
+          # On Linux a missing FUSE fails the mount tests instead of skipping them.
+          WASL_FUSE_TESTS: ${{ runner.os == 'Linux' && 'require' || '' }}

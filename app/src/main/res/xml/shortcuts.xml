@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static launcher shortcuts (long-press the app icon). All point to ShortcutActivity with an "action" extra. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="sync_now"
+        android:enabled="true"
+        android:icon="@drawable/widget_ic_sync"
+        android:shortcutShortLabel="@string/shortcut_sync_now_short"
+        android:shortcutLongLabel="@string/shortcut_sync_now_long"
+        android:shortcutDisabledMessage="@string/shortcut_disabled">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.kahflabs.wasl"
+            android:targetClass="com.almodhayan.drivesync.share.ShortcutActivity">
+            <extra android:name="action" android:value="sync_all" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="pause_all"
+        android:enabled="true"
+        android:icon="@drawable/widget_ic_pause"
+        android:shortcutShortLabel="@string/shortcut_pause_all_short"
+        android:shortcutLongLabel="@string/shortcut_pause_all_long"
+        android:shortcutDisabledMessage="@string/shortcut_disabled">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.kahflabs.wasl"
+            android:targetClass="com.almodhayan.drivesync.share.ShortcutActivity">
+            <extra android:name="action" android:value="pause_all" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="resume_all"
+        android:enabled="true"
+        android:icon="@drawable/widget_ic_play"
+        android:shortcutShortLabel="@string/shortcut_resume_all_short"
+        android:shortcutLongLabel="@string/shortcut_resume_all_long"
+        android:shortcutDisabledMessage="@string/shortcut_disabled">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.kahflabs.wasl"
+            android:targetClass="com.almodhayan.drivesync.share.ShortcutActivity">
+            <extra android:name="action" android:value="resume_all" />
+        </intent>
+    </shortcut>
+
+</shortcuts>

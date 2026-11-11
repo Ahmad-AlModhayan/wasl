@@ -1,0 +1,86 @@
+[
+  {
+    "id": "1a15a71d54c-5",
+    "pair_id": "b6f2be18-8f68-4142-9909-590b65b754f8",
+    "trigger": "instant",
+    "status": "SUCCESS",
+    "stats": {
+      "uploaded": 0,
+      "downloaded": 0,
+      "exported": 0,
+      "deleted_local": 0,
+      "deleted_remote": 0,
+      "conflicts": 0,
+      "skipped": 0,
+      "errors": 0,
+      "bytes_up": 0,
+      "bytes_down": 0
+    },
+    "message": null,
+    "started_at": 1792518772044,
+    "ended_at": 1792518772502
+  },
+  {
+    "id": "1a15a71a63e-4",
+    "pair_id": "b6f2be18-8f68-4142-9909-590b65b754f8",
+    "trigger": "manual",
+    "status": "SUCCESS",
+    "stats": {
+      "uploaded": 0,
+      "downloaded": 1,
+      "exported": 0,
+      "deleted_local": 0,
+      "deleted_remote": 0,
+      "conflicts": 0,
+      "skipped": 0,
+      "errors": 0,
+      "bytes_up": 0,
+      "bytes_down": 3000000
+    },
+    "message": null,
+    "started_at": 1792518759998,
+    "ended_at": 1792518766470
+  },
+  {
+    "id": "1a15a714045-2",
+    "pair_id": "b6f2be18-8f68-4142-9909-590b65b754f8",
+    "trigger": "instant",
+    "status": "SUCCESS",
+    "stats": {
+      "uploaded": 2,
+      "downloaded": 0,
+      "exported": 0,
+      "deleted_local": 0,
+      "deleted_remote": 1,
+      "conflicts": 0,
+      "skipped": 0,
+      "errors": 0,
+      "bytes_up": 47,
+      "bytes_down": 0
+    },
+    "message": null,
+    "started_at": 1792518733893,
+    "ended_at": 1792518737045
+  },
+  {
+    "id": "1a15a6ebd21-0",
+    "pair_id": "b6f2be18-8f68-4142-9909-590b65b754f8",
+    "trigger": "schedule",
+    "status": "SUCCESS",
+    "stats": {
+      "uploaded": 4,
+      "downloaded": 0,
+      "exported": 0,
+      "deleted_local": 0,
+      "deleted_remote": 0,
+      "conflicts": 0,
+      "skipped": 0,
+      "errors": 0,
+      "bytes_up": 3000053,
+      "bytes_down": 0
+    },
+    "message": null,
+    "started_at": 1792518569249,
+    "ended_at": 1792518660907
+  }
+]

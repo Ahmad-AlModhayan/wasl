@@ -1,0 +1,45 @@
+[package]
+name = "wasl-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+uniffi = { workspace = true, optional = true }
+wasl-core.workspace = true
+wasl-fs.workspace = true
+wasl-ignore.workspace = true
+wasl-store.workspace = true
+wasl-drive.workspace = true
+wasl-crypto.workspace = true
+wasl-chunk.workspace = true
+wasl-net.workspace = true
+wasl-vfs.workspace = true
+blake3.workspace = true
+similar.workspace = true
+async-trait.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time", "macros", "fs"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+# Copy-on-write clones for agent undo snapshots: clonefile on macOS, FICLONE on Linux.
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+rustix = { version = "1.1", features = ["fs"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+proptest.workspace = true
+wiremock.workspace = true
+filetime.workspace = true
+wasl-drive.workspace = true
+
+[features]
+ffi = ["dep:uniffi", "wasl-core/ffi", "wasl-store/ffi"]
+
+[lints]
+workspace = true

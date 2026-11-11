@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Area "system": notifications, the status line and tile, sync status words, engine glue, errors,
+     files on demand, backup, vaults and the phone's folders. -->
+<resources>
+    <!-- Notifications: channels, progress, the status line and the Quick Settings tile -->
+    <string name="notif_channel_progress">Sync progress</string>
+    <string name="notif_channel_progress_description">Silent progress while folders sync.</string>
+    <string name="notif_channel_status">Status</string>
+    <string name="notif_channel_status_description">What Wasl is doing right now: syncing, waiting for changes, paused or stalled.</string>
+    <string name="notif_channel_result">Sync results</string>
+    <string name="notif_channel_result_description">Optional: a note when a sync finishes.</string>
+    <string name="notif_channel_attention">Needs you</string>
+    <string name="notif_channel_attention_description">Approvals, conflicts and failures.</string>
+    <string name="notif_action_open">Open</string>
+    <string name="notif_public_syncing">Wasl is syncing</string>
+    <string name="notif_public_status">Wasl is running</string>
+    <string name="notif_public_result">A sync finished</string>
+    <string name="notif_public_attention">Wasl needs you</string>
+    <string name="notif_progress_getting_ready">Getting ready to sync</string>
+    <string name="notif_progress_count">Syncing %1$s of %2$s</string>
+    <string name="notif_progress_count_eta">Syncing %1$s of %2$s · %3$s</string>
+    <string name="notif_comparing_folders">Comparing folders…</string>
+    <string name="notif_failed_body_fallback">Some files couldn\'t sync.</string>
+    <string name="notif_synced_title">%1$s is in sync</string>
+    <string name="notif_up_to_date">Up to date</string>
+    <string name="notif_list_separator">", "</string>
+    <string name="notif_status_checking">Checking your pairs…</string>
+    <string name="notif_status_all_paused">All pairs are paused</string>
+    <string name="notif_status_needs_attention">Needs attention</string>
+    <string name="notif_status_waiting">Waiting</string>
+    <string name="notif_status_pair_reason">%1$s: %2$s</string>
+    <string name="notif_status_waiting_for_changes">Waiting for changes</string>
+    <string name="notif_status_a_pair">a pair</string>
+    <string name="notif_status_stalled_title">Stalled · %1$s</string>
+    <string name="notif_status_syncing_pair">Syncing %1$s</string>
+    <string name="notif_status_syncing_pair_percent">Syncing %1$s · %2$d%%</string>
+    <string name="notif_status_done_of_total">%1$s of %2$s</string>
+    <string name="notif_status_no_pairs">No pairs to check</string>
+    <string name="notif_status_next_check_soon">Next check soon</string>
+    <string name="notif_status_next_check_at">Next check %1$s</string>
+    <string name="notif_tile_syncing">Syncing… tap to cancel</string>
+    <string name="notif_tile_idle">Tap to sync now</string>
+    <string name="notif_paused_by_automation">Paused by automation</string>
+
+    <!-- Status words shared by screens and notifications (sync/StatusText) -->
+    <string name="sync_approval_title">Waiting for your OK</string>
+    <string name="sync_approval_title_first_merge">First sync needs your OK</string>
+    <string name="sync_approval_body_wiped_on_phone">The %1$s folder on your phone is empty. Drive still has every file.</string>
+    <string name="sync_approval_body_wiped_on_drive">The %1$s folder on Drive is empty. Your phone still has every file.</string>
+    <string name="sync_approval_body_first_merge">%1$s starts by merging %2$d phone files with %3$d Drive files. Nothing is deleted.</string>
+    <string name="sync_approval_body_fallback">Wasl stopped before a risky change.</string>
+    <string name="sync_approval_action_review_first_sync">Review first sync</string>
+    <string name="sync_action_review">Review</string>
+    <string name="sync_action_restore_on_phone">Restore on phone</string>
+    <string name="sync_action_restore_on_drive">Restore on Drive</string>
+    <string name="sync_action_delete_on_drive">Delete on Drive</string>
+    <string name="sync_action_delete_on_phone">Delete on phone</string>
+    <string name="sync_conflict_body">Both copies are kept until you choose.</string>
+    <string name="sync_failed_title_auth">Sign in again to keep %1$s in sync</string>
+    <string name="sync_failed_title_unreachable">Can\'t reach the %1$s folder</string>
+    <string name="sync_failed_title_quota">Google Drive is full</string>
+    <string name="sync_failed_title_not_found">The Drive folder for %1$s is gone</string>
+    <string name="sync_failed_title_locked">The vault for %1$s is locked</string>
+    <string name="sync_failed_title_keeps_stopping">%1$s keeps stopping</string>
+    <string name="sync_failed_title_other">%1$s couldn\'t finish</string>
+    <string name="sync_failed_why_auth">Google asked to confirm your account again.</string>
+    <string name="sync_failed_why_permission">Android removed access after an update.</string>
+    <string name="sync_failed_why_quota">Drive has no space left for new files.</string>
+    <string name="sync_failed_why_not_found">The Drive folder was moved to the bin or deleted.</string>
+    <string name="sync_failed_why_locked">Its passphrase hasn\'t been entered on this phone.</string>
+    <string name="sync_failed_why_io">The phone folder was moved, renamed or is on a removed SD card.</string>
+    <string name="sync_failed_why_integrity">A file changed while it was being copied. It will be copied again.</string>
+    <string name="sync_failed_why_network">The connection kept dropping.</string>
+    <string name="sync_failed_why_rate_limit">Google Drive asked to slow down for a while.</string>
+    <string name="sync_failed_why_server">Google Drive had trouble on its side.</string>
+    <string name="sync_fix_sign_in">Sign in again</string>
+    <string name="sync_fix_grant_access">Grant access again</string>
+    <string name="sync_fix_free_space">Free up Drive space</string>
+    <string name="sync_fix_choose_folder">Choose another folder</string>
+    <string name="sync_fix_unlock_vault">Unlock vault</string>
+    <string name="sync_fix_retry">Retry now</string>
+    <string name="sync_waiting_charger">Waiting for charger</string>
+    <string name="sync_waiting_battery">Waiting for battery</string>
+    <string name="sync_waiting_vpn">Waiting for VPN</string>
+    <string name="sync_waiting_roaming">Waiting: roaming</string>
+    <string name="sync_waiting_connection">Waiting for a connection</string>
+    <string name="sync_waiting_your_wifi">Waiting for your Wi‑Fi</string>
+    <string name="sync_waiting_wifi">Waiting for Wi‑Fi</string>
+
+    <!-- What holds a pair back (its run conditions). Stored as the pair's last message and read back by sync/Blockers. -->
+    <string name="sync_blocker_offline">No internet connection</string>
+    <string name="sync_blocker_wifi">Waiting for Wi-Fi</string>
+    <string name="sync_blocker_metered">Metered connection</string>
+    <string name="sync_blocker_roaming">Roaming</string>
+    <string name="sync_blocker_vpn">Waiting for VPN</string>
+    <string name="sync_blocker_charger">Waiting for charger</string>
+    <string name="sync_blocker_battery_below">Battery below %1$d%%</string>
+    <string name="sync_blocker_ssid_not_allowed">Wi-Fi network not in allow list</string>
+    <string name="sync_blocker_ssid_denied">Wi-Fi network is in the deny list</string>
+
+    <!-- Engine glue: the engine's fixed messages and errors from Android's storage access (SAF) -->
+    <string name="engine_stalled">Stopped after 15 minutes without progress. Trying again shortly.</string>
+    <string name="engine_no_connection">No connection</string>
+    <string name="engine_saf_no_access">No access to this folder any more. Choose it again in the pair\'s settings.</string>
+    <string name="engine_saf_not_found">Not found</string>
+    <string name="engine_saf_vanished">%1$s was moved or deleted during the sync. The next sync checks it again.</string>
+    <string name="engine_saf_cannot_list">Cannot list the folder</string>
+    <string name="engine_saf_cannot_create_folder">Cannot create folder %1$s</string>
+    <string name="engine_saf_file_not_folder">%1$s is a file, not a folder</string>
+    <string name="engine_saf_cannot_create">Cannot create %1$s</string>
+    <string name="engine_saf_cannot_write">Cannot write %1$s</string>
+    <string name="engine_saf_is_folder">%1$s is a folder</string>
+    <string name="engine_saf_cannot_rename">Cannot rename %1$s</string>
+
+    <!-- Errors shown to the person (core/AppError) -->
+    <string name="core_error_hint_auth">Google sign-in needs your attention. Open Accounts and re-authorize.</string>
+    <string name="core_error_hint_network">No network or the connection dropped. Sync will retry automatically.</string>
+    <string name="core_error_hint_rate_limited">Google is rate limiting requests. Waiting %1$ds before retrying.</string>
+    <string name="core_error_hint_quota">Google Drive storage is full. Free up space or the uploads stay paused.</string>
+    <string name="core_error_hint_not_found">The remote folder or file no longer exists. Check the pair\'s Drive folder.</string>
+    <string name="core_error_hint_permission">Storage permission is missing. Grant \"All files access\" in Settings.</string>
+    <string name="core_error_hint_http">Google Drive returned HTTP %1$d.</string>
+    <string name="core_error_hint_http_reason">Google Drive returned HTTP %1$d (%2$s).</string>
+    <string name="core_error_hint_io">Local storage error: %1$s</string>
+    <string name="core_error_hint_integrity">Transferred data did not verify: %1$s</string>
+    <string name="core_error_hint_locked">The vault is locked. Open Vaults and enter the passphrase.</string>
+    <string name="core_error_hint_cancelled">Cancelled.</string>
+    <string name="core_error_hint_unknown">Unknown error</string>
+    <string name="core_error_network_fallback">network error</string>
+    <string name="core_error_io_fallback">I/O error</string>
+
+    <!-- Google sign-in and Drive errors -->
+    <string name="drive_auth_reauthorize">Re-authorization required</string>
+    <string name="drive_auth_reauthorize_for">Re-authorization required for %1$s</string>
+    <string name="drive_auth_play_services_timeout">Google Play services did not answer. Trying again shortly.</string>
+    <string name="drive_auth_no_token">No access token returned</string>
+    <string name="drive_auth_cancelled">Sign-in was cancelled.</string>
+    <string name="drive_auth_network">Network error while contacting Google.</string>
+    <string name="drive_auth_failed">Google auth failed (status %1$d): %2$s</string>
+    <string name="drive_error_token_rejected">Access token rejected (%1$s)</string>
+    <string name="drive_error_missing_permission">Missing Drive permission: %1$s</string>
+    <string name="drive_error_server">Google Drive server error: %1$s</string>
+    <string name="drive_my_drive">My Drive</string>
+
+    <!-- Files on demand (the Drive entry in Android's file picker) -->
+    <string name="ondemand_shared_with_me">Shared with me</string>
+    <string name="ondemand_available_offline">Available offline</string>
+    <string name="ondemand_not_indexed">Your Drive has not been indexed yet. Connect to the internet once so Wasl can load it.</string>
+    <string name="ondemand_folders_not_files">Folders cannot be opened as files</string>
+    <string name="ondemand_is_a_folder">%1$s is a folder</string>
+    <string name="ondemand_not_offline">%1$s is not available offline. Pin it in Wasl to keep a copy on this device.</string>
+    <string name="ondemand_google_doc_read_only">%1$s is a Google Docs file; it can be read here but not edited</string>
+    <string name="ondemand_not_offline_no_edit">%1$s is not available offline, so it cannot be edited right now</string>
+    <string name="ondemand_no_create_in_shared">Files cannot be created directly in Shared with me</string>
+    <string name="ondemand_folder_no_delete">This folder cannot be deleted</string>
+    <string name="ondemand_folder_no_rename">This folder cannot be renamed</string>
+    <string name="ondemand_folder_no_move">This folder cannot be moved</string>
+    <string name="ondemand_name_empty">The name cannot be empty</string>
+    <string name="ondemand_no_move_between_accounts">Moving between Google accounts is not supported; copy the file instead</string>
+    <string name="ondemand_no_move_into_shared">Files cannot be moved into Shared with me</string>
+    <string name="ondemand_account_not_signed_in">%1$s is not signed in to Wasl</string>
+    <string name="ondemand_in_drive_trash">%1$s is in the Drive trash</string>
+    <string name="ondemand_not_indexed_offline">This file is not in the local Drive index and the device is offline</string>
+    <string name="ondemand_no_export_format">%1$s cannot be opened here: this Google file type has no export format</string>
+    <string name="ondemand_fetch_no_export_format">%1$s has no export format</string>
+    <string name="ondemand_shortcut_unopenable">%1$s points to a file that cannot be opened here</string>
+    <string name="ondemand_not_found_on_drive">Not found on Google Drive</string>
+    <string name="ondemand_auth_needed">Google sign-in needs your attention. Open Wasl › Accounts and sign in again.</string>
+    <string name="ondemand_offline">No internet connection. Files pinned in Wasl stay available offline.</string>
+    <string name="ondemand_vault_read_only">%1$s is in an encrypted vault, so it opens read-only here. Edit it in its pair\'s folder on this phone.</string>
+    <string name="ondemand_vault_locked">The vault %1$s is locked. Unlock it in Wasl › Vaults to see its files.</string>
+    <string name="ondemand_vault_no_changes">Files in an encrypted vault can\'t be created, renamed, moved or deleted here.</string>
+
+    <!-- Sync modes, conflict policies and export formats -->
+    <string name="data_sync_mode_two_way">Two-way</string>
+    <string name="data_sync_mode_two_way_description">Changes and deletions on either side are mirrored to the other.</string>
+    <string name="data_sync_mode_upload_only">Upload only</string>
+    <string name="data_sync_mode_upload_only_description">New and changed device files go to Drive. Nothing is deleted on Drive.</string>
+    <string name="data_sync_mode_upload_then_delete">Upload then delete</string>
+    <string name="data_sync_mode_upload_then_delete_description">Move files from the device to Drive.</string>
+    <string name="data_sync_mode_upload_mirror">Upload mirror</string>
+    <string name="data_sync_mode_upload_mirror_description">Drive folder becomes an exact copy of the device folder.</string>
+    <string name="data_sync_mode_download_only">Download only</string>
+    <string name="data_sync_mode_download_only_description">New and changed Drive files come to the device. Nothing is deleted locally.</string>
+    <string name="data_sync_mode_download_then_delete">Download then delete</string>
+    <string name="data_sync_mode_download_then_delete_description">Move files from Drive to the device.</string>
+    <string name="data_sync_mode_download_mirror">Download mirror</string>
+    <string name="data_sync_mode_download_mirror_description">Device folder becomes an exact copy of the Drive folder.</string>
+    <string name="data_conflict_policy_keep_both">Keep both (conflict copy)</string>
+    <string name="data_conflict_policy_newer_wins">Newer file wins</string>
+    <string name="data_conflict_policy_local_wins">Device wins</string>
+    <string name="data_conflict_policy_remote_wins">Drive wins</string>
+    <string name="data_conflict_policy_skip">Skip and report</string>
+    <string name="data_docs_format_office">Office formats (docx/xlsx/pptx)</string>
+    <string name="data_docs_format_pdf">PDF</string>
+
+    <!-- Configuration backup and import -->
+    <string name="backup_import_mode_merge">Merge</string>
+    <string name="backup_import_mode_replace">Replace</string>
+    <string name="backup_pause_reason_vault">Enter the vault passphrase in Vaults, then resume</string>
+    <string name="backup_pause_reason_sign_in">Sign in to %1$s, then resume</string>
+    <string name="backup_warning_newer_format">The backup was made by a newer Wasl (format v%1$d); settings this version does not know were ignored.</string>
+    <string name="backup_unnamed">unnamed</string>
+    <string name="backup_skipped_pair_missing_id">Pair \"%1$s\": missing id</string>
+    <string name="backup_skipped_pair_duplicate_id">Pair \"%1$s\": duplicate id %2$s</string>
+    <string name="backup_skipped_pair_no_device_folder">Pair \"%1$s\": device folder path is empty</string>
+    <string name="backup_skipped_pair_no_drive_folder">Pair \"%1$s\": Drive folder id is empty</string>
+    <string name="backup_skipped_pair_no_account">Pair \"%1$s\": no Google account</string>
+    <string name="backup_skipped_pair_unknown_mode">Pair \"%1$s\": unknown sync mode \"%2$s\"</string>
+    <string name="backup_warning_unknown_conflict_policy">Pair \"%1$s\": unknown conflict policy \"%2$s\", using \"%3$s\".</string>
+    <string name="backup_warning_unknown_docs_format">Pair \"%1$s\": unknown Google Docs export format \"%2$s\", using \"%3$s\".</string>
+    <string name="backup_default_pair_name">Folder pair</string>
+    <string name="backup_default_vault_name">Vault</string>
+    <string name="backup_warning_vault_missing">Pair \"%1$s\" is encrypted but its vault is not in the backup or on this device; pick a vault in the pair\'s settings.</string>
+    <string name="backup_skipped_pair_private_storage">Pair \"%1$s\": its phone folder is inside Wasl\'s private storage</string>
+    <string name="backup_warning_safeguards_kept">Pair \"%1$s\": deletion safeguards stay on for a new pair; change them in the pair\'s settings after the preview.</string>
+    <string name="backup_skipped_vault_incomplete">Vault \"%1$s\": incomplete metadata</string>
+    <string name="backup_skipped_vault_duplicate_id">Vault \"%1$s\": duplicate id %2$s</string>
+    <string name="backup_skipped_pin_missing_id">Pin: missing account or file id</string>
+    <string name="backup_list_separator">", "</string>
+    <string name="backup_report_added">%1$d added</string>
+    <string name="backup_report_updated">%1$d updated</string>
+    <string name="backup_report_removed">%1$d removed</string>
+    <string name="backup_report_skipped">%1$d skipped</string>
+    <string name="backup_report_pairs">Folder pairs: %1$s.</string>
+    <string name="backup_report_vaults">Vaults: %1$d imported. Passphrases are not backed up; enter them again in Vaults.</string>
+    <string name="backup_report_pins">Offline pins: %1$d imported.</string>
+    <string name="backup_report_pins_removed">Offline pins: %1$d imported, %2$d removed.</string>
+    <string name="backup_report_settings_applied">Settings were applied.</string>
+    <string name="backup_report_sign_in">Sign in to: %1$s. Their pairs stay paused until you do.</string>
+    <string name="backup_error_not_a_backup">This is not a Wasl backup. Choose a drivesync-config-….json file that Wasl exported.</string>
+    <string name="backup_error_unsupported_version">Unsupported backup format (version %1$d).</string>
+    <string name="backup_warning_device_name">Device name stays \"%1$s\" (the backup came from \"%2$s\").</string>
+    <string name="backup_error_no_drive_backup">No backup in this account\'s Drive app data yet. Tap \"Back up now\" first, or import a file.</string>
+
+    <!-- Vaults -->
+    <string name="crypto_vault_name_required">Give the vault a name.</string>
+    <string name="crypto_passphrase_required">Enter a passphrase.</string>
+    <string name="crypto_invalid_iterations">Invalid iteration count.</string>
+    <string name="crypto_vault_gone">This vault no longer exists.</string>
+    <string name="crypto_list_separator">", "</string>
+    <string name="crypto_quoted_name">\"%1$s\"</string>
+
+    <!-- The phone's folders -->
+    <string name="fs_folder_missing">Local folder does not exist: %1$s</string>
+    <string name="fs_not_a_folder">Local path is not a folder: %1$s</string>
+    <string name="fs_cannot_read">Cannot read %1$s</string>
+    <string name="fs_cannot_list">Cannot list the phone folder %1$s</string>
+    <string name="fs_cannot_replace">Cannot replace %1$s</string>
+    <string name="fs_cannot_remove_after_trash">Cannot remove %1$s after copying to trash</string>
+
+    <!-- Counts -->
+    <plurals name="notif_progress_syncing_pairs">
+        <item quantity="one">Syncing %1$d pair</item>
+        <item quantity="other">Syncing %1$d pairs</item>
+    </plurals>
+    <plurals name="notif_status_syncing_more">
+        <item quantity="one">Syncing %1$s and %2$d more</item>
+        <item quantity="other">Syncing %1$s and %2$d more</item>
+    </plurals>
+    <plurals name="notif_status_pairs_at_once">
+        <item quantity="one">%1$d pair at once</item>
+        <item quantity="other">%1$d pairs at once</item>
+    </plurals>
+    <plurals name="notif_status_stalled_text">
+        <item quantity="one">No progress for %1$d min. It retries on its own.</item>
+        <item quantity="other">No progress for %1$d min. It retries on its own.</item>
+    </plurals>
+    <plurals name="notif_synced_uploaded">
+        <item quantity="one">%1$d uploaded</item>
+        <item quantity="other">%1$d uploaded</item>
+    </plurals>
+    <plurals name="notif_synced_downloaded">
+        <item quantity="one">%1$d downloaded</item>
+        <item quantity="other">%1$d downloaded</item>
+    </plurals>
+    <plurals name="notif_synced_deleted">
+        <item quantity="one">%1$d deleted</item>
+        <item quantity="other">%1$d deleted</item>
+    </plurals>
+    <plurals name="notif_synced_conflicts">
+        <item quantity="one">%1$d conflict</item>
+        <item quantity="other">%1$d conflicts</item>
+    </plurals>
+    <plurals name="sync_approval_body_deleted_on_phone">
+        <item quantity="one">%1$d file was deleted from %2$s on your phone. Drive still has it.</item>
+        <item quantity="other">%1$d files were deleted from %2$s on your phone. Drive still has them.</item>
+    </plurals>
+    <plurals name="sync_approval_body_deleted_on_drive">
+        <item quantity="one">%1$d file was deleted from %2$s on Drive. Your phone still has it.</item>
+        <item quantity="other">%1$d files were deleted from %2$s on Drive. Your phone still has them.</item>
+    </plurals>
+    <plurals name="sync_approval_action_review_deletions">
+        <item quantity="one">Review %1$d deletion</item>
+        <item quantity="other">Review %1$d deletions</item>
+    </plurals>
+    <plurals name="sync_conflict_title">
+        <item quantity="one">A conflict in %2$s</item>
+        <item quantity="other">%1$d conflicts in %2$s</item>
+    </plurals>
+    <plurals name="sync_conflict_action">
+        <item quantity="one">Review conflict</item>
+        <item quantity="other">Review %1$d conflicts</item>
+    </plurals>
+    <plurals name="backup_report_paused">
+        <item quantity="one">%1$d pair is paused until you act (see below).</item>
+        <item quantity="other">%1$d pairs are paused until you act (see below).</item>
+    </plurals>
+    <plurals name="crypto_vault_in_use">
+        <item quantity="one">This vault is used by the folder pair %2$s. Delete that pair or switch it to another vault first.</item>
+        <item quantity="other">This vault is used by %1$d folder pairs: %2$s. Delete those pairs or switch them to another vault first.</item>
+    </plurals>
+    <string name="notif_restore_failed_title">Couldn\'t restore the files on the phone</string>
+    <string name="notif_restore_failed_body">Wasl tried several times and the files are still only on Drive. Open Problems to restore them or try again.</string>
+    <string name="notif_restore_failed_action">Open Problems</string>
+</resources>

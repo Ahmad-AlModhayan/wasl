@@ -1,0 +1,562 @@
+/* Wasl desktop's own layer on top of @kahf/design (kahf.css, then desktop.css). Logical properties only, so the
+   layout mirrors in Arabic. Type is the family's: IBM Plex Sans, Plex Sans Arabic and Plex Mono, at the desktop
+   layer's sizes. */
+
+/* ---------- One look inside the window (#124) ----------
+   Each platform keeps its own frame (D1: the macOS overlay title bar, the Windows 11 title bar with Mica), but
+   everything inside the window is the same on both: the macOS sizes, rows, type and selection. kahf-design's
+   desktop layer gives Windows (and Linux, which takes it) a larger Fluent density; this puts its tokens back to
+   the shared values in one place, so the rest of Wasl's styles need no platform rules. The Windows title bar's
+   own height (--kf-desk-titlebar, 48px) is part of the frame and stays. */
+.kf-desktop[data-kf-platform="windows"] {
+  --kf-desk-sidebar: 232px;
+  --kf-desk-sidebar-row: 28px;
+  --kf-desk-table-row: 28px;
+  --kf-desk-control: 28px;
+  --kf-size-button: 28px;
+  --kf-size-row: 28px;
+  --kf-desk-radius-control: 6px;
+  --kf-desk-radius-pane: 10px;
+  --kf-desk-font-body: 400 13px/18px var(--font-ui);
+  --kf-desk-font-body-strong: 600 13px/18px var(--font-ui);
+  --kf-desk-font-caption: 400 11px/14px var(--font-ui);
+  --kf-desk-font-label: 600 11px/14px var(--font-ui);
+  --kf-desk-font-title: 600 15px/20px var(--font-ui);
+  --kf-desk-font-large-title: 700 22px/28px var(--font-ui);
+  --kf-desk-selection: var(--md-sys-color-primary);
+  --kf-desk-on-selection: var(--md-sys-color-on-primary);
+}
+.kf-desktop[data-kf-platform="windows"]:lang(ar) {
+  --kf-desk-font-body: 400 13px/20px var(--font-arabic);
+  --kf-desk-font-body-strong: 600 13px/20px var(--font-arabic);
+  --kf-desk-font-caption: 400 11px/16px var(--font-arabic);
+  --kf-desk-font-label: 600 11px/16px var(--font-arabic);
+  --kf-desk-font-title: 600 15px/22px var(--font-arabic);
+}
+/* The layer's Fluent touches inside the window: the selection pill, the taller menu rows, the two-tone focus ring. */
+.kf-desktop[data-kf-platform="windows"] .kf-desk-sidebar-item::before,
+.kf-desktop[data-kf-platform="windows"] .kf-desk-sidebar-item:is([aria-current="page"], [aria-selected="true"])::before { content: none; }
+.kf-desktop[data-kf-platform="windows"] .kf-desk-menu [role="menuitem"] { min-block-size: 24px; padding-inline: 8px; }
+.kf-desktop[data-kf-platform="windows"] .kf-desk-menu [role="menuitem"]:is(:hover, :focus-visible) { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.kf-desktop[data-kf-platform="windows"] :focus-visible { outline-color: var(--kf-desk-focus-color); box-shadow: none; }
+
+html, body { block-size: 100%; }
+body { overflow: hidden; font: var(--kf-desk-font-body); }
+#app { block-size: 100%; }
+
+.skip { position: absolute; inset-inline-start: 8px; inset-block-start: -48px; z-index: 10; padding: 8px 12px; border-radius: var(--md-sys-shape-corner-small); background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.skip:focus { inset-block-start: 8px; }
+
+/* ---------- Status: Wasl's six states (design D8, docs/design/project/2-status-system.md) ----------
+   Fixed colours, not the accent: the glyph's shape says the state, the colour repeats it. Each holds 3:1 on the
+   window's surfaces for the glyph and 4.5:1 for words. */
+.kf-desktop {
+  --wasl-synced: #2a6b37; --wasl-syncing: #185eaf; --wasl-waiting: #57605b;
+  --wasl-approval: #7f5600; --wasl-conflict: #7f4a8b; --wasl-failed: #ba1a1a;
+  --wasl-approval-container: #ffdeae; --wasl-conflict-container: #fdd6ff; --wasl-failed-container: #ffdad6;
+  --wasl-on-approval-container: #4d3300; --wasl-on-conflict-container: #4f2a57; --wasl-on-failed-container: #7d1410;
+}
+@media (prefers-color-scheme: dark) {
+  :root.kf-desktop:not(:has(> head > meta[name="color-scheme"][content="light"])) {
+    --wasl-synced: #93d698; --wasl-syncing: #a9c7ff; --wasl-waiting: #bfc9c2;
+    --wasl-approval: #ffba3e; --wasl-conflict: #f0b0fa; --wasl-failed: #ffb4ab;
+    --wasl-approval-container: #513600; --wasl-conflict-container: #4d3252; --wasl-failed-container: #701e18;
+    --wasl-on-approval-container: #ffdeae; --wasl-on-conflict-container: #fdd6ff; --wasl-on-failed-container: #ffdad6;
+  }
+}
+:root.kf-desktop:has(> head > meta[name="color-scheme"][content="dark"]) {
+  --wasl-synced: #93d698; --wasl-syncing: #a9c7ff; --wasl-waiting: #bfc9c2;
+  --wasl-approval: #ffba3e; --wasl-conflict: #f0b0fa; --wasl-failed: #ffb4ab;
+  --wasl-approval-container: #513600; --wasl-conflict-container: #4d3252; --wasl-failed-container: #701e18;
+  --wasl-on-approval-container: #ffdeae; --wasl-on-conflict-container: #fdd6ff; --wasl-on-failed-container: #ffdad6;
+}
+.status-synced { --status: var(--wasl-synced); }
+.status-syncing { --status: var(--wasl-syncing); }
+.status-waiting { --status: var(--wasl-waiting); }
+.status-approval { --status: var(--wasl-approval); --status-bg: var(--wasl-approval-container); --status-fg: var(--wasl-on-approval-container); }
+.status-conflict { --status: var(--wasl-conflict); --status-bg: var(--wasl-conflict-container); --status-fg: var(--wasl-on-conflict-container); }
+.status-failed { --status: var(--wasl-failed); --status-bg: var(--wasl-failed-container); --status-fg: var(--wasl-on-failed-container); }
+/* One icon set, one stroke weight (#203): every line icon draws a 1.5px stroke whatever its size (16px inline, 20px in
+   banners and titles, 36px in empty states), so a lock reads like the folder beside it. */
+.line-icon { flex: none; fill: none; stroke: currentColor; stroke-width: 1.5px; stroke-linecap: round; stroke-linejoin: round; }
+.line-icon * { vector-effect: non-scaling-stroke; }
+.status-glyph { display: inline-flex; align-items: center; gap: 6px; flex: none; color: var(--status); }
+.status-word { font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) {
+  .status-spin { animation: spin 2.4s linear infinite; }
+}
+
+/* ---------- Shell: sidebar, toolbar, detail pane, inspector (#63) ----------
+   kahf-design's desktop components (.kf-desk-sidebar, -item, -badge, -inspector, -btn) draw the parts; this lays
+   them out. data-sidebar-view on .shell is set by app.ts from the window width and the person's choice:
+   full, overlay (opened in a narrow window) or none. */
+.shell { position: relative; display: flex; block-size: 100%; }
+.shell-sidebar { flex: none; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: 8px; }
+.shell-sidebar h2 { margin: 0; font: inherit; }
+.shell-nav-list { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.shell-sidebar .kf-desk-sidebar-item { inline-size: 100%; cursor: default; }
+.shell-sidebar .kf-desk-sidebar-item > .line-icon:first-child { color: var(--md-sys-color-primary); }
+.shell-sidebar .kf-desk-sidebar-item[aria-current="page"] > .line-icon:first-child { color: inherit; }
+.shell-label { flex: 1 1 auto; min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.shell-badge-loud { background: var(--wasl-failed); color: var(--kf-desk-content); }
+.kf-desk-sidebar-item[aria-current="page"] .kf-desk-badge { background: color-mix(in srgb, currentColor 22%, transparent); color: inherit; }
+.kf-desk-sidebar-item[aria-current="page"] .status-glyph { color: inherit; }
+.shell-group { display: flex; align-items: center; gap: 4px; }
+.shell-group-pairs h2 { flex: 1; }
+.shell-add { min-block-size: 24px; inline-size: 24px; margin-block: -4px; color: var(--md-sys-color-on-surface-variant); }
+.shell-no-match { padding: 4px 8px; color: var(--md-sys-color-on-surface-variant); font: var(--kf-desk-font-caption); }
+/* One column no wider than the sidebar: a long label wraps (it never pushes the free space out of view). */
+.shell-footer { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-block-start: auto; padding: 10px 8px 2px; border-block-start: 1px solid var(--kf-desk-separator); font: var(--kf-desk-font-caption); color: var(--md-sys-color-on-surface-variant); }
+.shell-footer-line { display: flex; align-items: center; gap: 6px; margin: 0; }
+.shell-footer-grow { flex: 1 1 auto; min-inline-size: 0; overflow-wrap: anywhere; }
+.shell-footer-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.shell-footer-line.status-syncing > .line-icon { color: var(--status); }
+.shell-footer-bar { block-size: 4px; border-radius: 2px; background: var(--kf-desk-separator); overflow: hidden; }
+.shell-footer-bar > i { display: block; block-size: 100%; border-radius: inherit; background: var(--wasl-syncing); }
+.shell-pinned { margin-block-start: 6px; }
+.shell-scrim { display: none; }
+
+/* The detail column: toolbar, banner, the screen, and the inspector beside it. */
+.pane { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; background: var(--kf-desk-content); }
+.shell-body { position: relative; flex: 1 1 auto; display: flex; min-block-size: 0; }
+.shell-detail { flex: 1 1 auto; display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; }
+.main { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; padding: var(--kf-space-6) var(--kf-space-8) var(--kf-space-12); outline: none; scroll-padding-block: var(--kf-space-6); }
+.shell-banner-slot:empty { display: none; }
+.shell-banner-slot { padding: 12px 16px 0; }
+.shell-banner { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--kf-desk-radius-pane); background: var(--status-bg); color: var(--status-fg); }
+.shell-banner > .line-icon { color: var(--status-fg); }
+.shell-banner-text { flex: 1; min-inline-size: 0; }
+.shell-banner-text p { margin: 0; }
+.shell-banner-title { font: var(--kf-desk-font-body-strong); }
+
+/* Toolbar commands: kahf-design's desktop buttons. */
+.shell-cmd { cursor: default; }
+.shell-cmd:disabled { opacity: var(--md-sys-state-disabled-content-opacity, 0.38); }
+.shell-titles { flex: 1 1 auto; display: flex; flex-direction: column; min-inline-size: 0; }
+.shell-title, .shell-subtitle { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.shell-title { font: var(--kf-desk-font-title); }
+.shell-subtitle { font: var(--kf-desk-font-caption); color: var(--md-sys-color-on-surface-variant); }
+.shell-search { display: flex; align-items: center; gap: 6px; inline-size: 180px; min-block-size: var(--kf-desk-control); padding-inline: 10px; border-radius: 999px; background: var(--kf-desk-hover); color: var(--md-sys-color-on-surface-variant); }
+.shell-search-input { flex: 1; min-inline-size: 0; border: 0; padding: 0; background: transparent; color: var(--md-sys-color-on-surface); font: inherit; outline: none; }
+.shell-search:focus-within { outline: var(--kf-desk-focus-width) solid var(--kf-desk-focus-color); outline-offset: var(--kf-desk-focus-offset); }
+
+/* The toolbar, the same on both platforms (#124): chrome-mac.css places it under the traffic lights; on Windows it
+   sits under the title bar. */
+.shell-toolbar { flex: none; display: flex; align-items: center; gap: 10px; block-size: 52px; box-sizing: border-box; padding-inline: var(--kf-space-4) 12px; }
+.shell-capsule { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: var(--kf-desk-hover); }
+.shell-capsule .shell-cmd { min-inline-size: 32px; min-block-size: 28px; border-radius: 999px; border-color: transparent; }
+.shell-capsule .shell-cmd { --btn-bg: transparent; }
+.shell-capsule .shell-cmd.kf-desk-btn-default { --btn-bg: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.shell-capsule .shell-cmd[aria-pressed="true"] { color: var(--md-sys-color-primary); }
+
+/* The inspector: a trailing pane, 260–320px; over the pane when the window is narrow. */
+.shell-inspector { flex: none; inline-size: clamp(260px, 24vw, 320px); overflow-y: auto; padding: 16px; box-sizing: border-box; background: var(--kf-desk-content); }
+.shell-inspector[hidden] { display: none; }
+.shell-insp { display: flex; flex-direction: column; gap: 16px; min-block-size: 100%; }
+.shell-insp-group { display: grid; gap: 6px; justify-items: start; }
+.shell-insp-group > .progress-box { justify-self: stretch; }
+.shell-insp-title { margin: 0; font: var(--kf-desk-font-title); outline: none; overflow-wrap: anywhere; }
+.shell-insp-path, .shell-insp-caption { margin: 0; font: var(--kf-desk-font-caption); color: var(--md-sys-color-on-surface-variant); }
+.shell-insp-path { font: var(--kf-desk-font-mono); }
+.shell-insp-num { margin: 0; font-variant-numeric: tabular-nums; }
+.pd-num { font-variant-numeric: tabular-nums; }
+.shell-insp-label { margin: 0; font: var(--kf-desk-font-label); color: var(--md-sys-color-on-surface-variant); }
+.shell-insp-box { display: grid; justify-self: stretch; margin: 0; padding: 0; list-style: none; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--kf-desk-separator); }
+.shell-insp-box > li { display: flex; align-items: center; gap: 10px; min-block-size: var(--kf-desk-table-row); padding: 6px 10px; }
+.shell-insp-box > li + li { border-block-start: 1px solid var(--kf-desk-separator); }
+.shell-insp-box > li > .line-icon { color: var(--md-sys-color-on-surface-variant); }
+.shell-insp-box p { margin: 0; }
+.shell-insp-grow { flex: 1; }
+.shell-insp-count { font-variant-numeric: tabular-nums; color: var(--md-sys-color-on-surface-variant); }
+.shell-insp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: auto; }
+@media (max-width: 900px) {
+  .shell-inspector { position: absolute; z-index: 20; inset-block: 0; inset-inline-end: 0; box-shadow: var(--kf-desk-shadow-popover); }
+}
+
+/* The sidebar's narrow states. */
+.shell[data-sidebar-view="none"] .shell-sidebar { display: none; }
+.shell[data-sidebar-view="overlay"] .shell-sidebar { position: absolute; z-index: 30; inset-block: 0; inset-inline-start: 0; background: var(--md-sys-color-surface-container); box-shadow: var(--kf-desk-shadow-popover); }
+.shell[data-sidebar-view="overlay"] .shell-scrim { display: block; position: absolute; z-index: 29; inset: 0; background: rgb(0 0 0 / 0.18); }
+
+/* Context menus drawn by the page (the dev mock; the app uses native menus). */
+.shell-menu { position: fixed; z-index: 50; display: grid; }
+.shell-menu [role="menuitem"] { inline-size: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: default; }
+.shell-menu [role="menuitem"]:disabled { opacity: 0.4; }
+.shell-menu .shell-menu-text { flex: 1; }
+.shell-menu .shell-menu-gap { inline-size: 16px; }
+.shell-menu-key { color: var(--md-sys-color-on-surface-variant); font: inherit; }
+.shell-menu [role="menuitem"]:is(:hover, :focus-visible) .shell-menu-key { color: inherit; }
+.shell-menu-danger { color: var(--wasl-failed) !important; }
+
+@media (forced-colors: active) {
+  .status-glyph, .shell-banner, .shell-banner > .line-icon { color: CanvasText; forced-color-adjust: auto; }
+  .shell-banner { border: 1px solid CanvasText; }
+  /* The loud badge's fill and its number both became Canvas: draw it in system colours. */
+  .shell-badge-loud { forced-color-adjust: none; border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
+  .shell-sidebar { border-inline-end: 1px solid CanvasText; }
+  /* kahf's switch lost its track and knob (both Canvas): an outlined track and a ButtonText knob, Highlight when on. */
+  .kf-switch { forced-color-adjust: none; border: 1px solid ButtonText; background: ButtonFace; box-shadow: none; }
+  .kf-switch::after { background: ButtonText; box-shadow: none; }
+  .kf-switch[aria-checked="true"] { border-color: Highlight; background: Highlight; }
+  .kf-switch[aria-checked="true"]::after { background: HighlightText; }
+  .kf-switch:disabled { border-color: GrayText; }
+  .kf-switch:disabled::after { background: GrayText; }
+  .shell-inspector { border-inline-start: 1px solid CanvasText; }
+}
+
+/* ---------- All pairs (#64): the table on kahf-design's .kf-desk-table, the bulk bar, the empty state ----------
+   The table fills the detail pane edge to edge, its header stays while the rows scroll, and the bulk bar sits at
+   the bottom while several rows are selected. */
+.main:has(> .pairs-screen) { padding: 0; }
+.main:has(.pairs-bulk:not([hidden])) { scroll-padding-block-end: 56px; }
+.pairs-screen { display: flex; flex-direction: column; min-block-size: 100%; container-type: inline-size; }
+.pairs-scroll { flex: 1 1 auto; }
+.pairs-table { table-layout: fixed; -webkit-user-select: none; user-select: none; }
+.pairs-table thead th { position: sticky; inset-block-start: 0; z-index: 1; padding: 0; background: var(--kf-desk-content); }
+.pairs-col-name { inline-size: 30%; }
+.pairs-col-status { inline-size: 24%; }
+.pairs-col-direction { inline-size: 18%; }
+.pairs-col-last { inline-size: 16%; }
+.pairs-col-size { inline-size: 12%; }
+/* Size reads as numbers: right-aligned (start-aligned headers stay for the rest), tabular digits. */
+.pairs-col-size .pairs-sort, td.pairs-col-size .pairs-cell { justify-content: flex-end; }
+td.pairs-col-size { font-variant-numeric: tabular-nums; }
+.pairs-table td { cursor: default; }
+.pairs-table td:first-child, .pairs-table th:first-child .pairs-sort { padding-inline-start: 16px; }
+.pairs-table td:last-child, .pairs-table th:last-child .pairs-sort { padding-inline-end: 16px; }
+.pairs-table td:focus-visible, .pairs-sort:focus-visible { outline-offset: -2px; }
+.pairs-sort { display: flex; align-items: center; gap: 4px; inline-size: 100%; min-block-size: 24px; padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: default; }
+.pairs-sort:hover { background: var(--kf-desk-hover); }
+.pairs-cell { display: flex; align-items: center; gap: 8px; min-inline-size: 0; }
+.pairs-cell > span:not(.status-glyph) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pairs-col-name .line-icon { color: var(--md-sys-color-primary); }
+.pairs-name { font-weight: 500; }
+td.pairs-col-direction, td.pairs-col-last, td.pairs-col-size { color: var(--md-sys-color-on-surface-variant); }
+/* Loud states get a tonal chip (design D8); quiet ones are a glyph and a word. */
+.status-chip { padding: 0 8px; border-radius: 999px; background: var(--status-bg); color: var(--status-fg); }
+.pairs-no-match { white-space: normal !important; color: var(--md-sys-color-on-surface-variant); }
+/* An accent-filled selection; glyphs, chips and muted words take its colour. */
+.pairs-table tr[aria-selected="true"] :is(.line-icon, .status-glyph, td) { color: inherit; }
+.pairs-table tr[aria-selected="true"] .status-chip { background: color-mix(in srgb, currentColor 22%, transparent); }
+/* A window in the background greys the selection, as both platforms do. */
+.kf-desk-inactive .pairs-table tbody tr[aria-selected="true"] { background: var(--kf-desk-selection-inactive); color: inherit; }
+.kf-desktop.kf-desk-inactive .pairs-table tbody tr[aria-selected="true"] .status-glyph { color: var(--status); }
+.kf-desktop.kf-desk-inactive .pairs-table tbody tr[aria-selected="true"] .status-chip { background: var(--status-bg); color: var(--status-fg); }
+@container (max-width: 560px) {
+  .pairs-col-direction, .pairs-col-size { display: none; }
+}
+.pairs-bulk { position: sticky; inset-block-end: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 16px; border-block-start: 1px solid var(--kf-desk-separator); background: var(--kf-desk-content); }
+.pairs-bulk[hidden] { display: none; }
+.pairs-bulk-count { margin-inline-end: auto; font: var(--kf-desk-font-body-strong); }
+.pairs-empty-screen { padding: 24px; box-sizing: border-box; }
+.pairs-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; border: 1.5px dashed var(--md-sys-color-outline); border-radius: 14px; }
+.pairs-empty > .line-icon { color: var(--md-sys-color-on-surface-variant); stroke-width: 1.4; }
+.pairs-empty h1 { margin: 0; font: var(--kf-desk-font-title); outline: none; }
+.pairs-empty p { margin: 0; max-inline-size: 420px; color: var(--md-sys-color-on-surface-variant); }
+.pairs-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+
+/* ---------- Pair detail (#64) ---------- */
+.pd { display: flex; flex-direction: column; gap: 16px; max-inline-size: 880px; }
+.pd-back { align-self: flex-start; margin-inline-start: -8px; padding-inline: 4px 10px; border-color: transparent; background: transparent; color: var(--md-sys-color-primary); }
+.pd-back:hover, .pd-plain:hover { background: var(--kf-desk-hover); }
+.pd-callout { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--kf-desk-radius-pane); background: var(--status-bg); color: var(--status-fg); }
+.pd-callout.status-waiting { background: color-mix(in srgb, var(--md-sys-color-on-surface) 3%, transparent); color: inherit; box-shadow: inset 0 0 0 1px var(--kf-desk-separator); }
+.pd-callout-text { flex: 1; min-inline-size: 0; }
+.pd-callout-text p { margin: 0; }
+.pd-callout-title { font: var(--kf-desk-font-body-strong); }
+.pd-route { display: flex; align-items: flex-start; margin: 0; padding: 0; list-style: none; }
+.pd-node { flex: 0 1 200px; min-inline-size: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 10px; text-align: center; border-radius: 10px; background: color-mix(in srgb, var(--md-sys-color-on-surface) 3%, transparent); box-shadow: inset 0 0 0 1px var(--kf-desk-separator); }
+.pd-node p { margin: 0; max-inline-size: 100%; }
+.pd-node-title { font: var(--kf-desk-font-body-strong); }
+.pd-node-caption { font: var(--kf-desk-font-caption); color: var(--md-sys-color-on-surface-variant); overflow-wrap: anywhere; }
+.pd-node .path.pd-node-caption { font: var(--kf-desk-font-mono); font-family: "IBM Plex Mono", "IBM Plex Sans Arabic", ui-monospace, Menlo, monospace; }
+.pd-link { flex: 1 1 60px; min-inline-size: 48px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding-block-start: 24px; font: var(--kf-desk-font-caption); color: var(--md-sys-color-on-surface-variant); }
+.pd-link hr { inline-size: 100%; margin: 0; border: 0; border-block-start: 1.5px solid var(--md-sys-color-outline); }
+.pd-link-live hr { border-block-start: 1.5px dashed var(--wasl-syncing); }
+.pd-devices { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font: var(--kf-desk-font-caption); }
+.pd-devices li { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 6px; }
+.pd-online { color: var(--md-sys-color-on-surface-variant); }
+.pd-online.is-on { color: var(--wasl-synced); }
+.pd-progress { max-inline-size: 560px; }
+.pd-progress-row { display: flex; align-items: center; gap: 12px; }
+.pd-progress-row .progress-text { flex: 1; margin: 0; }
+.pd-facts { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 0; }
+.pd-fact { display: grid; gap: 2px; align-content: start; justify-items: start; max-inline-size: 280px; }
+.pd-fact dt { font: var(--kf-desk-font-label); color: var(--md-sys-color-on-surface-variant); }
+.pd-fact dd { margin: 0; font: var(--kf-desk-font-body-strong); }
+.pd-fact .pd-fact-caption { font: var(--kf-desk-font-caption); color: var(--md-sys-color-on-surface-variant); }
+.pd-fact > .kf-desk-btn { margin-block-start: 4px; }
+.pd-section { display: grid; gap: 8px; }
+.pd-section-head { display: flex; align-items: center; gap: 8px; min-block-size: var(--kf-desk-control); }
+.pd-section-head h2 { flex: 1; margin: 0; font: var(--kf-desk-font-label); color: var(--md-sys-color-on-surface-variant); }
+.pd-plain { border-color: transparent; background: transparent; color: var(--md-sys-color-primary); }
+.pd-runs { table-layout: fixed; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--kf-desk-separator); }
+.pd-runs th:first-child, .pd-runs td:first-child { inline-size: 36%; padding-inline-start: 12px; }
+.pd-runs th:last-child, .pd-runs td:last-child { inline-size: 24%; }
+.pd-run-link { padding: 0; border: 0; background: none; color: var(--md-sys-color-primary); font: inherit; text-align: start; cursor: default; }
+.pd-run-link:hover { text-decoration: underline; }
+.pd-muted { margin: 0; color: var(--md-sys-color-on-surface-variant); }
+.pd-share { display: grid; gap: 8px; justify-items: start; }
+/* The pair's own actions stay in reach at the foot of the pane however long the page runs, as the review screens'
+   footers do. */
+.pd-foot { position: sticky; inset-block-end: calc(-1 * var(--kf-space-12)); z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; padding-block: 12px var(--kf-space-12); margin-block-end: calc(-1 * var(--kf-space-12)); border-block-start: 1px solid var(--kf-desk-separator); background: var(--kf-desk-content); }
+@media (max-width: 700px) {
+  .pd-route { flex-direction: column; align-items: stretch; }
+  .pd-node { flex-basis: auto; }
+  .pd-link { flex-direction: row; padding: 4px 12px; }
+}
+@media (forced-colors: active) {
+  .status-chip, .pd-callout, .pd-node { border: 1px solid CanvasText; }
+  .pairs-table tbody tr[aria-selected="true"] :is(.line-icon, .status-glyph, td) { color: HighlightText; }
+}
+
+.screen { display: flex; flex-direction: column; gap: var(--kf-space-4); max-inline-size: 880px; margin-inline: auto; }
+.screen-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--kf-space-4); flex-wrap: wrap; }
+.screen-head h1 { font-weight: 700; font-size: 28px; line-height: 36px; outline: none; }
+.screen-head .kf-btn-plain { margin-inline-start: -12px; margin-block-end: var(--kf-space-1); }
+.head-actions, .card-actions, .row-actions { display: flex; flex-wrap: wrap; gap: var(--kf-space-2); align-items: center; }
+.screen-foot { display: flex; justify-content: flex-end; gap: var(--kf-space-2); }
+.section-title { font-weight: 600; font-size: 17px; line-height: 24px; }
+.plain-list { margin: 0; padding-inline-start: 1.2em; display: grid; gap: 4px; }
+/* Plex Mono has no Arabic letters: a folder named in Arabic falls back to Plex Sans Arabic. */
+.path { font: var(--kf-desk-font-mono); font-family: "IBM Plex Mono", "IBM Plex Sans Arabic", ui-monospace, Menlo, monospace; overflow-wrap: anywhere; }
+/* desktop.css makes the window unselectable, like native chrome; text people copy stays selectable. WebKit reads
+   only the prefixed property. */
+:is(.path, .agent-diff, .pair-code, .share-code code, .device-id, .field-error, .pair-error, input, textarea) { -webkit-user-select: text; user-select: text; }
+.kf-btn-danger-tinted { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+
+/* Bigger hit areas than the phone defaults need, at least 24 px (NFR-7). */
+input[type="radio"], input[type="checkbox"] { inline-size: 20px; block-size: 20px; margin: 2px; accent-color: var(--md-sys-color-primary); flex: none; }
+/* Focus is desktop.css's outline, which forced-colours mode keeps. A field box draws its own ring, so the field
+   inside it keeps only a transparent outline, which forced colours paint. */
+.kf-desktop .kf-field-box :is(input, select, textarea):focus-visible { outline-color: transparent; box-shadow: none; }
+.select { flex: 1; min-block-size: 48px; border: 0; background: transparent; color: var(--md-sys-color-on-surface); font: inherit; outline: none; }
+.select option { background: var(--kf-color-card); color: var(--md-sys-color-on-surface); }
+
+/* Connection panel. */
+.conn-panel { display: grid; place-items: center; min-block-size: 70vh; }
+.conn-why { color: var(--md-sys-color-error); }
+.sr-title { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.loading { display: flex; align-items: center; gap: var(--kf-space-3); }
+.spinner { display: inline-block; inline-size: 18px; block-size: 18px; border: 2.5px solid var(--md-sys-color-primary-container); border-block-start-color: var(--md-sys-color-primary); border-radius: 50%; animation: spin 0.9s linear infinite; vertical-align: middle; margin-inline-end: var(--kf-space-2); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Pairs. */
+.pair-list { display: grid; gap: var(--kf-space-3); margin: 0; padding: 0; list-style: none; }
+.pair-card { display: grid; gap: var(--kf-space-3); }
+.pair-top { display: flex; align-items: center; gap: var(--kf-space-2); flex-wrap: wrap; }
+.pair-name { font-weight: 700; font-size: 19px; line-height: 26px; margin-inline-end: auto; }
+.pair-folders { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--kf-space-3); margin: 0; }
+.pair-folders > div { display: grid; gap: 2px; padding: var(--kf-space-3); border-radius: var(--md-sys-shape-corner-medium); background: var(--kf-color-fill); }
+.pair-folders dt { display: flex; align-items: center; gap: 6px; color: var(--md-sys-color-on-surface-variant); font-size: 13px; font-weight: 600; }
+.pair-folders dd { margin: 0; }
+.pair-last { font-size: 14px; }
+.pair-error { display: flex; gap: 6px; align-items: flex-start; color: var(--md-sys-color-error); font-size: 14px; }
+.progress-box { display: grid; gap: 6px; }
+.kf-progress > span { transition: inline-size var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard); }
+.kf-progress.indeterminate > span { animation: slide 1.4s var(--md-sys-motion-easing-standard) infinite; }
+@keyframes slide { from { margin-inline-start: -30%; } to { margin-inline-start: 100%; } }
+.progress-text { font-size: 13px; }
+
+/* Views: read-only Drive folders on this computer. */
+.views-intro { max-inline-size: 70ch; margin-block-end: var(--kf-space-3); }
+.view-space { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--kf-space-2) var(--kf-space-4); align-items: end; font-size: 14px; }
+.view-space p { margin: 0; min-block-size: 44px; display: flex; align-items: center; }
+.view-changes summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; color: var(--md-sys-color-on-surface-variant); }
+.view-changes ul { margin-block-start: var(--kf-space-2); }
+
+/* Forms. */
+.form-section { display: grid; gap: var(--kf-space-3); }
+.section-body { display: grid; gap: var(--kf-space-3); justify-items: start; }
+.section-body > .kf-field, .section-body > .kf-seg, .section-body > .kf-group, .section-body > .crumbs { justify-self: stretch; }
+.drive-mode { max-inline-size: 360px; }
+.crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.crumbs li { display: inline-flex; align-items: center; gap: 4px; }
+.crumb { min-block-size: 28px; padding: 0 6px; border: 0; border-radius: var(--md-sys-shape-corner-extra-small); background: transparent; color: var(--md-sys-color-primary); cursor: pointer; font-weight: 500; }
+.crumbs [aria-current] { font-weight: 600; }
+.folder-list { max-block-size: 320px; overflow-y: auto; }
+/* kahf.css draws each row's separator 1px below it; in a scrolling list the last one made a 1px overflow (a scrollbar). */
+.folder-list > li:last-child > .kf-row::after { display: none; }
+.folder-list > li { list-style: none; }
+.folder-row { min-block-size: 44px; }
+.folder-row:hover, .run-row:hover { background: var(--kf-color-fill); }
+.chosen { display: flex; align-items: center; gap: 6px; color: var(--kf-color-positive); font-weight: 600; }
+.check-row { display: flex; align-items: center; gap: var(--kf-space-2); min-block-size: 32px; cursor: pointer; }
+/* "Encrypt this folder (vault)": the passphrase fields under the box. */
+.vault-fields { display: grid; gap: var(--kf-space-3); justify-self: stretch; }
+.vault-fields[hidden] { display: none; }
+.waiting { display: grid; gap: var(--kf-space-2); justify-self: stretch; }
+.field-error { color: var(--md-sys-color-error); }
+.methods { display: grid; gap: var(--kf-space-2); margin: 0; padding: 0; border: 0; }
+.methods legend { margin-block-end: var(--kf-space-2); padding: 0; }
+.method { display: flex; align-items: flex-start; gap: var(--kf-space-3); padding: var(--kf-space-2) var(--kf-space-3); border-radius: var(--md-sys-shape-corner-medium); cursor: pointer; }
+.method:hover { background: var(--kf-color-fill); }
+.method:has(input:checked) { background: var(--md-sys-color-primary-container); }
+.method-text { display: grid; gap: 2px; }
+.method-name { font-weight: 600; }
+.method-warning { display: flex; gap: 6px; align-items: flex-start; color: var(--kf-color-warning); font-weight: 500; }
+.method-warning:empty { display: none; }
+
+/* Preview. */
+.summary { margin: 0; }
+.summary-row { cursor: default; }
+.summary-row dt { flex: 1; }
+.summary-row dd { margin: 0; }
+
+/* Problems. */
+.problem-section { display: grid; gap: var(--kf-space-3); }
+.problem-list { display: grid; gap: var(--kf-space-3); margin: 0; padding: 0; list-style: none; }
+.problem { display: grid; gap: var(--kf-space-2); }
+.problem-title { display: flex; align-items: center; gap: var(--kf-space-2); font-weight: 600; font-size: 17px; line-height: 24px; overflow-wrap: anywhere; }
+
+/* History, bin. */
+.run-list > li, .bin-list > li, .event-list > li { list-style: none; }
+.run-list, .bin-list, .event-list { margin: 0; padding: 0; }
+.run-row { min-block-size: var(--kf-size-row-two-line); }
+.bin-row { cursor: default; flex-wrap: wrap; }
+.bin-row .row-actions { margin-inline-start: auto; }
+.event { cursor: default; align-items: flex-start; }
+.event-error .line-icon { color: var(--md-sys-color-error); }
+.event-warn .line-icon { color: var(--kf-color-warning); }
+.event-info .line-icon { color: var(--md-sys-color-on-surface-variant); }
+.kf-row:active { background: var(--kf-color-fill); }
+
+/* Settings. */
+.lang-options { display: flex; flex-wrap: wrap; gap: var(--kf-space-2); }
+.lang-option { cursor: pointer; }
+.lang-option:has(input:checked) { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.lang-option:has(input:focus-visible) { box-shadow: 0 0 0 2px var(--md-sys-color-surface), 0 0 0 4px var(--md-sys-color-primary); }
+.lang-option input { margin: 0; }
+.switch-row { grid-template-columns: 1fr auto; align-items: center; }
+.kf-switch:disabled { opacity: var(--md-sys-state-disabled-content-opacity); cursor: default; }
+/* kahf.css flips the knob for data-on in every direction; this app only uses aria-checked. */
+[dir="rtl"] .kf-switch[aria-checked="true"]::after { transform: translateX(-20px); }
+.account-list { list-style: none; padding: 0; }
+.account { display: flex; align-items: center; gap: var(--kf-space-3); min-block-size: 44px; }
+.account-text { flex: 1; display: grid; }
+.about { display: grid; gap: var(--kf-space-2); margin: 0; }
+.about > div { display: flex; justify-content: space-between; gap: var(--kf-space-4); }
+.about dd { margin: 0; color: var(--md-sys-color-on-surface-variant); }
+
+/* Dialog and toast. */
+.dialog { max-inline-size: 440px; padding: var(--kf-space-6); border: 0; border-radius: var(--md-sys-shape-corner-large); background: var(--kf-color-card-raised); color: var(--md-sys-color-on-surface); box-shadow: var(--md-sys-elevation-level2); }
+.dialog::backdrop { background: rgb(0 0 0 / 0.32); }
+.dialog-title { font-weight: 700; font-size: 20px; line-height: 28px; margin-block-end: var(--kf-space-2); }
+.dialog-body { color: var(--md-sys-color-on-surface-variant); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--kf-space-2); margin-block-start: var(--kf-space-6); }
+.dialog-form { display: grid; gap: var(--kf-space-3); }
+.dialog-form .dialog-title { margin-block-end: 0; }
+.dialog-form .dialog-actions { margin-block-start: var(--kf-space-3); }
+
+/* Pairs: sync with my devices. */
+.share-switch { display: flex; align-items: center; gap: var(--kf-space-3); font-weight: 500; }
+.share-code { display: flex; align-items: center; gap: var(--kf-space-2); margin-inline-end: auto; min-inline-size: 0; }
+.share-code code, .pair-code, .device-id, .code-input { font-family: var(--font-mono); }
+.share-code code { font-size: 13px; overflow-wrap: anywhere; }
+.share-switch + .kf-btn { margin-inline-start: auto; }
+
+/* Devices. */
+.device-list { list-style: none; padding: 0; gap: 0; }
+.device { display: flex; align-items: center; gap: var(--kf-space-3); min-block-size: 56px; padding-block: var(--kf-space-2); }
+.device + .device { border-block-start: 1px solid var(--kf-color-separator); }
+.device > .line-icon { color: var(--md-sys-color-on-surface-variant); flex: none; }
+.device-text { flex: 1; display: grid; min-inline-size: 0; }
+.device-text > span { justify-self: start; max-inline-size: 100%; }
+.device-name { font-weight: 600; overflow-wrap: anywhere; }
+.device-id { font-size: 13px; line-height: 18px; unicode-bidi: isolate; }
+.device-port { font-size: 13px; }
+.device-added { font-size: 13px; line-height: 18px; }
+.device-actions { display: flex; gap: var(--kf-space-1); flex: none; }
+
+/* Introductions: choices in a dialog, offers from other devices. */
+.choices { display: grid; gap: var(--kf-space-2); border: 0; padding: 0; margin: 0; }
+.choice { display: flex; align-items: flex-start; gap: var(--kf-space-3); cursor: pointer; }
+.choice input { margin-block-start: 3px; inline-size: 18px; block-size: 18px; flex: none; }
+.choice-text { display: grid; }
+.offer-list { list-style: none; padding: 0; margin: 0; display: grid; }
+.offer { display: flex; align-items: center; gap: var(--kf-space-3); min-block-size: 56px; padding-block: var(--kf-space-2); }
+.offer + .offer { border-block-start: 1px solid var(--kf-color-separator); }
+.offer > .line-icon { color: var(--md-sys-color-on-surface-variant); flex: none; }
+.share-with { display: flex; align-items: center; gap: var(--kf-space-2); }
+.pairing { display: grid; gap: var(--kf-space-4); }
+.pairing:has(> .pairing-option) { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start; }
+.pairing-option { display: grid; gap: var(--kf-space-2); justify-items: start; padding: var(--kf-space-4); border-radius: var(--md-sys-shape-corner-medium); background: var(--kf-color-fill); }
+.pairing-option .kf-field-box { background: var(--kf-color-card); }
+.option-title { font-weight: 600; font-size: 15px; line-height: 22px; }
+.inline-field { display: flex; gap: var(--kf-space-2); align-items: center; inline-size: 100%; }
+.inline-field .kf-field-box { flex: 1; min-inline-size: 0; min-block-size: 44px; }
+.inline-field .kf-field-box input { padding-block: 10px; font-size: 15px; }
+.inline-field > .kf-btn { flex: none; }
+.pairing-lead { font-weight: 600; outline: none; }
+.code-layout { display: flex; flex-wrap: wrap; gap: var(--kf-space-4); align-items: flex-start; }
+.qr { inline-size: 208px; block-size: 208px; flex: none; border-radius: var(--md-sys-shape-corner-small); }
+.code-text { flex: 1; min-inline-size: 220px; display: grid; gap: var(--kf-space-2); }
+.pair-code { display: block; padding: var(--kf-space-2) var(--kf-space-3); border-radius: var(--md-sys-shape-corner-small); background: var(--kf-color-fill); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; user-select: all; text-align: left; }
+.pairing-actions { display: flex; flex-wrap: wrap; gap: var(--kf-space-2); align-items: center; }
+.pairing-expiry { font-weight: 500; }
+.pairing-wait { display: flex; align-items: center; }
+.pairing-wait .pairing-lead { font-weight: 500; }
+.pairing-ask { font-weight: 600; font-size: 17px; }
+.pair-words { justify-self: start; display: flex; flex-wrap: wrap; gap: var(--kf-space-2); margin: 0; padding: 0; list-style: none; }
+.pair-words li { padding: var(--kf-space-1) var(--kf-space-3); border-radius: var(--md-sys-shape-corner-small); background: var(--kf-color-fill); font-weight: 600; }
+.pair-words.large li { padding: var(--kf-space-2) var(--kf-space-4); font-size: 24px; line-height: 32px; background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+
+.toast-region { position: fixed; inset-block-end: var(--kf-space-6); inset-inline: 0; display: flex; justify-content: center; pointer-events: none; padding-inline: var(--kf-space-4); }
+.toast-region .kf-toast { pointer-events: auto; max-inline-size: 560px; }
+
+@media (max-width: 760px) {
+  .main { padding-inline: var(--kf-space-4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner, .kf-progress.indeterminate > span { animation: none; }
+  .kf-progress > span { transition: none; }
+}
+
+/* Agent changes */
+.agent-files { display: grid; gap: var(--kf-space-1); margin: 0; padding: 0; list-style: none; }
+.agent-file { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kf-space-2); }
+.agent-diffs { display: grid; gap: var(--kf-space-2); }
+.agent-diff { margin: 0; padding: var(--kf-space-2); max-block-size: 360px; overflow: auto; border-radius: 8px; background: var(--md-sys-color-surface-container-highest, rgba(127, 127, 127, 0.08)); font: var(--kf-desk-font-mono); font-family: "IBM Plex Mono", "IBM Plex Sans Arabic", ui-monospace, monospace; text-align: start; }
+.diff-line { display: block; white-space: pre; }
+.diff-line.add { color: var(--kf-color-on-positive-container); background: var(--kf-color-positive-container); }
+.diff-line.del { color: var(--md-sys-color-on-error-container); background: var(--md-sys-color-error-container); }
+.diff-line.hunk { opacity: 0.6; }
+
+/* Windows 11: the content sits on a lighter layer with an 8px leading corner over the window's backdrop (design D1);
+   #62's title bar sits above the whole shell. */
+.kf-desktop[data-kf-platform="windows"] .pane { border-start-start-radius: 8px; border-block-start: 1px solid var(--kf-desk-separator); border-inline-start: 1px solid var(--kf-desk-separator); }
+/* Opened over a narrow window, the sidebar keeps its own fill so the pane doesn't show through it. */
+.kf-desktop[data-kf-platform="windows"] .shell:not([data-sidebar-view="overlay"]) > .shell-sidebar { background: transparent; }
+
+/* A heading or pane focused by script after a click shows no ring; keyboard moves still do (#108). */
+.kf-desktop[data-input="pointer"] :is(h1, h2, h3, p, main)[tabindex="-1"]:focus-visible { outline: none; box-shadow: none; }
+
+/* ---------- Button states (#203) ----------
+   Every kind of button (kahf-design's desktop push, default, danger, plain and icon buttons, the toolbar capsule, and
+   the kf-btn buttons in banners and forms) gets its states from the same tokens. Each kind names its resting fill in
+   --btn-bg, which hover keeps; hover and pressed lay the button's own text colour over that fill at the state
+   opacities, so an accent button stays on the accent (desktop.css's hover painted every push button with the content
+   colour, which turned the blue ones black). Focus-visible is desktop.css's ring; disabled dims to the token. */
+.kf-desktop {
+  /* Pressed lays a little more of the text colour than the system's pressed token, so a press reads on the
+     tinted fills too (#203). */
+  --kf-desk-state-pressed-opacity: calc(var(--md-sys-state-pressed-opacity, 0.10) + 0.06);
+}
+.kf-desk-btn { --btn-bg: var(--kf-desk-content); }
+.kf-desk-btn-default { --btn-bg: var(--md-sys-color-primary); }
+.kf-desk-icon-btn, .kf-desk-btn-plain { --btn-bg: transparent; }
+.kf-desktop :is(.kf-desk-btn, .kf-desk-icon-btn), .kf-desktop :is(.kf-desk-btn, .kf-desk-icon-btn):hover { background-color: var(--btn-bg); }
+.kf-desktop :is(.kf-desk-btn, .kf-desk-icon-btn, .kf-btn):hover:not(:disabled, [aria-disabled="true"]) {
+  background-image: linear-gradient(color-mix(in srgb, currentColor calc(var(--md-sys-state-hover-opacity, 0.08) * 100%), transparent) 0 0);
+}
+.kf-desktop :is(.kf-desk-btn, .kf-desk-icon-btn, .kf-btn):active:not(:disabled, [aria-disabled="true"]) {
+  background-image: linear-gradient(color-mix(in srgb, currentColor calc(var(--kf-desk-state-pressed-opacity) * 100%), transparent) 0 0);
+}
+/* kahf.css presses .kf-btn by fading it (opacity .85), which lets the window show through the fill; here the
+   pressed state layer does that job. */
+.kf-desktop .kf-btn:active:not(:disabled, [aria-disabled="true"]) { opacity: 1; }
+.kf-desktop :is(.kf-desk-btn, .kf-desk-icon-btn):disabled { opacity: var(--md-sys-state-disabled-content-opacity, 0.38); }
+@media (forced-colors: active) {
+  .kf-desktop :is(.kf-desk-btn, .kf-desk-icon-btn, .kf-btn):is(:hover, :active):not(:disabled) { background-image: none; outline: 1px solid Highlight; }
+}

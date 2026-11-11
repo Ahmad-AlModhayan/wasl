@@ -1,0 +1,38 @@
+[package]
+name = "wasl-ipc"
+description = "The local protocol between wasld, the wasl CLI and the tray app (SRS FR-E4, FR-A3)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wasl-core.workspace = true
+wasl-store.workspace = true
+wasl-engine.workspace = true
+wasl-devices.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+getrandom.workspace = true
+base64.workspace = true
+zeroize.workspace = true
+async-trait.workspace = true
+dirs = "6"
+tokio = { workspace = true, features = ["net", "io-util", "sync", "rt", "time", "macros"] }
+
+# Whether the data folder's volume keeps access lists (security review S3-3): a Win32 call, made
+# in the one crate where unsafe code is allowed.
+[target.'cfg(windows)'.dependencies]
+wasl-vfs-windows.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

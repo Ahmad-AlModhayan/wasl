@@ -1,0 +1,7 @@
+/* Wasl's own touches, on top of @kahf/design (kahf.css + product.css). Loaded on every page by the kahf() integration. */
+
+/* A long-form card (Wasl's Google Drive disclosure). */
+.pp-drive { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: clamp(24px, 5vw, 72px); align-items: start; }
+.pp-drive-head { display: flex; flex-direction: column; gap: 16px; }
+.pp-drive .pp-prose { font-size: 16px; }
+@media (max-width: 859px) { .pp-drive { grid-template-columns: minmax(0, 1fr); } }

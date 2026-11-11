@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Wasl",
+        "width": 980,
+        "height": 700,
+        "minWidth": 640,
+        "minHeight": 480,
+        "visible": false,
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 20, "y": 18 },
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["liquidGlassRegular", "sidebar"],
+          "state": "followsWindowActiveState"
+        }
+      }
+    ]
+  }
+}

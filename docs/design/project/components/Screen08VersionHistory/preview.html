@@ -1,0 +1,53 @@
+<!-- @dsCard group="Screens" page height=1110 width=868 subtitle="8 · File version history" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>VersionHistory screen — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+const { Showcase, PhoneFrame, Screen, TopAppBar, IconButton, Button, VersionItem, SectionHeader, Icon, PathRow, StatusChip, Snackbar } = window.DriveSync;
+function Header() {
+  return /* @__PURE__ */ React.createElement("div", { style: { margin: "0 16px", padding: 16, borderRadius: 16, background: "var(--surface-container-low)", border: "1px solid var(--outline-variant)", display: "grid", gap: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { className: "ds-li-lead is-thumb" }, /* @__PURE__ */ React.createElement(Icon, { name: "description" })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { className: "title-medium" }, "Budget 2027.xlsx"), /* @__PURE__ */ React.createElement("div", { className: "body-small", style: { color: "var(--on-surface-variant)" } }, "Work documents \xB7 Two-way")), /* @__PURE__ */ React.createElement(StatusChip, { status: "synced", variant: "icon" })), /* @__PURE__ */ React.createElement("div", { className: "body-small", style: { color: "var(--on-surface-variant)" } }, "Drive keeps versions for 30 days or 100 versions. This phone keeps the last 5 versions it replaced."));
+}
+function History() {
+  return /* @__PURE__ */ React.createElement(Screen, { appbar: /* @__PURE__ */ React.createElement(TopAppBar, { title: "Versions", actions: /* @__PURE__ */ React.createElement(IconButton, { icon: "open_in_new", label: "Open file" }) }) }, /* @__PURE__ */ React.createElement(Header, null), /* @__PURE__ */ React.createElement(SectionHeader, null, "Today"), /* @__PURE__ */ React.createElement(VersionItem, { first: true, current: true, when: "10:42", source: "phone", size: "88 KB", note: "kept after conflict" }), /* @__PURE__ */ React.createElement(VersionItem, { when: "09:15", source: "drive", size: "86 KB", note: "web" }), /* @__PURE__ */ React.createElement(SectionHeader, null, "Earlier"), /* @__PURE__ */ React.createElement(VersionItem, { when: "Mon 28 Sep, 18:03", source: "phone", size: "85 KB" }), /* @__PURE__ */ React.createElement(VersionItem, { last: true, when: "Thu 24 Sep, 11:20", source: "drive", size: "80 KB" }));
+}
+function Restored() {
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { title: "Versions", actions: /* @__PURE__ */ React.createElement(IconButton, { icon: "open_in_new", label: "Open file" }) }),
+      overlay: /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", left: 16, right: 16, bottom: 24 } }, /* @__PURE__ */ React.createElement(Snackbar, null, "Restored the 09:15 version on both sides"))
+    },
+    /* @__PURE__ */ React.createElement(Header, null),
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Today"),
+    /* @__PURE__ */ React.createElement(VersionItem, { first: true, current: true, when: "10:51", source: "restored", size: "86 KB", note: "from 09:15" }),
+    /* @__PURE__ */ React.createElement(VersionItem, { when: "10:42", source: "phone", size: "88 KB" }),
+    /* @__PURE__ */ React.createElement(VersionItem, { when: "09:15", source: "drive", size: "86 KB", note: "web" }),
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Earlier"),
+    /* @__PURE__ */ React.createElement(VersionItem, { last: true, when: "Mon 28 Sep, 18:03", source: "phone", size: "85 KB" })
+  );
+}
+function App() {
+  return /* @__PURE__ */ React.createElement(
+    Showcase,
+    {
+      narrow: true,
+      title: "File version history",
+      intro: "Reached from a conflict, a file row, or the bin. Newest first, each version labelled with where the edit happened.",
+      notes: [
+        ["Restore never deletes", "Restoring makes the old version current on both sides and keeps the replaced one as a new entry. It can always be undone."],
+        ["Save as copy", "Puts the old version next to the file with its date in the name, for when you need both."],
+        ["Where versions come from", "Drive keeps revisions for 30 days or 100 versions; this phone keeps the last 5 it overwrote. Both are merged into one timeline."]
+      ]
+    },
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Timeline: phone and Drive edits" }, /* @__PURE__ */ React.createElement(History, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "After Restore: a new current version" }, /* @__PURE__ */ React.createElement(Restored, null))
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
+})();
+</script>
+</body>
+</html>

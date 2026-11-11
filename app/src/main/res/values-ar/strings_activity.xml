@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Activity screens (status, history, run details, problems, conflict), diagnostics and pair status. -->
+<resources>
+    <!-- ActivityUi: event actions -->
+    <string name="activity_action_removed_on_phone">حُذف من الهاتف</string>
+    <string name="activity_action_removed_on_drive">حُذف من Drive</string>
+    <string name="activity_action_couldnt_sync">تعذّرت المزامنة</string>
+    <string name="activity_action_note">ملاحظة</string>
+    <string name="activity_action_stopped_to_ask">توقّف لسؤالك</string>
+
+    <!-- ActivityUi: times -->
+    <string name="activity_at_time">الساعة %1$s</string>
+    <string name="activity_yesterday_at_time">أمس الساعة %1$s</string>
+    <string name="activity_tomorrow_at_time">غدًا الساعة %1$s</string>
+    <string name="activity_on_date">في %1$s</string>
+    <string name="activity_duration_seconds">%1$d ث</string>
+    <string name="activity_duration_minutes_seconds">%1$d د %2$d ث</string>
+    <string name="activity_duration_hours_minutes">%1$d س %2$d د</string>
+
+    <!-- ActivityUi: rows -->
+    <string name="activity_show_less">عرض أقل</string>
+    <string name="activity_show_all">عرض الكل</string>
+    <string name="activity_close_search">إغلاق البحث</string>
+
+    <!-- ActivityUi: how a run ended -->
+    <string name="activity_run_partly_synced">مزامنة جزئية</string>
+    <string name="activity_run_didnt_start">لم تبدأ</string>
+
+    <!-- ActivityUi: run counts -->
+    <string name="activity_count_to_drive">%1$s إلى Drive</string>
+    <string name="activity_count_to_phone">%1$s إلى الهاتف</string>
+    <string name="activity_count_to_bin">%1$s إلى سلة المحذوفات</string>
+    <plurals name="activity_count_conflicts">
+        <item quantity="zero">%1$s تعارض</item>
+        <item quantity="one">تعارض واحد</item>
+        <item quantity="two">تعارضان</item>
+        <item quantity="few">%1$s تعارضات</item>
+        <item quantity="many">%1$s تعارضًا</item>
+        <item quantity="other">%1$s تعارض</item>
+    </plurals>
+    <string name="activity_count_couldnt_sync">تعذّرت مزامنة %1$s</string>
+    <string name="activity_no_changes">لا تغييرات</string>
+
+    <!-- ActivityUi: what started a sync -->
+    <string name="activity_trigger_manual">بدأتها أنت</string>
+    <string name="activity_trigger_periodic">مجدولة</string>
+    <string name="activity_trigger_local">تغيّرت ملفات على الهاتف</string>
+    <string name="activity_trigger_remote">تغيّرت ملفات على Drive</string>
+    <string name="activity_trigger_boot">بعد إعادة التشغيل</string>
+    <string name="activity_trigger_share">ملف تمت مشاركته</string>
+    <string name="activity_trigger_tile">مربع الإعدادات السريعة</string>
+    <string name="activity_trigger_widget">الأداة</string>
+    <string name="activity_trigger_approved">وافقت عليها أنت</string>
+    <string name="activity_trigger_restore">بعد الاستعادة</string>
+    <string name="activity_trigger_conflict">بعد اختيارك في تعارض</string>
+    <string name="activity_trigger_resume">استُؤنفت</string>
+    <string name="activity_trigger_version">بعد تغيير إصدار</string>
+
+    <!-- ActivityUi: change rows -->
+    <string name="activity_change_uploaded">تم الرفع</string>
+    <string name="activity_change_downloaded">تم التنزيل</string>
+    <string name="activity_change_removed_after_upload">حُذف من الهاتف بعد الرفع</string>
+    <string name="activity_change_empty_folder_removed">حُذف مجلد فارغ</string>
+    <string name="activity_change_moved_to_bin">نُقل إلى سلة المحذوفات</string>
+    <string name="activity_change_moved_to_drive_bin">نُقل إلى سلة المحذوفات في Drive</string>
+    <string name="activity_change_both_kept">احتُفظ بالاثنين حاليًا</string>
+
+    <!-- ActivityUi: skip reasons -->
+    <string name="activity_skip_size_limit">أكبر من حد الحجم لهذا الربط</string>
+    <string name="activity_skip_deleted_on_drive">حُذف من Drive بعد رفعه</string>
+    <string name="activity_skip_removed_from_phone">حُذف من الهاتف بعد تنزيله</string>
+    <string name="activity_skip_google_doc">مستند Google، لا يُحفظ على الهاتف</string>
+    <string name="activity_skip_no_export_format">ملف Google بلا صيغة للهاتف</string>
+    <string name="activity_skip_changed_on_both">تغيّر في الجهتين، تُرك لك</string>
+    <string name="activity_skip_folder_not_empty">لا يزال في المجلد ملفات على الهاتف</string>
+
+    <!-- Conflict -->
+    <string name="activity_conflict_couldnt_open">تعذّر فتح هذا التعارض</string>
+    <string name="activity_conflict_resolved_title">تم حل هذا التعارض</string>
+    <string name="activity_conflict_resolved_body">حُلّ من قبل، أو أُزيل ربطه. لا شيء ينتظرك هنا.</string>
+    <string name="activity_conflict_pair_removed_title">أُزيل هذا الربط</string>
+    <string name="activity_conflict_pair_removed_body">لم تُمسّ الملفات على هاتفك ولا على Drive.</string>
+    <string name="activity_conflict_resolved_named_body">حُلّ %1$s من قبل. لا شيء ينتظرك هنا.</string>
+    <string name="activity_conflict_kept_both">تم الاحتفاظ بنسختي %1$s</string>
+    <string name="activity_conflict_kept_phone">تم الاحتفاظ بنسخة الهاتف من %1$s</string>
+    <string name="activity_conflict_kept_drive">تم الاحتفاظ بنسخة Drive من %1$s</string>
+    <string name="activity_conflict_kept_both_body">تبقى النسختان على هاتفك وعلى Drive.</string>
+    <string name="activity_conflict_kept_phone_body">نسخة Drive في سلة المحذوفات. المزامنة التالية تحدّث Drive.</string>
+    <string name="activity_conflict_kept_drive_body">نسخة الهاتف في سلة المحذوفات. المزامنة التالية تحذفها من Drive أيضًا.</string>
+    <string name="activity_conflict_subtitle_position">%1$s · %2$d من %3$d</string>
+    <string name="activity_conflict_applies_to_file">ينطبق على هذا الملف فقط</string>
+    <string name="activity_conflict_not_found">غير موجود</string>
+    <string name="activity_conflict_no_longer_on_phone">لم يعد على هذا الهاتف</string>
+    <string name="activity_conflict_not_on_phone_yet">ليس على هذا الهاتف بعد</string>
+    <string name="activity_conflict_keep_both_copy_named">تبقى نسخة الهاتف بجانبه باسم «%1$s» في الجهتين.</string>
+    <string name="activity_conflict_keep_phone_version">الاحتفاظ بنسخة الهاتف</string>
+    <string name="activity_conflict_keep_drive_version">الاحتفاظ بنسخة Drive</string>
+    <string name="activity_conflict_drive_copy_to_bin">تذهب نسخة Drive إلى سلة المحذوفات.</string>
+    <string name="activity_conflict_phone_copy_to_bin">تذهب نسخة الهاتف إلى سلة المحذوفات.</string>
+    <string name="activity_conflict_phone_copy_gone">لم تعد نسخة الهاتف موجودة.</string>
+    <string name="activity_conflict_version_history_summary">نسخ سابقة من هذا الملف على Drive وعلى هذا الهاتف</string>
+    <string name="activity_conflict_safest">الأكثر أمانًا</string>
+    <string name="activity_conflict_keep_phone">الاحتفاظ بنسخة الهاتف</string>
+    <string name="activity_conflict_keep_drive">الاحتفاظ بنسخة Drive</string>
+    <string name="activity_internal_storage">وحدة التخزين الداخلية</string>
+
+    <!-- History -->
+    <string name="activity_removed_pair">ربط محذوف</string>
+    <string name="activity_history_title">السجل</string>
+    <string name="activity_clear_history">مسح السجل</string>
+    <string name="activity_history_empty_title">لا مزامنات بعد</string>
+    <string name="activity_history_empty_body">تظهر هنا كل مزامنة مع ما نسخته وما حذفته.</string>
+    <string name="activity_history_all_pairs">كل الروابط</string>
+    <string name="activity_history_any_result">أي نتيجة</string>
+    <string name="activity_history_no_match">لا مزامنات تطابق هذه الفلاتر.</string>
+    <string name="activity_history_clear_filters">مسح عوامل التصفية</string>
+    <string name="activity_clear_history_title">مسح سجل المزامنة؟</string>
+    <string name="activity_clear_history_body">تُحذف كل سجلات المزامنة وتفاصيلها من هذا الهاتف. لا تتأثر ملفاتك ولا حالة مزامنتها. لا يمكن التراجع عن هذا.</string>
+
+    <!-- Problems -->
+    <plurals name="activity_problems_deletions_waiting">
+        <item quantity="zero">%1$s عملية حذف بانتظارك · %2$s</item>
+        <item quantity="one">عملية حذف واحدة بانتظارك · %2$s</item>
+        <item quantity="two">عمليتا حذف بانتظارك · %2$s</item>
+        <item quantity="few">%1$s عمليات حذف بانتظارك · %2$s</item>
+        <item quantity="many">%1$s عملية حذف بانتظارك · %2$s</item>
+        <item quantity="other">%1$s عملية حذف بانتظارك · %2$s</item>
+    </plurals>
+    <string name="activity_problems_first_sync_ok">المزامنة الأولى تحتاج موافقتك · %1$s</string>
+    <string name="activity_problems_deleted_on_phone">حُذفت من هاتفك %1$s. لا تزال على Drive.</string>
+    <string name="activity_problems_deleted_on_drive">حُذفت من Drive %1$s. لا تزال على هاتفك.</string>
+    <string name="activity_problems_stopped_before_finish">توقّفت قبل أن تنتهي.</string>
+    <string name="activity_problems_sign_in_again_as">سجّل الدخول مجددًا باسم %1$s</string>
+    <string name="activity_problems_sign_in_again_body">طلبت Google تسجيل الدخول مجددًا. تنتظر روابط هذا الحساب حتى تفعل.</string>
+    <string name="activity_problems_conflict_body">تغيّر على الهاتف وعلى Drive. احتُفظ بالاثنين.</string>
+    <string name="activity_problems_choose">اختر</string>
+    <string name="activity_problems_syncing_again">جارٍ مزامنة %1$s مجددًا</string>
+    <string name="activity_problems_allow_all_files">افتح إعدادات Android واسمح لوصل بالوصول إلى كل الملفات.</string>
+    <string name="activity_problems_no_storage_app">لا يوجد تطبيق على هذا الهاتف يفتح صفحة مساحة Drive.</string>
+    <string name="activity_problems_title">المشكلات</string>
+    <string name="activity_sync_status">حالة المزامنة</string>
+    <string name="activity_problems_needs_you">بانتظارك · %1$s</string>
+    <string name="activity_problems_retrying">يعيد المحاولة تلقائيًا · %1$s</string>
+    <string name="activity_problems_recent_warnings">تحذيرات حديثة · %1$s</string>
+    <string name="activity_problems_hide_warnings">إخفاء التحذيرات الحديثة</string>
+    <string name="activity_problems_show_warnings">عرض التحذيرات الحديثة</string>
+    <string name="activity_problems_shown">معروضة</string>
+    <string name="activity_problems_hidden">مخفية</string>
+    <string name="activity_problems_open_sync">فتح هذه المزامنة</string>
+    <string name="activity_problems_all_clear_title">لا شيء بانتظارك</string>
+    <string name="activity_problems_all_clear_body">تظهر هنا التعارضات والمزامنات الفاشلة وعمليات الحذف التي تنتظر موافقتك.</string>
+    <string name="activity_problems_open_diagnostics">فتح التشخيص</string>
+
+    <!-- Run details -->
+    <string name="activity_run_view_changes">التغييرات</string>
+    <string name="activity_run_view_problems">المشكلات</string>
+    <string name="activity_run_view_log">السجل الكامل</string>
+    <string name="activity_run_title_fallback">مزامنة</string>
+    <string name="activity_run_clip_label">سجل المزامنة</string>
+    <plurals name="activity_run_copied_lines">
+        <item quantity="zero">تم نسخ %1$s سطر من السجل</item>
+        <item quantity="one">تم نسخ سطر واحد من السجل</item>
+        <item quantity="two">تم نسخ سطرين من السجل</item>
+        <item quantity="few">تم نسخ %1$s أسطر من السجل</item>
+        <item quantity="many">تم نسخ %1$s سطرًا من السجل</item>
+        <item quantity="other">تم نسخ %1$s سطر من السجل</item>
+    </plurals>
+    <string name="activity_run_copy_log">نسخ السجل</string>
+    <string name="activity_run_gone_title">لم تعد هذه المزامنة في السجل</string>
+    <string name="activity_run_gone_body">تخرج المزامنات القديمة من السجل، أو مُسح السجل.</string>
+    <string name="activity_run_no_changes">لم يتغيّر أي ملف في هذه المزامنة.</string>
+    <string name="activity_run_no_problems">لم يحدث أي خطأ في هذه المزامنة.</string>
+    <string name="activity_run_nothing_logged">لم يُسجَّل شيء لهذه المزامنة.</string>
+    <string name="activity_run_took">استغرقت %1$s</string>
+    <string name="activity_run_still_going">لا تزال جارية</string>
+    <string name="activity_run_to_bin">إلى سلة المحذوفات</string>
+    <string name="activity_run_conflicts">التعارضات</string>
+    <string name="activity_run_open_pair">فتح الربط</string>
+
+    <!-- Status screen -->
+    <string name="activity_status_scheduled_sync">مزامنة مجدولة · %1$s</string>
+    <string name="activity_status_sync_waiting">مزامنة تنتظر البدء</string>
+    <string name="activity_status_waiting_other_sync">بانتظار انتهاء مزامنة أخرى</string>
+    <string name="activity_status_waiting_for_time">بانتظار موعدها</string>
+    <string name="activity_status_waiting_to_start">بانتظار البدء</string>
+    <string name="activity_status_next">التالية %1$s</string>
+    <string name="activity_status_stopped_all">أُوقفت كل المزامنات. ما تمت مزامنته حتى الآن يبقى متزامنًا.</string>
+    <string name="activity_status_stop_all">إيقاف الكل</string>
+    <string name="activity_status_empty_title">لا شيء قيد المزامنة</string>
+    <string name="activity_status_empty_body">تبدأ المزامنات في مواعيدها، أو عند تغيّر الملفات، أو عند النقر على «زامن الآن».</string>
+    <string name="activity_status_see_history">عرض السجل</string>
+    <string name="activity_status_queued">في الانتظار</string>
+    <string name="activity_status_queued_hint">تنتظر المزامنات في الطابور اتصالًا بالشبكة وسماح Android بالعمل في الخلفية.</string>
+
+    <!-- Pair status -->
+    <string name="status_last_synced">آخر مزامنة %1$s</string>
+    <string name="status_synced_when">تمت المزامنة %1$s</string>
+    <plurals name="status_conflicts">
+        <item quantity="zero">%1$d تعارض</item>
+        <item quantity="one">تعارض</item>
+        <item quantity="two">تعارضان</item>
+        <item quantity="few">%1$d تعارضات</item>
+        <item quantity="many">%1$d تعارضًا</item>
+        <item quantity="other">%1$d تعارض</item>
+    </plurals>
+    <string name="status_comparing_folders">جارٍ مقارنة المجلدات…</string>
+    <string name="status_syncing_percent">جارٍ المزامنة %1$s</string>
+    <string name="status_waiting_for_preview">بانتظار معاينتك</string>
+    <string name="status_waiting_for_preview_detail">لا تبدأ أي مزامنة حتى تشغّلها من المعاينة.</string>
+    <string name="status_turned_off">متوقف</string>
+    <string name="status_turned_off_detail">شغّله لتعود المزامنة.</string>
+    <string name="status_retrying_soon">إعادة المحاولة قريبًا</string>
+    <string name="status_wifi_only">Wi‑Fi فقط</string>
+    <string name="status_while_charging">أثناء الشحن</string>
+    <string name="status_when_files_change">عند تغيّر الملفات</string>
+
+    <!-- Diagnostics screen -->
+    <string name="diagnostics_couldnt_open_settings">تعذّر فتح إعدادات Android. افتح الإعدادات › التطبيقات › وصل.</string>
+    <string name="diagnostics_couldnt_open_battery">تعذّر فتح إعدادات البطارية في Android.</string>
+    <string name="diagnostics_no_browser_storage">لا يوجد متصفح يفتح صفحة مساحة التخزين في Google.</string>
+    <string name="diagnostics_run_checks_again">إعادة الفحص</string>
+    <string name="diagnostics_copy_report">نسخ تقرير التشخيص</string>
+    <string name="diagnostics_report_label">تشخيص وصل</string>
+    <string name="diagnostics_copied_report">تم نسخ تقرير التشخيص</string>
+    <string name="diagnostics_share_report">مشاركة تقرير التشخيص</string>
+    <string name="diagnostics_no_app_for_report">لا يوجد تطبيق يستقبل التقرير.</string>
+    <string name="diagnostics_background_guide">دليل العمل في الخلفية لهذا الهاتف</string>
+    <string name="diagnostics_no_browser_dontkillmyapp">لا يوجد متصفح يفتح dontkillmyapp.com.</string>
+    <string name="diagnostics_more_options">خيارات أخرى</string>
+    <string name="diagnostics_checking">جارٍ الفحص…</string>
+    <string name="diagnostics_checked_at">فُحص الساعة %1$s</string>
+    <string name="diagnostics_export_log">تصدير السجل</string>
+    <string name="diagnostics_health">الحالة</string>
+    <string name="diagnostics_vendor_phones">هواتف %1$s</string>
+    <string name="diagnostics_open_background_settings">فتح إعدادات الخلفية</string>
+    <string name="diagnostics_opened_app_settings">فُتحت إعدادات تطبيق وصل. ابحث هناك عن التشغيل التلقائي أو البطارية.</string>
+    <string name="diagnostics_last_24_hours">آخر 24 ساعة</string>
+    <string name="diagnostics_log">السجل</string>
+    <string name="diagnostics_filter_all">الكل</string>
+    <string name="diagnostics_filter_errors">الأخطاء</string>
+    <string name="diagnostics_loading_log">جارٍ تحميل السجل…</string>
+    <string name="diagnostics_nothing_logged">لم يُسجَّل شيء في آخر 24 ساعة.</string>
+    <string name="diagnostics_no_lines_match">لا أسطر تطابق هذه الفلاتر.</string>
+    <string name="diagnostics_no_app_for_log">لا يوجد تطبيق يستقبل السجل.</string>
+    <string name="diagnostics_export_body">آخر 24 ساعة كنص عادي، لتطبيق تختاره بعد ذلك. لا يرسله وصل إلى أي مكان من تلقاء نفسه.</string>
+    <string name="diagnostics_include_file_names">تضمين أسماء الملفات</string>
+    <string name="diagnostics_include_names_on">تُضمَّن أسماء الملفات والمجلدات والروابط</string>
+    <string name="diagnostics_include_names_off">متوقف: تصبح الأسماء رموزًا، وتبقى الأحجام والأوقات</string>
+    <string name="diagnostics_log_line">سطر من السجل</string>
+    <string name="diagnostics_copy_line">نسخ السطر</string>
+    <string name="diagnostics_log_line_clip_label">سطر من سجل وصل</string>
+    <string name="diagnostics_detail">التفاصيل</string>
+    <plurals name="diagnostics_stat_syncs">
+        <item quantity="zero">مزامنة</item>
+        <item quantity="one">مزامنة</item>
+        <item quantity="two">مزامنتان</item>
+        <item quantity="few">مزامنات</item>
+        <item quantity="many">مزامنة</item>
+        <item quantity="other">مزامنة</item>
+    </plurals>
+    <plurals name="diagnostics_stat_files_moved">
+        <item quantity="zero">ملف منقول</item>
+        <item quantity="one">ملف منقول</item>
+        <item quantity="two">ملفان منقولان</item>
+        <item quantity="few">ملفات منقولة</item>
+        <item quantity="many">ملفًا منقولًا</item>
+        <item quantity="other">ملف منقول</item>
+    </plurals>
+    <plurals name="diagnostics_stat_errors">
+        <item quantity="zero">خطأ</item>
+        <item quantity="one">خطأ</item>
+        <item quantity="two">خطآن</item>
+        <item quantity="few">أخطاء</item>
+        <item quantity="many">خطأً</item>
+        <item quantity="other">خطأ</item>
+    </plurals>
+    <string name="diagnostics_show_whole_line">عرض السطر كاملًا</string>
+
+    <!-- Diagnostics view model -->
+    <string name="diagnostics_sign_in_again">سجّل الدخول مجددًا</string>
+    <string name="diagnostics_rearm_ok">عادت الفحوص المجدولة للعمل</string>
+    <string name="diagnostics_rearm_failed">تعذّرت جدولة الفحص في الخلفية. حاول مجددًا.</string>
+
+    <!-- Health checks -->
+    <string name="diagnostics_folder_access">الوصول إلى المجلدات</string>
+    <string name="diagnostics_folder_access_off">الوصول إلى كل الملفات متوقف، فلا تستطيع الروابط قراءة مجلدات الهاتف</string>
+    <string name="diagnostics_folder_access_allowed">الوصول إلى كل الملفات مسموح</string>
+    <string name="diagnostics_folder_access_not_needed">متوقف. غير مطلوب للمجلدات التي تختارها بمنتقي Android</string>
+    <plurals name="diagnostics_folders_reachable">
+        <item quantity="zero">المجلدات المتاحة: %1$d من %2$d</item>
+        <item quantity="one">المجلدات المتاحة: %1$d من %2$d</item>
+        <item quantity="two">المجلدات المتاحة: %1$d من %2$d</item>
+        <item quantity="few">المجلدات المتاحة: %1$d من %2$d</item>
+        <item quantity="many">المجلدات المتاحة: %1$d من %2$d</item>
+        <item quantity="other">المجلدات المتاحة: %1$d من %2$d</item>
+    </plurals>
+    <string name="diagnostics_folder_gone">%1$s: المجلد لم يعد موجودًا، أو أُخرجت بطاقة SD</string>
+    <string name="diagnostics_no_account">لا حساب متصل، فلا يمكن مزامنة أي شيء</string>
+    <string name="diagnostics_add_account">إضافة حساب</string>
+    <string name="diagnostics_account_sign_in_again">يحتاج %1$s إلى تسجيل الدخول مجددًا</string>
+    <plurals name="diagnostics_accounts_sign_in_again">
+        <item quantity="zero">%1$d حساب يحتاج إلى تسجيل الدخول مجددًا</item>
+        <item quantity="one">حساب واحد يحتاج إلى تسجيل الدخول مجددًا</item>
+        <item quantity="two">حسابان يحتاجان إلى تسجيل الدخول مجددًا</item>
+        <item quantity="few">%1$d حسابات تحتاج إلى تسجيل الدخول مجددًا</item>
+        <item quantity="many">%1$d حسابًا يحتاج إلى تسجيل الدخول مجددًا</item>
+        <item quantity="other">%1$d حساب يحتاج إلى تسجيل الدخول مجددًا</item>
+    </plurals>
+    <string name="diagnostics_signed_in_as">مسجّل الدخول باسم %1$s</string>
+    <plurals name="diagnostics_accounts_signed_in">
+        <item quantity="zero">%1$d حساب مسجّل الدخول</item>
+        <item quantity="one">حساب واحد مسجّل الدخول</item>
+        <item quantity="two">حسابان مسجّلا الدخول</item>
+        <item quantity="few">%1$d حسابات مسجّلة الدخول</item>
+        <item quantity="many">%1$d حسابًا مسجّل الدخول</item>
+        <item quantity="other">%1$d حساب مسجّل الدخول</item>
+    </plurals>
+    <string name="diagnostics_checked_lower">فُحص الساعة %1$s</string>
+    <string name="diagnostics_battery">البطارية</string>
+    <string name="diagnostics_battery_ok">غير مُحسَّنة: تبدأ المزامنات في موعدها</string>
+    <string name="diagnostics_battery_optimised">مُحسَّنة: قد تتأخر المزامنات</string>
+    <string name="diagnostics_battery_optimised_vendor">مُحسَّنة: قد تتأخر المزامنات. كما توقف هواتف %1$s التطبيقات في الخلفية</string>
+    <string name="diagnostics_fix">إصلاح</string>
+    <string name="diagnostics_background_work">العمل في الخلفية</string>
+    <string name="diagnostics_no_scheduled_checks">لا فحوص مجدولة، فلا تُزامن الروابط إلا حين تبدأها أنت</string>
+    <string name="diagnostics_rearm">إعادة التفعيل</string>
+    <string name="diagnostics_instant_stopped">توقفت المزامنة الفورية: أغلقها Android في الخلفية</string>
+    <string name="diagnostics_next_scheduled_check">الفحص المجدول التالي %1$s</string>
+    <string name="diagnostics_scheduled_checks_on">الفحوص المجدولة مفعّلة</string>
+    <string name="diagnostics_instant_sync_on">المزامنة الفورية مفعّلة</string>
+    <string name="diagnostics_last_stopped">آخر إيقاف: %1$s</string>
+    <string name="diagnostics_tomorrow_clock">غدًا %1$s</string>
+    <string name="diagnostics_wifi_rules_need_location">قواعد أسماء شبكات Wi‑Fi تحتاج إلى الوصول للموقع لقراءة اسم الشبكة</string>
+    <string name="diagnostics_allow_location">السماح بالموقع</string>
+    <string name="diagnostics_offline">غير متصل: تنتظر المزامنات اتصالًا</string>
+    <string name="diagnostics_wifi">Wi‑Fi</string>
+    <string name="diagnostics_metered">شبكة محدودة</string>
+    <string name="diagnostics_vpn">VPN</string>
+    <string name="diagnostics_mobile_data">بيانات الجوال</string>
+    <string name="diagnostics_roaming">التجوال</string>
+    <string name="diagnostics_mobile_data_wifi_waiting">بيانات الجوال · روابط Wi‑Fi فقط تنتظر</string>
+    <string name="diagnostics_not_checked_yet">لم يُفحص بعد</string>
+    <string name="diagnostics_storage_no_limit">%1$s مستخدمة، بلا حد</string>
+    <string name="diagnostics_storage_full">مساحة Drive ممتلئة، فيتوقف الرفع</string>
+    <string name="diagnostics_storage_low">مساحة منخفضة: %1$s متاحة من %2$s</string>
+    <string name="diagnostics_storage_used">%1$s مستخدمة من %2$s</string>
+    <string name="diagnostics_notifications">الإشعارات</string>
+    <string name="diagnostics_notifications_off">متوقفة: لن تعلم بالتعارضات أو الإخفاقات</string>
+    <string name="diagnostics_allow">السماح</string>
+
+    <!-- Why Android stopped background work (shown in the Health section) -->
+    <string name="diagnostics_stop_not_stopped">لم يتوقف</string>
+    <string name="diagnostics_stop_cancelled_by_app">ألغاه التطبيق</string>
+    <string name="diagnostics_stop_preempted">أزاحه عمل ذو أولوية أعلى</string>
+    <string name="diagnostics_stop_timeout">انتهت مهلته (عمل أطول من المسموح)</string>
+    <string name="diagnostics_stop_device_state">تغيّرت حالة الجهاز (السكون، إطفاء الشاشة، …)</string>
+    <string name="diagnostics_stop_battery_low">انخفضت البطارية</string>
+    <string name="diagnostics_stop_charger">فُصل الشاحن</string>
+    <string name="diagnostics_stop_network">انقطع الاتصال بالشبكة</string>
+    <string name="diagnostics_stop_not_idle">لم يعد الجهاز خاملًا</string>
+    <string name="diagnostics_stop_storage_low">انخفضت مساحة التخزين</string>
+    <string name="diagnostics_stop_quota">نفدت حصة العمل في الخلفية (فئة استعداد التطبيق)</string>
+    <string name="diagnostics_stop_restricted">تقييد الخلفية: التطبيق مقيّد في إعدادات البطارية</string>
+    <string name="diagnostics_stop_bucket">فئة استعداد التطبيق مقيِّدة جدًا</string>
+    <string name="diagnostics_stop_user">أوقفه المستخدم (فرض الإيقاف أو السحب من قائمة التطبيقات)</string>
+    <string name="diagnostics_stop_system">احتاج النظام إلى الموارد</string>
+    <string name="diagnostics_stop_launch_time">تغيّر الوقت المتوقع لفتح التطبيق</string>
+    <string name="diagnostics_stop_fgs_limit">بلغت خدمة المقدّمة حدها الزمني (حد dataSync في Android 15)</string>
+    <string name="diagnostics_stop_unknown">غير معروف</string>
+    <string name="diagnostics_stop_code">الرمز %1$d</string>
+</resources>

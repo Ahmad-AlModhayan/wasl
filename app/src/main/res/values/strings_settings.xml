@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings, its dialogs (automation, privacy, licences), About, and file version history. -->
+<resources>
+    <!-- Settings: choice dialogs -->
+    <string name="settings_interval_intro">How often every pair is checked in the background. Android may run a check a little later to save battery.</string>
+    <string name="settings_poll_title">Drive change check</string>
+    <string name="settings_poll_intro">How often instant sync asks Drive for changes made on the web or on other devices.</string>
+    <string name="settings_battery_intro">New pairs skip scheduled syncs below this level, unless the phone is charging.</string>
+    <string name="settings_concurrency_title">Parallel transfers</string>
+    <string name="settings_concurrency_intro">Files copied at the same time. Fewer is gentler on slow or shared connections.</string>
+    <string name="settings_bandwidth_title">Bandwidth limit</string>
+    <string name="settings_bandwidth_intro">The most Wasl uses for uploads and downloads together.</string>
+    <string name="settings_conflict_title">When both sides change</string>
+    <string name="settings_conflict_intro">What new pairs do when the same file changed on the phone and on Drive since the last sync.</string>
+    <string name="settings_bin_title">Recycle bin keeps files</string>
+    <string name="settings_bin_intro">Files a sync removes or replaces on this phone wait in the recycle bin this long. Drive\'s own bin keeps files for 30 days.</string>
+    <string name="settings_versions_title">Versions kept on this phone</string>
+    <string name="settings_versions_intro">Older copies of a file that a sync replaced on this phone. Drive keeps its own versions as well.</string>
+    <string name="settings_history_intro">Past syncs and their log lines older than this are cleared.</string>
+    <string name="settings_docs_title">Google Docs format</string>
+    <string name="settings_docs_intro">Docs, Sheets and Slides have no file of their own. They come to the phone as read-only copies in this format and never go back to Drive.</string>
+    <string name="settings_cache_title">Files-on-demand space</string>
+    <string name="settings_cache_intro">Space for Drive files you open from the Files app. The oldest ones are cleared first; pinned files stay.</string>
+    <string name="settings_choose_account_title">Disconnect which account?</string>
+    <string name="settings_disconnect_title">Disconnect %1$s?</string>
+    <string name="settings_disconnect">Disconnect</string>
+
+    <!-- Settings: sync defaults -->
+    <string name="settings_section_sync_defaults">Sync defaults</string>
+    <string name="settings_pause_all">Pause all syncing</string>
+    <string name="settings_no_pairs_yet">No pairs yet</string>
+    <string name="settings_pause_all_on">Nothing syncs until you turn this off</string>
+    <string name="settings_wifi_only">Only on Wi‑Fi</string>
+    <string name="settings_for_new_pairs">For new pairs</string>
+    <string name="settings_wifi_only_off">Off: mobile data allowed</string>
+    <string name="settings_interval_summary">Every pair, in the background</string>
+    <string name="settings_instant">Instant sync</string>
+    <string name="settings_instant_on">Within seconds of a change, with a silent notification</string>
+    <string name="settings_instant_off">Off: changes wait for the next check</string>
+    <string name="settings_poll_summary">How often instant sync asks Drive</string>
+    <string name="settings_poll_needs_instant">Needs instant sync</string>
+    <string name="settings_charging">Only while charging</string>
+    <string name="settings_charging_off">Off: syncs on battery too</string>
+    <string name="settings_battery_summary">For new pairs, unless charging</string>
+    <string name="settings_concurrency_summary">Files copied at the same time</string>
+    <string name="settings_bandwidth_summary">Uploads and downloads together</string>
+
+    <!-- Settings: safety -->
+    <string name="settings_section_safety">Safety</string>
+    <string name="settings_guard">Ask before large deletes</string>
+    <string name="settings_guard_off">Off: new pairs delete without asking</string>
+    <string name="settings_guard_limit">Large delete limit</string>
+    <string name="settings_guard_limit_summary">Used by every pair that asks</string>
+    <plurals name="settings_guard_limit_value">
+        <item quantity="one">%1$s file · %2$d%%</item>
+        <item quantity="other">%1$s files · %2$d%%</item>
+    </plurals>
+    <plurals name="settings_guard_summary">
+        <item quantity="one">More than %1$s file or %2$d%% of a folder</item>
+        <item quantity="other">More than %1$s files or %2$d%% of a folder</item>
+    </plurals>
+    <string name="settings_bin_short">Shorter than the 30 days recommended</string>
+    <string name="settings_bin_summary">Removed and replaced files</string>
+    <string name="settings_versions_summary">Per file, besides Drive\'s own versions</string>
+    <string name="settings_history_summary">Past syncs and the log in Diagnostics</string>
+
+    <!-- Settings: appearance -->
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_dynamic_color">Colours from wallpaper</string>
+    <string name="settings_dynamic_color_on">Colours follow your wallpaper</string>
+    <string name="settings_dynamic_color_off">Off: Wasl\'s navy blue</string>
+    <string name="settings_dynamic_color_needs">Needs Android 12 or later</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_summary">Wasl can use a different language from the rest of the phone</string>
+    <string name="settings_phone_name">Phone name</string>
+    <string name="settings_phone_name_summary">Used in the names of conflict copies</string>
+
+    <!-- Settings: Google Docs -->
+    <string name="settings_section_docs">Google Docs</string>
+    <string name="settings_docs_export">Export format</string>
+    <string name="settings_docs_export_summary">Read-only copies on the phone, for new pairs</string>
+
+    <!-- Settings: notifications -->
+    <string name="settings_section_notifications">Notifications</string>
+    <string name="settings_notify_progress">Progress while syncing</string>
+    <string name="settings_notify_progress_on">A silent notification with Pause</string>
+    <string name="settings_notify_progress_off">Off: no progress notification</string>
+    <string name="settings_notify_success">When a sync finishes</string>
+    <string name="settings_notify_success_on">A short summary when files changed</string>
+    <string name="settings_off">Off</string>
+    <string name="settings_notify_problems">When something needs you</string>
+    <string name="settings_notify_problems_on">Approvals, conflicts and failures</string>
+    <string name="settings_notify_problems_off">Off: check Problems yourself</string>
+
+    <!-- Settings: storage and backup -->
+    <string name="settings_section_storage">Storage &amp; backup</string>
+    <string name="settings_auto_backup">Back up pairs and settings</string>
+    <string name="settings_auto_backup_on">To a hidden app folder in your Drive</string>
+    <string name="settings_auto_backup_off">Off: a new phone starts from scratch</string>
+    <string name="settings_backup">Backup &amp; restore</string>
+    <string name="settings_backup_last">Last backup %1$s</string>
+    <string name="settings_backup_summary">Export, import or restore from Drive</string>
+    <string name="settings_cache_summary">Drive files opened from the Files app</string>
+    <string name="settings_vaults">Vaults</string>
+    <string name="settings_vaults_summary">Pairs encrypted on the phone before upload</string>
+    <string name="settings_browse_drive">Browse Drive</string>
+    <string name="settings_browse_drive_needs_account">Needs a Google account</string>
+    <string name="settings_browse_drive_summary">Look through %1$s</string>
+
+    <!-- Settings: about -->
+    <string name="settings_section_about">About</string>
+    <string name="settings_sync_history_summary">Every sync run and what it changed</string>
+    <string name="settings_diagnostics_summary">Health checks and the sync log</string>
+    <string name="settings_automation_on">On: Tasker and adb commands need your secret</string>
+    <string name="settings_automation_off">Off: other apps can\'t control syncing</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_privacy_summary">No ads, no analytics. Files go only to your Drive and your devices.</string>
+    <string name="settings_licences">Licences</string>
+    <string name="settings_licences_summary">Fonts, icons and libraries</string>
+    <string name="settings_about_app">About Wasl</string>
+    <string name="settings_disconnect_account">Disconnect Google account</string>
+    <plurals name="settings_accounts_count">
+        <item quantity="one">%1$d account</item>
+        <item quantity="other">%1$d accounts</item>
+    </plurals>
+
+    <!-- Settings: account card -->
+    <string name="settings_no_account">No Google account</string>
+    <string name="settings_no_account_summary">Add one to start syncing</string>
+    <string name="settings_add_account">Add Google account</string>
+    <string name="settings_manage_accounts">Manage accounts</string>
+    <string name="settings_sign_in_again">Sign in again to keep syncing</string>
+    <string name="settings_storage_no_limit">%1$s used · no storage limit</string>
+    <string name="settings_storage_not_checked">Drive storage not checked yet</string>
+    <string name="settings_no_pairs">No pairs</string>
+    <plurals name="settings_pairs">
+        <item quantity="one">%1$d pair</item>
+        <item quantity="other">%1$d pairs</item>
+    </plurals>
+
+    <!-- Settings: edit dialogs -->
+    <string name="settings_guard_save">Save limit</string>
+    <string name="settings_guard_body">A sync stops and asks before it deletes more than either number. Until you answer, both sides keep every file.</string>
+    <string name="settings_guard_files">Files</string>
+    <string name="settings_guard_files_error">Enter a number from 1 to 100,000</string>
+    <string name="settings_guard_percent">Percent of a folder</string>
+    <string name="settings_guard_percent_error">Enter a number from 1 to 100</string>
+    <string name="settings_phone_name_save">Save name</string>
+    <string name="settings_phone_name_body">When both sides change a file, the copy from this phone is named like \"Report (conflicted copy from %1$s, …).docx\".</string>
+    <string name="settings_phone_name_fallback">this phone</string>
+    <string name="settings_phone_name_error">Give this phone a name</string>
+
+    <!-- Settings: values -->
+    <string name="settings_battery_any">Any level</string>
+    <string name="settings_battery_percent">%1$d%%</string>
+    <string name="settings_concurrency_value">%1$d at a time</string>
+    <plurals name="settings_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <plurals name="settings_versions">
+        <item quantity="one">%1$d version</item>
+        <item quantity="other">%1$d versions</item>
+    </plurals>
+    <string name="settings_bandwidth_none">No limit</string>
+    <string name="settings_bandwidth_kbps">%1$d KB/s</string>
+    <string name="settings_bandwidth_mbps">%1$s MB/s</string>
+    <string name="settings_cache_gb">%1$d GB</string>
+    <string name="settings_cache_mb">%1$s MB</string>
+    <string name="settings_conflict_newer">Keep the newer copy</string>
+    <string name="settings_conflict_local">Keep the phone copy</string>
+    <string name="settings_conflict_remote">Keep the Drive copy</string>
+    <string name="settings_conflict_skip">Leave both as they are</string>
+    <string name="settings_conflict_keep_both_description">Both copies stay; one gets a conflict name. You choose later in Problems.</string>
+    <string name="settings_conflict_newer_description">The copy changed last replaces the other. The replaced copy goes to the recycle bin or version history.</string>
+    <string name="settings_conflict_local_description">The phone copy replaces the Drive copy, which stays in Drive\'s version history.</string>
+    <string name="settings_conflict_remote_description">The Drive copy replaces the phone copy, which goes to the recycle bin.</string>
+    <string name="settings_conflict_skip_description">Neither copy changes. The file waits in Problems until you choose.</string>
+    <string name="settings_conflict_keep_both_summary">Keep both and ask me</string>
+    <string name="settings_conflict_newer_summary">Keep the newer copy, without asking</string>
+    <string name="settings_conflict_local_summary">Keep the phone copy, without asking</string>
+    <string name="settings_conflict_remote_summary">Keep the Drive copy, without asking</string>
+    <string name="settings_conflict_skip_summary">Leave both and ask me</string>
+    <string name="settings_docs_office">Office files</string>
+    <string name="settings_docs_office_description">Word, Excel and PowerPoint files (.docx, .xlsx, .pptx) you can open on any phone.</string>
+    <string name="settings_docs_pdf_description">Fixed pages that look the same everywhere. Can\'t be edited.</string>
+    <string name="settings_disconnect_body_none">No pairs use this account. Files on this phone and in Drive stay where they are.</string>
+    <plurals name="settings_disconnect_body">
+        <item quantity="one">Syncing stops for 1 pair and it is removed from Wasl. Files on this phone and in Drive stay where they are.</item>
+        <item quantity="other">Syncing stops for %1$d pairs and they are removed from Wasl. Files on this phone and in Drive stay where they are.</item>
+    </plurals>
+
+    <!-- Settings: messages -->
+    <plurals name="settings_paused_pairs">
+        <item quantity="one">Paused 1 pair</item>
+        <item quantity="other">Paused %1$d pairs</item>
+    </plurals>
+    <plurals name="settings_resumed_pairs">
+        <item quantity="one">Resumed 1 pair</item>
+        <item quantity="other">Resumed %1$d pairs</item>
+    </plurals>
+    <string name="settings_disconnected">Disconnected %1$s</string>
+    <plurals name="settings_disconnected_and_removed">
+        <item quantity="one">Disconnected %1$s and removed 1 pair</item>
+        <item quantity="other">Disconnected %1$s and removed %2$d pairs</item>
+    </plurals>
+
+    <!-- Privacy and licences -->
+    <string name="settings_privacy_no_ads_title">No ads, no analytics</string>
+    <string name="settings_privacy_no_ads_body">Wasl shows no ads and sends no usage data or crash reports anywhere.</string>
+    <string name="settings_privacy_direct_title">Files go only to your Drive and your own devices</string>
+    <string name="settings_privacy_direct_body">Wasl talks to Google Drive directly, and to your other devices on your own network. There is no other server in between.</string>
+    <string name="settings_privacy_backup_title">Your configuration backup</string>
+    <string name="settings_privacy_backup_body">Pairs and settings, without any files, go to a hidden app folder in your Drive that only Wasl can read.</string>
+    <string name="settings_privacy_sign_in_title">Sign-in</string>
+    <string name="settings_privacy_sign_in_body">Google Play services handles sign-in. Wasl never sees your Google password.</string>
+    <string name="settings_privacy_location_title">Location</string>
+    <string name="settings_privacy_location_body">Used only to read the Wi‑Fi name, when a pair limits syncing to certain networks.</string>
+    <string name="settings_licences_intro">Wasl is built with these open-source parts:</string>
+    <string name="settings_licence_androidx">AndroidX and Jetpack Compose</string>
+    <string name="settings_licence_kotlin">Kotlin, coroutines and serialization</string>
+    <string name="settings_licence_dagger">Dagger and Hilt</string>
+
+    <!-- Automation -->
+    <string name="settings_automation_sync_all">Sync everything</string>
+    <string name="settings_automation_sync_all_description">Runs every pair that is turned on, now, within each pair\'s Wi‑Fi, VPN, charging and battery rules.</string>
+    <string name="settings_automation_sync_pair">Sync one pair</string>
+    <string name="settings_automation_sync_pair_description">Runs one pair within its rules; a paused pair stays paused. The pair id is on the pair\'s screen.</string>
+    <string name="settings_automation_pause_all">Pause all pairs</string>
+    <string name="settings_automation_pause_all_description">Pauses every pair until you resume them.</string>
+    <string name="settings_automation_resume_all">Resume all pairs</string>
+    <string name="settings_automation_resume_all_description">Resumes every pair, including ones you paused yourself.</string>
+    <string name="settings_automation_cancel">Stop the running sync</string>
+    <string name="settings_automation_cancel_description">Stops the current run. The next run continues where it stopped.</string>
+    <string name="settings_automation_reschedule">Re-arm the schedule</string>
+    <string name="settings_automation_reschedule_description">Creates the scheduled background check again, for example after a task killer removed it.</string>
+    <string name="settings_automation_sheet_title">Wasl automation (Tasker, MacroDroid, Automate, adb)</string>
+    <string name="settings_automation_sheet_target">Send a broadcast to package %1$s, receiver class %2$s,</string>
+    <string name="settings_automation_sheet_extra">with the string extra \"%1$s\" = %2$s</string>
+    <string name="settings_automation_sheet_ignored">Wasl ignores broadcasts without it, and all of them while Allow automation is off.</string>
+    <string name="settings_automation_sheet_command_extra">%1$s: %2$s  (extra: %3$s)</string>
+    <string name="settings_automation_tile">The Quick Settings tile \"Wasl\" starts a full sync too.</string>
+    <string name="settings_automation_secret">Your secret</string>
+    <string name="settings_automation_secret_body">Every command must carry it as the string extra \"%1$s\". Keep it out of Tasker projects you share.</string>
+    <string name="settings_automation_new_secret">New secret</string>
+    <string name="settings_automation_copied">Copied</string>
+    <string name="settings_automation_copy_all">Copy all commands</string>
+    <string name="settings_automation_allow">Allow automation</string>
+    <string name="settings_automation_allow_on">Tasker, MacroDroid and adb can start, pause and stop syncing when they send your secret.</string>
+    <string name="settings_automation_allow_off">Off: other apps on this phone can\'t start, pause or stop syncing.</string>
+
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_intro">Wasl keeps folders on this phone and folders in your Google Drive the same, in both directions. It stays quiet while everything is in step, says exactly what happened when something isn\'t, and never shows an ad or a nag.</string>
+    <string name="about_promises">Three promises</string>
+    <string name="about_promise_preview_title">You see changes before they happen</string>
+    <string name="about_promise_preview_body">Every new pair starts with a preview, and a large delete waits for your OK.</string>
+    <string name="about_promise_bin_title">Nothing is lost for 30 days</string>
+    <string name="about_promise_bin_body">Removed and replaced files wait in the recycle bin or in the file\'s versions.</string>
+    <string name="about_promise_private_title">No ads, no tracking</string>
+    <string name="about_promise_private_body">Your files go to your Drive and your own devices. Nowhere else.</string>
+    <string name="about_how_sync_works">How sync works</string>
+    <string name="about_step_compare">For every file, a pair compares three things: the phone copy, the Drive copy, and how both looked after the last sync.</string>
+    <string name="about_step_changes">Only what changed moves. New and edited files are copied; a file removed on one side goes to the recycle bin on the other.</string>
+    <string name="about_step_conflicts">When the same file changed on both sides, both copies are kept and the conflict waits for you in Problems.</string>
+    <string name="about_step_large_deletes">Before a large delete, or a first sync into a folder that already has files, Wasl stops and shows what would happen.</string>
+    <string name="about_step_schedule">Pairs are checked on a schedule, and within seconds of a change when instant sync is on. Google Docs come to the phone as read-only copies.</string>
+    <string name="about_more">More</string>
+    <string name="about_settings_summary">Defaults, safety and appearance</string>
+    <string name="about_automation_summary">Tasker, MacroDroid and adb commands</string>
+    <string name="about_credits">Made by Kahf Labs. Background guides for phone makers come from dontkillmyapp.com.</string>
+
+    <!-- Version history -->
+    <string name="revisions_title">Versions</string>
+    <string name="revisions_file">File</string>
+    <string name="revisions_restoring">Restoring the version from %1$s…</string>
+    <string name="revisions_restored">Restored the version from %1$s.</string>
+    <string name="revisions_restored_replaced_in_bin">Restored the version from %1$s. The replaced one is in the recycle bin.</string>
+    <string name="revisions_putting_back">Putting the replaced version back…</string>
+    <string name="revisions_saving_copy">Saving a copy…</string>
+    <string name="revisions_saved_beside">Saved %1$s beside the original</string>
+    <string name="revisions_saved_to_downloads">Saved %1$s to Downloads</string>
+    <string name="revisions_keeping">Keeping the version from %1$s…</string>
+    <string name="revisions_updating">Updating the version from %1$s…</string>
+    <string name="revisions_kept_forever_message">Drive keeps the version from %1$s until you change it</string>
+    <string name="revisions_not_kept_message">The version from %1$s follows Drive\'s 30 days again</string>
+    <string name="revisions_no_app_for_drive">No app on this phone can open Drive links.</string>
+    <string name="revisions_open_in_drive">Open in Drive</string>
+    <string name="revisions_loading">Loading versions from Drive…</string>
+    <string name="revisions_load_failed">Couldn\'t load the versions</string>
+    <string name="revisions_none">Drive has no earlier versions of this file yet.</string>
+    <string name="revisions_drive_keeps">Drive keeps versions for 30 days or 100 versions.</string>
+    <plurals name="revisions_drive_and_phone_keep">
+        <item quantity="one">Drive keeps versions for 30 days or 100 versions. This phone keeps the last version it replaced.</item>
+        <item quantity="other">Drive keeps versions for 30 days or 100 versions. This phone keeps the last %1$d versions it replaced.</item>
+    </plurals>
+    <string name="revisions_kept_forever">kept forever</string>
+    <string name="revisions_keep_forever">Keep forever</string>
+    <string name="revisions_stop_keeping_forever">Stop keeping forever</string>
+    <string name="revisions_more_for">More for the version from %1$s</string>
+</resources>

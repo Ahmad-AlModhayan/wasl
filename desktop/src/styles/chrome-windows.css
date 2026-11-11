@@ -1,0 +1,71 @@
+/* The Windows 11 title bar (src/chrome/windows.ts). Only while that bar is drawn: data-kf-chrome="windows" on the
+   root, which the app sets on Windows and the dev mock with ?platform=windows. Logical properties only, so Arabic
+   mirrors it: the caption buttons go to the left, the mark and name to the right, the content corner too. */
+
+[data-kf-chrome="windows"] {
+  /* The window: Mica on Windows 11 (data-kf-backdrop="mica", the page is transparent there), a solid colour
+     elsewhere. The content sits on a lighter layer, as in Fluent. */
+  --wtb-window: var(--md-sys-color-surface-container);
+  --wtb-layer: light-dark(rgb(255 255 255 / 0.6), rgb(255 255 255 / 0.04));
+  --wtb-layer-edge: light-dark(rgb(27 26 23 / 0.1), rgb(255 255 255 / 0.1));
+  --wtb-field: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.06));
+  --wtb-close: #c42b1c;
+}
+[data-kf-chrome="windows"][data-kf-backdrop="mica"] { --wtb-window: transparent; }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  [data-kf-chrome="windows"][data-kf-backdrop="mica"] { --wtb-window: var(--md-sys-color-surface-container); }
+}
+@media (prefers-contrast: more) {
+  [data-kf-chrome="windows"] { --wtb-layer-edge: var(--md-sys-color-outline); }
+}
+
+html[data-kf-chrome="windows"], [data-kf-chrome="windows"] body { background: var(--wtb-window); }
+[data-kf-chrome="windows"] body { display: flex; flex-direction: column; }
+[data-kf-chrome="windows"] #app { flex: 1; block-size: auto; min-block-size: 0; }
+
+/* The bar: 48px, mark 16px from the leading edge, name in Caption style, search centred between them and the
+   caption buttons. */
+.wtb { flex: none; display: flex; align-items: center; gap: 12px; block-size: var(--kf-desk-titlebar); padding-inline-start: 16px; color: var(--md-sys-color-on-surface); font: var(--kf-desk-font-caption); }
+.wtb-mark { display: inline-flex; color: var(--md-sys-color-primary); }
+.wtb-title { white-space: nowrap; }
+.wtb-search { position: relative; flex: 1; display: flex; justify-content: center; min-inline-size: 0; }
+.wtb-search-box { position: relative; display: flex; inline-size: min(340px, 100%); }
+.wtb-search-field { inline-size: 100%; block-size: 32px; box-sizing: border-box; padding-inline: 36px 12px; border: 1px solid var(--kf-color-separator); border-block-end-color: var(--md-sys-color-outline); border-radius: var(--kf-desk-radius-control); background: var(--wtb-field); color: var(--md-sys-color-on-surface); font: var(--kf-desk-font-body); }
+.wtb-search-field::placeholder { color: var(--md-sys-color-on-surface-variant); opacity: 1; }
+.wtb-search-icon { position: absolute; inset-block-start: 8px; inset-inline-start: 12px; pointer-events: none; color: var(--md-sys-color-on-surface-variant); }
+
+/* Caption buttons: 46px full-height backplates; rest, hover, pressed; close turns red on hover. */
+.wtb-caps { display: flex; align-self: stretch; }
+.wtb-cap { display: grid; place-items: center; inline-size: 46px; block-size: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--md-sys-color-on-surface); cursor: default; }
+.wtb-glyph { font: 400 10px/1 "Segoe Fluent Icons", "Segoe MDL2 Assets"; }
+svg.wtb-glyph { inline-size: 10px; block-size: 10px; fill: none; stroke: currentColor; stroke-width: 1; }
+/* The restore glyph's back square is on the trailing side, as on a mirrored native frame. */
+[dir="rtl"] .wtb-cap[data-cap="maximize"] .wtb-glyph { transform: scaleX(-1); }
+.wtb-cap:hover, .wtb-cap[data-state="hover"] { background: var(--kf-desk-hover); }
+.wtb-cap:active, .wtb-cap[data-state="pressed"] { background: var(--kf-desk-pressed); color: var(--md-sys-color-on-surface-variant); }
+.wtb-cap[data-cap="close"]:hover { background: var(--wtb-close); color: #ffffff; }
+.wtb-cap[data-cap="close"]:active { background: color-mix(in srgb, var(--wtb-close) 90%, transparent); color: rgb(255 255 255 / 0.7); }
+.wtb-cap:focus-visible { outline: var(--kf-desk-focus-width) solid var(--kf-desk-focus-color); outline-offset: calc(-1 * var(--kf-desk-focus-width)); }
+
+/* Another window is active: the name and glyphs dim, as on a native frame. */
+.kf-desk-inactive .wtb-title,
+.kf-desk-inactive .wtb-cap:not(:hover, :active, [data-state]) { color: var(--md-sys-color-on-surface-variant); }
+
+/* The content layer: the navigation stays on the window, the screen sits on a lighter layer with a rounded
+   leading corner (top-left in English, top-right in Arabic). */
+[data-kf-chrome="windows"] .shell > .shell-sidebar { border-inline-end: 0; }
+[data-kf-chrome="windows"] .shell:not([data-sidebar-view="overlay"]) > .shell-sidebar { background: transparent; }
+[data-kf-chrome="windows"] .shell > .pane { background: var(--wtb-layer); border-block-start: 1px solid var(--wtb-layer-edge); border-inline-start: 1px solid var(--wtb-layer-edge); border-start-start-radius: var(--kf-desk-radius-pane); }
+
+/* High Contrast: system colours, and hover and press shown by Highlight rather than tints. */
+@media (forced-colors: active) {
+  html[data-kf-chrome="windows"], [data-kf-chrome="windows"] body, .wtb { background: Canvas; color: CanvasText; }
+  .wtb-mark { color: CanvasText; }
+  .wtb-cap { forced-color-adjust: none; background: Canvas; color: CanvasText; }
+  .wtb-cap:hover, .wtb-cap[data-state], .wtb-cap:active,
+  .wtb-cap[data-cap="close"]:hover, .wtb-cap[data-cap="close"]:active { background: Highlight; color: HighlightText; }
+  .wtb-cap:focus-visible { outline-color: Highlight; }
+  .kf-desk-inactive .wtb-title, .kf-desk-inactive .wtb-cap:not(:hover, :active, [data-state]) { color: GrayText; }
+  .wtb-search-field { border-color: ButtonText; background: Field; color: FieldText; }
+  [data-kf-chrome="windows"] .shell > .pane { background: Canvas; border-color: CanvasText; }
+}

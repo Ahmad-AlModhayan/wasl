@@ -1,0 +1,33 @@
+[package]
+name = "wasl-crypto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+aes-gcm.workspace = true
+pbkdf2.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+base64.workspace = true
+getrandom.workspace = true
+zeroize.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+argon2.workspace = true
+hkdf.workspace = true
+aes-siv.workspace = true
+blake3.workspace = true
+fastcdc.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+proptest.workspace = true
+wasl-chunk.workspace = true
+ciborium.workspace = true
+
+[lints]
+workspace = true

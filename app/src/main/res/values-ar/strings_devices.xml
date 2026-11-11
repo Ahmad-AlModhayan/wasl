@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Device sync: the Devices screen, pairing, a pair's devices section, the session and diagnostics. -->
+<resources>
+    <!-- Devices screen -->
+    <string name="devices_title">الأجهزة</string>
+    <string name="devices_this_phone">هذا الهاتف</string>
+    <string name="devices_your_devices">أجهزتك</string>
+    <string name="devices_taking_part">يمكن لأجهزتك الوصول إليه</string>
+    <string name="devices_joining">جارٍ الانضمام إلى أجهزتك…</string>
+    <string name="devices_not_taking_part">لا يمكن الوصول إليه الآن</string>
+    <string name="devices_connected">متصل</string>
+    <string name="devices_connected_lan">متصل · الشبكة نفسها</string>
+    <string name="devices_connected_direct">متصل · عبر الإنترنت</string>
+    <string name="devices_connected_punched">متصل · عبر جهازَي التوجيه</string>
+    <string name="devices_not_connected">غير متصل</string>
+    <string name="devices_empty_title">لا أجهزة أخرى بعد</string>
+    <string name="devices_empty_body">أضف حاسوبًا أو هاتفًا آخر عليه وصل لمزامنة المجلدات بينهما مباشرةً، دون المرور بـ Drive.</string>
+    <string name="devices_add">إضافة جهاز</string>
+    <string name="devices_join">الانضمام إلى جهاز</string>
+    <string name="devices_add_or_join_hint">اضغط «إضافة جهاز» هنا ليظهر رمز، ثم «الانضمام إلى جهاز» على الجهاز الآخر لمسحه. يمكن لأيٍّ منهما أن يُظهر الرمز.</string>
+    <string name="devices_remove">إزالة</string>
+    <string name="devices_remove_for">إزالة %1$s</string>
+    <string name="devices_remove_title">إزالة %1$s؟</string>
+    <string name="devices_remove_body">يتوقف %1$s عن المزامنة مع هذا الهاتف. تبقى الملفات على الجهازين.</string>
+    <string name="devices_removed">أُزيل %1$s</string>
+    <string name="devices_couldnt_start">تعذّر بدء مزامنة الأجهزة على هذا الهاتف.</string>
+    <string name="devices_section_when">متى يزامن هذا الهاتف مع الأجهزة</string>
+    <string name="devices_session">المزامنة مع أجهزتي الآن</string>
+    <string name="devices_session_on">مفعّل: يمكن الوصول إليه حتى توقفه، 30 دقيقة على الأكثر</string>
+    <string name="devices_session_off">متوقف: فقط عندما يكون وصل مفتوحًا</string>
+    <string name="devices_charging">المزامنة مع الأجهزة أثناء الشحن على Wi‑Fi</string>
+    <string name="devices_charging_on">مفعّل: ينضم إلى أجهزتك بضع دقائق أثناء الشحن على Wi‑Fi</string>
+    <string name="devices_charging_off">متوقف: فقط عندما يكون وصل مفتوحًا أو تبدأ مزامنة</string>
+    <string name="devices_id_label">معرّف الجهاز</string>
+    <string name="devices_copy_id">نسخ معرّف الجهاز</string>
+    <string name="devices_copied">نُسخ</string>
+
+    <!-- Pairing -->
+    <string name="devices_pairing_add_title">إضافة جهاز</string>
+    <string name="devices_pairing_join_title">الانضمام إلى جهاز</string>
+    <string name="devices_pairing_show_code">على جهازك الآخر، اختر «الانضمام إلى جهاز» وامسح هذا الرمز، أو اكتب الرمز أدناه.</string>
+    <string name="devices_pairing_code_label">رمز الإقران</string>
+    <string name="devices_pairing_copy_code">نسخ الرمز</string>
+    <string name="devices_pairing_expires">يعمل حتى %1$s، مرة واحدة.</string>
+    <string name="devices_pairing_scan_hint">وجّه الكاميرا نحو الرمز على جهازك الآخر.</string>
+    <string name="devices_pairing_paste_label">أو اكتب الرمز أو الصقه</string>
+    <string name="devices_pairing_join_button">انضمام</string>
+    <string name="devices_pairing_camera_title">اسمح للكاميرا بمسح الرمز</string>
+    <string name="devices_pairing_camera_why">يستخدم وصل الكاميرا لقراءة رمز الإقران فقط. لا يُسجَّل شيء ولا يُرسَل إلى أي مكان.</string>
+    <string name="devices_pairing_camera_allow">السماح بالكاميرا</string>
+    <string name="devices_pairing_camera_denied">الكاميرا غير مسموح بها. يمكنك كتابة الرمز بدلًا من ذلك.</string>
+    <string name="devices_pairing_reaching">جارٍ الوصول إلى الجهاز الآخر…</string>
+    <string name="devices_pairing_waiting_scan">بانتظار الجهاز الآخر…</string>
+    <string name="devices_pairing_words_title">هل هي نفسها على الجهاز الآخر؟</string>
+    <string name="devices_pairing_words_body">تأكد أن %1$s يعرض هذه الكلمات الأربع، بهذا الترتيب.</string>
+    <string name="devices_pairing_words_body_unknown">تأكد أن الجهاز الآخر يعرض هذه الكلمات الأربع، بهذا الترتيب.</string>
+    <string name="devices_pairing_words_label">كلمات التأكيد: %1$s</string>
+    <string name="devices_pairing_yes">نعم، متطابقة</string>
+    <string name="devices_pairing_no">لا</string>
+    <string name="devices_pairing_waiting_confirm">بانتظار تأكيد %1$s…</string>
+    <string name="devices_pairing_waiting_confirm_unknown">بانتظار تأكيد الجهاز الآخر…</string>
+    <string name="devices_pairing_paired">تم الإقران مع %1$s</string>
+    <string name="devices_pairing_paired_unknown">تم الإقران</string>
+    <string name="devices_pairing_paired_body">فعّل «المزامنة مع أجهزتي» في أي ربط لمزامنة مجلده مع هذا الجهاز.</string>
+    <string name="devices_pairing_failed">لم يكتمل الإقران</string>
+    <string name="devices_pairing_failed_body">لم يُضَف شيء. حاول مجددًا برمز جديد.</string>
+    <string name="devices_pairing_try_again">المحاولة مجددًا</string>
+    <string name="devices_pairing_done">تم</string>
+    <string name="devices_pairing_not_open">افتح وصل على هذا الهاتف مع تشغيل Wi‑Fi للإقران.</string>
+    <string name="devices_pairing_bad_code">لا يبدو هذا رمز إقران.</string>
+
+    <!-- A pair's devices section -->
+    <string name="devices_pair_section">الأجهزة</string>
+    <string name="devices_pair_switch">المزامنة مع أجهزتي</string>
+    <string name="devices_pair_code">رمز المشاركة: %1$s</string>
+    <string name="devices_pair_off">متوقف: يزامن هذا الربط عبر Drive فقط</string>
+    <string name="devices_pair_off_no_drive">متوقف: هذا الربط لا يزامن</string>
+    <string name="devices_pair_unavailable">متاح عندما يمكن لأجهزتك الوصول إلى هذا الهاتف</string>
+    <string name="devices_pair_use_code">استخدام رمز من جهاز آخر</string>
+    <string name="devices_pair_use_code_summary">الانضمام إلى مجلد يشاركه جهاز آخر</string>
+    <string name="devices_pair_use_code_body">على الجهاز الآخر، افتح الربط وانسخ رمز مشاركته. سيزامن هذا الربط بعدها مع ذلك المجلد.</string>
+    <string name="devices_pair_code_label">رمز المشاركة</string>
+    <string name="devices_pair_use">استخدام الرمز</string>
+    <string name="devices_pair_copied">نُسخ رمز المشاركة</string>
+    <string name="devices_pair_last_ok">تمت المزامنة مع الأجهزة %1$s</string>
+    <string name="devices_pair_no_peer">لا يتصل أي جهاز يزامن هذا المجلد. أضف جهازًا، أو اعرض هذا المجلد على أحدها.</string>
+    <string name="devices_pair_no_devices">لا توجد أجهزة أخرى بعد. أضف جهازًا لتتم المزامنة معه.</string>
+    <string name="devices_pair_last_failed">لم تكتمل مزامنة الأجهزة %1$s</string>
+    <string name="devices_waiting_for">بانتظار %1$s</string>
+    <string name="devices_waiting_for_devices">بانتظار أجهزتك</string>
+    <string name="devices_outcome_label">الأجهزة</string>
+
+    <!-- Session notification -->
+    <string name="devices_session_title">جارٍ المزامنة مع أجهزتك</string>
+    <string name="devices_session_text">يبقى هذا الهاتف متاحًا لأجهزتك حتى توقفه.</string>
+    <string name="devices_session_stop">إيقاف</string>
+
+    <!-- Settings and diagnostics -->
+    <string name="settings_section_devices">الأجهزة</string>
+    <string name="settings_devices_summary">زامن المجلدات مباشرةً مع حواسيبك وهواتفك</string>
+    <string name="diagnostics_devices">مزامنة الأجهزة</string>
+    <string name="diagnostics_devices_off">لا تعمل: ينضم وصل إلى أجهزتك عندما يكون مفتوحًا، أو أثناء مزامنة تبدؤها، أو أثناء الشحن على Wi‑Fi إن سمحت بذلك.</string>
+    <string name="diagnostics_devices_none">تعمل. لا أجهزة أخرى مقترنة بعد.</string>
+    <string name="diagnostics_devices_listening">تعمل. يمكن الوصول إليه على %1$s</string>
+    <string name="diagnostics_device_lan">يمكن الوصول إليه على الشبكة نفسها</string>
+    <string name="diagnostics_device_direct">يمكن الوصول إليه مباشرةً عبر الإنترنت</string>
+    <string name="diagnostics_device_punched">يمكن الوصول إليه عبر جهازَي التوجيه (ثقب NAT)</string>
+    <string name="diagnostics_device_none">لا يمكن الوصول إليه من هذه الشبكة الآن</string>
+</resources>

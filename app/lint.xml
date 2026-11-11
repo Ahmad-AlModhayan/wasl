@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Lint gates a release (#150 M7): only real findings may fail :app:lintDebug. -->
+<lint>
+    <!-- UniFFI's generated bindings are not ours to change; the engine is built for API 30+. -->
+    <issue id="NewApi">
+        <ignore path="build/generated/**" />
+    </issue>
+    <!-- Intentional: these two helpers isolate numbers and codes as left-to-right runs (U+2066/U+2069)
+         so Arabic text shows "225 GB", not "GB 225". -->
+    <issue id="BidiSpoofing">
+        <ignore path="src/main/java/com/almodhayan/drivesync/ui/components/Format.kt" />
+        <ignore path="src/main/java/com/almodhayan/drivesync/ui/devices/Qr.kt" />
+    </issue>
+</lint>
