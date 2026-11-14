@@ -1,0 +1,16 @@
+*.iml
+.DS_Store
+/build/
+/dist/
+*.log
+.verify/
+# secrets and signing material: never in the repo
+.env
+.env.*
+*.pem
+*.key
+*.jks
+*.keystore
+*.p12
+__pycache__/
+/engine/target/

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.astro/
+.env
+# Copied from @kahf/design at every dev or build
+public/fonts/
+public/theme.js

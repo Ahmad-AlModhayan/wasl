@@ -1,0 +1,68 @@
+# Coverage-guided fuzzing of the most exposed parsers (docs/SECURITY.md S5-2), with cargo-fuzz and
+# libFuzzer. Its own workspace (the `[workspace]` table below), so the engine workspace neither
+# builds nor locks it.
+#
+# Needs a nightly toolchain and Linux or macOS (libFuzzer on Windows MSVC is unreliable):
+#
+#   cargo install cargo-fuzz --locked
+#   cd engine/fuzz
+#   cargo +nightly fuzz run peer_frames   -- -max_total_time=600
+#   cargo +nightly fuzz run vault_json    -- -max_total_time=600
+#   cargo +nightly fuzz run v2_manifest   -- -max_total_time=600
+#   cargo +nightly fuzz run ipc_handshake -- -max_total_time=600
+#
+# A crash leaves its input in `artifacts/<target>/`; replay it with
+# `cargo +nightly fuzz run <target> artifacts/<target>/<file>` and turn it into a regression test in
+# the crate's `tests/robustness.rs`. The corpus grows in `corpus/<target>/` (not committed).
+
+[package]
+name = "wasl-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tokio = { version = "1", features = ["rt", "io-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasl-net = { path = "../crates/wasl-net" }
+wasl-crypto = { path = "../crates/wasl-crypto" }
+wasl-ipc = { path = "../crates/wasl-ipc" }
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "peer_frames"
+path = "fuzz_targets/peer_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vault_json"
+path = "fuzz_targets/vault_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "v2_manifest"
+path = "fuzz_targets/v2_manifest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipc_handshake"
+path = "fuzz_targets/ipc_handshake.rs"
+test = false
+doc = false
+bench = false

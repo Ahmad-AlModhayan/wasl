@@ -1,0 +1,20 @@
+{
+  "id": "wasl",
+  "name": {
+    "en": "Wasl",
+    "ar": "وصل"
+  },
+  "bg": "#1f3d6b",
+  "ink": "#f5f3f0",
+  "accent": "#1f3d6b",
+  "headline": {
+    "en": "Sync that asks before it acts.",
+    "ar": "مزامنةٌ تستأذن قبل أن تتصرّف."
+  },
+  "sub": {
+    "en": "Folders on your phone and Google Drive, kept the same",
+    "ar": "مجلدات هاتفك وGoogle Drive، متطابقة دائمًا"
+  },
+  "short": "Wasl",
+  "description": "Folders on your phone and on Google Drive, kept the same, safely."
+}

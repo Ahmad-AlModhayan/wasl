@@ -1,0 +1,48 @@
+[package]
+name = "wasl-vfs-windows"
+description = "Files on demand on Windows: Cloud Files placeholders served through wasl-vfs's Hydrator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wasl-vfs.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
+windows-registry.workspace = true
+windows = { workspace = true, features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Security_Cryptography",
+    "Storage",
+    "Storage_Provider",
+    "Storage_Search",
+    "Storage_Streams",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_System_Threading",
+    "Win32_Storage_CloudFilters",
+    "Win32_Storage_FileSystem",
+    "Win32_System_CorrelationVector",
+    "Win32_System_IO",
+] }
+
+[target.'cfg(windows)'.dev-dependencies]
+async-trait.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+# The only crate where `unsafe` is allowed (design decision, docs/ON_DEMAND.md §2.2): the Cloud
+# Filter API is plain Win32. Every unsafe block carries a `// SAFETY:` comment.
+[lints.rust]
+unsafe_code = "allow"
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"

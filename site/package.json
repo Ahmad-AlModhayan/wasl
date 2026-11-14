@@ -1,0 +1,20 @@
+{
+  "name": "wasl-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "wasl.kahflabs.com — the Wasl website. Static, English and Arabic, built on @kahf/design.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "assets": "npm i --no-save sharp playwright && kahf-assets"
+  },
+  "dependencies": {
+    "@kahf/design": "github:Ahmad-AlModhayan/kahf-design#v1.0.0",
+    "astro": "7.3.5"
+  }
+}

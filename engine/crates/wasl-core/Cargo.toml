@@ -1,0 +1,23 @@
+[package]
+name = "wasl-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wasl-proto.workspace = true
+uniffi = { workspace = true, optional = true }
+serde.workspace = true
+unicode-normalization.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+serde_json.workspace = true
+
+[features]
+ffi = ["dep:uniffi", "wasl-proto/ffi"]
+
+[lints]
+workspace = true

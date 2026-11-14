@@ -1,0 +1,59 @@
+<!-- @dsCard group="Screens" page height=1000 width=1290 subtitle="1 · Permission onboarding" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Onboarding screen — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+const { Showcase, PhoneFrame, Screen, Logo, Icon, Button, PermissionStep, Callout, TopAppBar } = window.DriveSync;
+const Dots = ({ n, of }) => /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, justifyContent: "center" }, "aria-label": `Step ${n} of ${of}` }, Array.from({ length: of }).map((_, i) => /* @__PURE__ */ React.createElement("span", { key: i, style: { width: i + 1 === n ? 20 : 6, height: 6, borderRadius: 3, background: i + 1 === n ? "var(--primary)" : "var(--outline-variant)" } })));
+const Promise = ({ icon, title, text }) => /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement("span", { style: { display: "grid", placeItems: "center", width: 36, height: 36, borderRadius: 18, background: "var(--primary-container)", color: "var(--on-primary-container)", flex: "none" } }, /* @__PURE__ */ React.createElement(Icon, { name: icon, size: 20 })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "title-small", style: { color: "var(--on-surface)" } }, title), /* @__PURE__ */ React.createElement("div", { className: "body-medium", style: { color: "var(--on-surface-variant)" } }, text)));
+function Welcome() {
+  return /* @__PURE__ */ React.createElement(Screen, { bottomPlain: true, bottom: /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", flexDirection: "column", gap: 16 } }, /* @__PURE__ */ React.createElement(Dots, { n: 1, of: 3 }), /* @__PURE__ */ React.createElement(Button, { size: "lg", style: { width: "100%" } }, "Get started")) }, /* @__PURE__ */ React.createElement("div", { style: { padding: "48px 24px 0", display: "flex", flexDirection: "column", gap: 24 } }, /* @__PURE__ */ React.createElement(Logo, { variant: "app-icon", mask: "squircle", size: 72 }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { className: "headline-medium", style: { margin: "0 0 8px" } }, "Your phone and Drive, kept the same"), /* @__PURE__ */ React.createElement("p", { className: "body-large", style: { margin: 0, color: "var(--on-surface-variant)" } }, "Pair a folder on this phone with a folder in Google Drive. Drive Sync keeps them matching, quietly, in both directions.")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 18 } }, /* @__PURE__ */ React.createElement(Promise, { icon: "visibility", title: "You see changes before they happen", text: "Every new pair starts with a preview." }), /* @__PURE__ */ React.createElement(Promise, { icon: "restore_from_trash", title: "Nothing is lost for 30 days", text: "Removed files wait in the recycle bin." }), /* @__PURE__ */ React.createElement(Promise, { icon: "block", title: "No ads, no tracking", text: "Your files go between your phone and your Drive. Nowhere else." }))));
+}
+function Permissions() {
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { title: "", nav: "back" }),
+      bottomPlain: true,
+      bottom: /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", flexDirection: "column", gap: 16 } }, /* @__PURE__ */ React.createElement(Dots, { n: 2, of: 3 }), /* @__PURE__ */ React.createElement(Button, { size: "lg", disabled: true, style: { width: "100%" } }, "Continue"))
+    },
+    /* @__PURE__ */ React.createElement("div", { style: { padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "0 8px 8px" } }, /* @__PURE__ */ React.createElement("h1", { className: "headline-medium", style: { margin: "0 0 8px" } }, "What Drive Sync needs"), /* @__PURE__ */ React.createElement("p", { className: "body-large", style: { margin: 0, color: "var(--on-surface-variant)" } }, "Two are required. Each one has a single job.")), /* @__PURE__ */ React.createElement(PermissionStep, { icon: "account_circle", title: "Google Drive", why: "Read and write the Drive folders you pair.", state: "granted" }), /* @__PURE__ */ React.createElement(PermissionStep, { icon: "folder_open", title: "Files on this phone", why: "Copy the phone folders you choose.", state: "next" }), /* @__PURE__ */ React.createElement(PermissionStep, { icon: "notifications", title: "Notifications", why: "Progress, and a heads-up when needed.", optional: true }), /* @__PURE__ */ React.createElement(PermissionStep, { icon: "battery_alert", title: "Background", why: "Start scheduled syncs on time.", optional: true, cta: "Allow" }))
+  );
+}
+function StorageChoice() {
+  const Opt = ({ selected, title, text, rec }) => /* @__PURE__ */ React.createElement("div", { className: "ds-mode" + (selected ? " is-selected" : ""), style: { gridTemplateColumns: "auto 1fr" } }, /* @__PURE__ */ React.createElement("span", { className: "ds-radio" }, /* @__PURE__ */ React.createElement(Icon, { name: selected ? "radio_button_checked" : "radio_button_unchecked" })), /* @__PURE__ */ React.createElement("span", { className: "ds-mode-body" }, /* @__PURE__ */ React.createElement("span", { className: "ds-mode-title" }, title, rec ? /* @__PURE__ */ React.createElement("span", { className: "ds-mode-rec" }, "Recommended") : null), /* @__PURE__ */ React.createElement("span", { className: "ds-mode-desc" }, text)));
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { title: "", nav: "back" }),
+      bottomPlain: true,
+      bottom: /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", flexDirection: "column", gap: 16 } }, /* @__PURE__ */ React.createElement(Dots, { n: 2, of: 3 }), /* @__PURE__ */ React.createElement(Button, { size: "lg", style: { width: "100%" }, icon: "open_in_new" }, "Open Android settings"))
+    },
+    /* @__PURE__ */ React.createElement("div", { style: { padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "0 8px 8px" } }, /* @__PURE__ */ React.createElement("h1", { className: "headline-medium", style: { margin: "0 0 8px" } }, "How should Drive Sync reach your files?"), /* @__PURE__ */ React.createElement("p", { className: "body-large", style: { margin: 0, color: "var(--on-surface-variant)" } }, "Either way, it only syncs folders you pair.")), /* @__PURE__ */ React.createElement(Opt, { selected: true, rec: true, title: "All files access", text: "Browse any folder from inside Drive Sync. Android shows a switch to turn on." }), /* @__PURE__ */ React.createElement(Opt, { title: "One folder at a time", text: "Use Android's folder picker for each pair. Some folders, like Download, can't be picked this way." }), /* @__PURE__ */ React.createElement(Callout, { tone: "info" }, "Android never lets apps sync ", /* @__PURE__ */ React.createElement("b", null, "Android/data"), " or ", /* @__PURE__ */ React.createElement("b", null, "Android/obb"), ", whichever you choose."))
+  );
+}
+function App() {
+  return /* @__PURE__ */ React.createElement(
+    Showcase,
+    {
+      title: "Permission onboarding",
+      intro: "Three short steps. Every permission is asked for at the moment it's explained, and nothing is synced until the first pair is previewed.",
+      notes: [
+        ["One reason per permission", "Each row says what the permission is for in one line, and shows Allowed once granted. Continue stays disabled until the required two are done."],
+        ["Optional is labelled", "Notifications and background running are optional, marked so, and never block setup."],
+        ["Storage access is a choice", "All files access gives the in-app picker; per-folder access uses Android's picker. The limits of each are stated before the switch, not after."]
+      ]
+    },
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Welcome: the three promises" }, /* @__PURE__ */ React.createElement(Welcome, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Permissions checklist, Drive already allowed" }, /* @__PURE__ */ React.createElement(Permissions, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Storage access: the one real decision" }, /* @__PURE__ */ React.createElement(StorageChoice, null))
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
+})();
+</script>
+</body>
+</html>

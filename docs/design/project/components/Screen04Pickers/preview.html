@@ -1,0 +1,85 @@
+<!-- @dsCard group="Screens" page height=1010 width=1290 subtitle="4 · Device and Drive folder pickers" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Pickers screen — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+const { Showcase, PhoneFrame, Screen, TopAppBar, IconButton, Button, ListItem, PathBreadcrumb, SegmentedButton, Icon, Callout } = window.DriveSync;
+function Device() {
+  const F = (p) => /* @__PURE__ */ React.createElement(ListItem, { icon: "folder", iconFill: true, tone: "folder", chevron: true, ...p });
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { nav: "close", title: "Choose folder", subtitle: "On this phone", actions: /* @__PURE__ */ React.createElement(IconButton, { icon: "create_new_folder", label: "New folder" }) }),
+      bottom: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "grow" }, "Open a folder to choose it."), /* @__PURE__ */ React.createElement(Button, { disabled: true }, "Use this folder"))
+    },
+    /* @__PURE__ */ React.createElement("div", { style: { padding: "0 16px 8px" } }, /* @__PURE__ */ React.createElement(SegmentedButton, { items: ["Internal storage", "SD card"], value: "Internal storage" })),
+    /* @__PURE__ */ React.createElement(PathBreadcrumb, { root: "Internal storage", parts: [] }),
+    /* @__PURE__ */ React.createElement("div", { className: "ds-divider" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "Alarms", supporting: "Empty" }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "folder", iconFill: true, headline: "Android", supporting: "Only Android/media can be paired", chevron: true }),
+    /* @__PURE__ */ React.createElement(F, { headline: "DCIM", supporting: "2,612 files \xB7 23.4 GB", meta: "1 paired" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "Documents", supporting: "602 files \xB7 3.0 GB", meta: "2 paired" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "Download", supporting: "148 files \xB7 1.8 GB" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "Movies", supporting: "12 files \xB7 6.2 GB" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "Music", supporting: "830 files \xB7 4.4 GB", meta: "1 paired" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "Pictures", supporting: "96 files \xB7 410 MB" })
+  );
+}
+function DeviceInside() {
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { nav: "close", title: "Choose folder", subtitle: "On this phone", actions: /* @__PURE__ */ React.createElement(IconButton, { icon: "create_new_folder", label: "New folder" }) }),
+      bottom: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "grow" }, "Android \xB7 1 folder can be paired"), /* @__PURE__ */ React.createElement(Button, { disabled: true }, "Use this folder"))
+    },
+    /* @__PURE__ */ React.createElement(PathBreadcrumb, { root: "Internal storage", parts: ["Android"] }),
+    /* @__PURE__ */ React.createElement("div", { className: "ds-divider" }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "folder", iconFill: true, headline: "data", disabled: true, disabledReason: "Android doesn't let apps sync this folder" }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "folder", iconFill: true, tone: "folder", headline: "media", supporting: "WhatsApp, Telegram and other app media", chevron: true }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "folder", iconFill: true, headline: "obb", disabled: true, disabledReason: "Android doesn't let apps sync this folder" }),
+    /* @__PURE__ */ React.createElement("div", { style: { padding: "16px" } }, /* @__PURE__ */ React.createElement(Callout, { tone: "info" }, "Since Android 11, data and obb are private to each app. No sync app can read them."))
+  );
+}
+function Drive() {
+  const F = (p) => /* @__PURE__ */ React.createElement(ListItem, { icon: "folder", iconFill: true, tone: "drive", chevron: true, ...p });
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { nav: "close", title: "Choose folder", subtitle: "In Google Drive", actions: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(IconButton, { icon: "search", label: "Search Drive" }), /* @__PURE__ */ React.createElement(IconButton, { icon: "create_new_folder", label: "New folder" })) }),
+      bottom: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "grow" }, "Photos \xB7 2,410 files"), /* @__PURE__ */ React.createElement(Button, null, "Use Photos"))
+    },
+    /* @__PURE__ */ React.createElement("div", { style: { padding: "0 16px 8px" } }, /* @__PURE__ */ React.createElement(SegmentedButton, { items: ["My Drive", "Shared with me"], value: "My Drive" })),
+    /* @__PURE__ */ React.createElement(PathBreadcrumb, { root: "My Drive", rootIcon: "cloud", parts: ["Photos"] }),
+    /* @__PURE__ */ React.createElement("div", { className: "ds-divider" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "2024", supporting: "1,020 files \xB7 2.2 GB" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "2025", supporting: "1,186 files \xB7 2.6 GB" }),
+    /* @__PURE__ */ React.createElement(F, { headline: "Pixel", supporting: "2,298 files \xB7 3.4 GB", meta: "Camera backup" }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "folder_shared", iconFill: true, tone: "drive", chevron: true, headline: "Family album", supporting: "Shared \xB7 3 people see changes" }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "description", headline: "README.txt", supporting: "Files can't be paired, only folders", disabled: true })
+  );
+}
+function App() {
+  return /* @__PURE__ */ React.createElement(
+    Showcase,
+    {
+      title: "Folder pickers",
+      intro: "The same list row on both sides: phone folders in primary, Drive folders in tertiary. Folders that can't be paired stay visible, dimmed, with the reason.",
+      notes: [
+        ["Open, then choose", "Tap a row to open it; the bottom bar chooses the folder you are in and states its size first. Storage roots can never be paired."],
+        ["Already paired", "A folder used by another pair shows which one. Choosing it, or a parent of it, raises the overlap warning in the editor."],
+        ["Shared Drive folders", "Marked with the shared folder icon and who will see changes, because a sync there edits other people's files."]
+      ]
+    },
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Phone: internal storage" }, /* @__PURE__ */ React.createElement(Device, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Phone: folders Android protects" }, /* @__PURE__ */ React.createElement(DeviceInside, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Drive: My Drive / Photos" }, /* @__PURE__ */ React.createElement(Drive, null))
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+---
+import Legal from '@kahf/design/layouts/Legal.astro';
+import { P } from '../product';
+import { path } from '@kahf/design/lib/product';
+---
+<Legal p={P} lang="en" page="terms" title="Terms of service" effective="18 October 2026"
+  description="The terms for using Wasl, the Android app that keeps phone folders and Google Drive folders the same.">
+  <p>These terms cover your use of the Wasl Android app (formerly Drive Sync), made by Kahf (Kahf Labs, “we”). By installing or using Wasl you agree to them. If you do not agree, do not use the app.</p>
+
+  <h2>What Wasl is</h2>
+  <p>Wasl copies, updates and removes files between folders you choose on your Android phone and folders you choose in your Google Drive, following the sync mode and rules you set for each pair. It is provided free of charge.</p>
+
+  <h2>Your Google account</h2>
+  <p>You sign in with your own Google account and grant Wasl access to your Google Drive. Your use of Google Drive stays subject to Google’s own terms. You can remove Wasl’s access at any time at <a href="https://myaccount.google.com/permissions" rel="noopener">myaccount.google.com/permissions</a>. How the app handles your data is described in the <a href={path(P, 'en', 'privacy')}>privacy policy</a>.</p>
+
+  <h2>Your responsibilities</h2>
+  <ul>
+    <li>Choose your pairs and sync modes carefully. A sync can change or remove files on both sides, as the preview shows before the first run.</li>
+    <li>Keep your own backups of files that matter to you. Wasl is a sync tool, not a backup service.</li>
+    <li>Use Wasl only with files and accounts you are allowed to access, and in line with the law.</li>
+  </ul>
+
+  <h2>Safety features are not a guarantee</h2>
+  <p>Wasl includes a first-sync preview, a recycle bin, conflict copies and a guard against large deletions. These reduce risk but cannot rule out data loss caused by software faults, device or network problems, or changes made in other apps.</p>
+
+  <h2>No warranty</h2>
+  <p>Wasl is provided “as is” and “as available”, without warranties of any kind, express or implied, including fitness for a particular purpose and non-infringement, to the fullest extent the law allows.</p>
+
+  <h2>Limitation of liability</h2>
+  <p>To the fullest extent the law allows, we are not liable for any indirect, incidental or consequential damages, or for any loss of data, arising from your use of Wasl. Nothing in these terms limits liability that cannot be limited by law.</p>
+
+  <h2>Changes and ending use</h2>
+  <p>We may update the app or these terms. Changed terms will be posted on this page with a new effective date. You can stop using Wasl at any time by uninstalling it and revoking its access in your Google Account.</p>
+
+  <h2>Trademarks</h2>
+  <p>Google Drive is a trademark of Google LLC. Wasl is not made, sponsored or endorsed by Google.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about these terms: <a href={`mailto:${P.email}`}>{P.email}</a>.</p>
+</Legal>

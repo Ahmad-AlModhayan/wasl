@@ -1,0 +1,79 @@
+<!-- @dsCard group="Screens" page height=1010 width=1290 subtitle="5 · Dry-run preview and approval of a large delete" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>DryRun screen — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+const { Showcase, PhoneFrame, Screen, TopAppBar, IconButton, Button, ChangeSummary, ChangeRow, Chip, StatusBanner, ListItem, Icon, SectionHeader } = window.DriveSync;
+function Preview() {
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { title: "Preview first sync", subtitle: "Work documents", actions: /* @__PURE__ */ React.createElement(IconButton, { icon: "search", label: "Search changes" }) }),
+      bottom: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Button, { variant: "text" }, "Cancel"), /* @__PURE__ */ React.createElement(Button, { icon: "sync" }, "Start sync"))
+    },
+    /* @__PURE__ */ React.createElement("div", { className: "ds-screen-pad", style: { gap: 16, paddingBottom: 8 } }, /* @__PURE__ */ React.createElement(ChangeSummary, { unchanged: 1204, items: [{ action: "upload", count: 34, size: "48 MB" }, { action: "download", count: 12, size: "9.1 MB" }, { action: "bin", count: 3 }, { action: "conflict", count: 2, label: "Conflicts" }] })),
+    /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, padding: "0 16px 4px", overflow: "hidden" } }, /* @__PURE__ */ React.createElement(Chip, { selected: true, trailing: "51" }, "All"), /* @__PURE__ */ React.createElement(Chip, { trailing: "34" }, "To Drive"), /* @__PURE__ */ React.createElement(Chip, { trailing: "12" }, "To phone")),
+    /* @__PURE__ */ React.createElement(ChangeRow, { action: "conflict", kind: "doc", name: "Budget 2027.xlsx", path: "Work", size: "88 KB", reason: "Changed on both" }),
+    /* @__PURE__ */ React.createElement(ChangeRow, { action: "bin", kind: "doc", name: "Draft v1.docx", path: "Work/Notes", size: "44 KB", reason: "Deleted on phone" }),
+    /* @__PURE__ */ React.createElement(ChangeRow, { action: "upload", kind: "pdf", name: "Invoice 0941.pdf", path: "Work/Invoices", size: "210 KB", reason: "New" }),
+    /* @__PURE__ */ React.createElement(ChangeRow, { action: "download", kind: "pdf", name: "Lease 2026.pdf", path: "Work/Contracts", size: "380 KB", reason: "Changed on Drive" })
+  );
+}
+function Running() {
+  const { SyncProgress, StatusChip } = window.DriveSync;
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { title: "Work documents", subtitle: "Two-way \xB7 started 10:31", actions: /* @__PURE__ */ React.createElement(IconButton, { icon: "more_vert", label: "More" }) }),
+      bottom: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "grow" }, "You can leave this screen. Progress stays in your notifications."), /* @__PURE__ */ React.createElement(Button, { variant: "tonal", icon: "pause" }, "Pause"))
+    },
+    /* @__PURE__ */ React.createElement("div", { className: "ds-screen-pad", style: { gap: 16, paddingTop: 8 } }, /* @__PURE__ */ React.createElement(StatusChip, { status: "syncing", progress: 0.62 }), /* @__PURE__ */ React.createElement(SyncProgress, { value: 0.62, done: 31, total: 49, doneBytes: "35 MB", totalBytes: "57 MB", current: "Invoice 0941.pdf", eta: "About 1 min left", onPause: false })),
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Done"),
+    /* @__PURE__ */ React.createElement(ChangeRow, { action: "upload", kind: "doc", name: "Meeting notes 02-10.docx", path: "Work/Notes", size: "31 KB", reason: "Uploaded" }),
+    /* @__PURE__ */ React.createElement(ChangeRow, { action: "download", kind: "pdf", name: "Lease 2026.pdf", path: "Work/Contracts", size: "380 KB", reason: "Downloaded" }),
+    /* @__PURE__ */ React.createElement(ChangeRow, { action: "bin", kind: "doc", name: "Draft v1.docx", path: "Work/Notes", size: "44 KB", reason: "Moved to bin on Drive" }),
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Waiting for you"),
+    /* @__PURE__ */ React.createElement(ChangeRow, { action: "conflict", kind: "doc", name: "Budget 2027.xlsx", path: "Work", size: "88 KB", reason: "Both kept for now" })
+  );
+}
+function Approval() {
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { title: "Review deletions", subtitle: "Work documents" }),
+      bottom: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Button, { variant: "outlined", icon: "history", style: { flex: 1, padding: "0 12px" } }, "Restore on phone"), /* @__PURE__ */ React.createElement(Button, { icon: "delete", style: { flex: 1, padding: "0 12px" } }, "Delete on Drive"))
+    },
+    /* @__PURE__ */ React.createElement("div", { className: "ds-screen-pad", style: { gap: 12 } }, /* @__PURE__ */ React.createElement(StatusBanner, { status: "approval", title: "41 files deleted on your phone" }, "That's 11% of this folder, more than your 5% limit, so Drive Sync stopped and asked. Drive still has every file.")),
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Deleted at 10:40 \xB7 41 files \xB7 96 MB"),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "folder", iconFill: true, headline: "Invoices 2023", supporting: "Whole folder \xB7 38 files \xB7 92 MB", chevron: true }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "description", thumb: true, headline: "Q3 plan.docx", supporting: "Work/Plans \xB7 1.2 MB" }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "description", thumb: true, headline: "Q3 plan (old).docx", supporting: "Work/Plans \xB7 1.1 MB" }),
+    /* @__PURE__ */ React.createElement(ListItem, { icon: "picture_as_pdf", thumb: true, headline: "Offer letter.pdf", supporting: "Work \xB7 640 KB" }),
+    /* @__PURE__ */ React.createElement("div", { className: "ds-hint", style: { padding: "8px 16px" } }, "Delete on Drive moves them to Drive's bin for 30 days. Restore on phone copies them back from Drive.")
+  );
+}
+function App() {
+  return /* @__PURE__ */ React.createElement(
+    Showcase,
+    {
+      title: "Dry-run preview",
+      intro: "Every new pair, and any sync that would delete more than the safety limit, shows the plan first. Numbers lead; the list is there to check.",
+      notes: [
+        ["What stays comes first", "The big number is what will not be touched. Then four tiles: to Drive, to phone, to recycle bin, conflicts, each with size where it matters."],
+        ["Nothing changes until Start", "Cancel is always there. Starting turns the same list into a live log, grouped Done / Waiting for you."],
+        ["Large deletes need an OK", "Over 20 files or 5% of a folder, sync stops and asks. Both answers are recoverable and say how."]
+      ]
+    },
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Preview: the plan before anything moves" }, /* @__PURE__ */ React.createElement(Preview, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Running: the plan becomes a log", notif: true }, /* @__PURE__ */ React.createElement(Running, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Needs approval: 41 deletions" }, /* @__PURE__ */ React.createElement(Approval, null))
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "Wasl",
+  "short_name": "Wasl",
+  "description": "Folders on your phone and on Google Drive, kept the same, safely.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#f5f4f0",
+  "theme_color": "#f5f4f0",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

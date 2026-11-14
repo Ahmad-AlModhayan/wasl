@@ -1,0 +1,74 @@
+<!-- @dsCard group="Screens" page height=1110 width=868 subtitle="7 · Recycle bin" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>RecycleBin screen — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+const { Showcase, PhoneFrame, Screen, TopAppBar, IconButton, Button, NavigationBar, ListItem, Chip, SectionHeader, Snackbar, Dialog, Icon } = window.DriveSync;
+const Item = ({ icon, name, from, pair, days, selected }) => /* @__PURE__ */ React.createElement(
+  ListItem,
+  {
+    leading: selected ? /* @__PURE__ */ React.createElement("span", { className: "ds-li-lead is-thumb", style: { background: "var(--primary)", color: "var(--on-primary)" } }, /* @__PURE__ */ React.createElement(Icon, { name: "check", size: 22 })) : /* @__PURE__ */ React.createElement("span", { className: "ds-li-lead is-thumb" }, /* @__PURE__ */ React.createElement(Icon, { name: icon, size: 22 })),
+    headline: name,
+    supporting: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Icon, { name: from === "phone" ? "mobile" : "cloud", size: 14 }), " ", from === "phone" ? "Was on phone" : "Was on Drive", " \xB7 ", pair),
+    meta: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { color: days <= 3 ? "var(--status-approval)" : void 0, fontWeight: days <= 3 ? 600 : 400 } }, days, " days left")),
+    selected
+  }
+);
+function Bin() {
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { nav: null, title: "Recycle bin", actions: /* @__PURE__ */ React.createElement(IconButton, { icon: "search", label: "Search bin" }) }),
+      nav: /* @__PURE__ */ React.createElement(NavigationBar, { active: "bin" }),
+      overlay: /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", left: 16, right: 16, bottom: 96 } }, /* @__PURE__ */ React.createElement(Snackbar, null, "Restored Draft v1.docx to Documents / Work"))
+    },
+    /* @__PURE__ */ React.createElement("div", { className: "ds-screen-pad", style: { gap: 12 } }, /* @__PURE__ */ React.createElement("div", { className: "body-medium", style: { color: "var(--on-surface-variant)" } }, "Files that sync removed or replaced wait here for 30 days. Using 412 MB on this phone and 1.1 GB in Drive's bin."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement(Chip, { selected: true, trailing: "27" }, "All"), /* @__PURE__ */ React.createElement(Chip, { icon: "mobile", trailing: "9" }, "Phone"), /* @__PURE__ */ React.createElement(Chip, { icon: "cloud", trailing: "18" }, "Drive"))),
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Today"),
+    /* @__PURE__ */ React.createElement(Item, { icon: "description", name: "Q3 plan (old).docx", from: "drive", pair: "Work documents", days: 30 }),
+    /* @__PURE__ */ React.createElement(Item, { icon: "image", name: "IMG_1988.jpg", from: "phone", pair: "Camera backup", days: 30 }),
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Earlier"),
+    /* @__PURE__ */ React.createElement(Item, { icon: "article", name: "Notes (phone copy).md", from: "phone", pair: "Work documents", days: 21 }),
+    /* @__PURE__ */ React.createElement(Item, { icon: "music_note", name: "Track 04.flac", from: "phone", pair: "Music", days: 3 })
+  );
+}
+function Select() {
+  return /* @__PURE__ */ React.createElement(
+    Screen,
+    {
+      appbar: /* @__PURE__ */ React.createElement(TopAppBar, { nav: "close", title: "3 selected", scrolled: true, actions: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(IconButton, { icon: "select_all", label: "Select all" }), /* @__PURE__ */ React.createElement(IconButton, { icon: "delete_forever", label: "Delete forever" })) }),
+      bottom: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Button, { variant: "danger-text", icon: "delete_forever" }, "Delete forever"), /* @__PURE__ */ React.createElement(Button, { icon: "history" }, "Restore 3")),
+      overlay: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "ds-scrim" }), /* @__PURE__ */ React.createElement("div", { className: "ds-center-overlay" }, /* @__PURE__ */ React.createElement(Dialog, { icon: "delete_forever", danger: true, title: "Delete 3 files forever?", confirm: "Delete forever" }, /* @__PURE__ */ React.createElement("p", null, "They will be removed from this phone and from Drive's bin. This can't be undone."))))
+    },
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Today"),
+    /* @__PURE__ */ React.createElement(Item, { icon: "description", name: "Q3 plan (old).docx", from: "drive", pair: "Work documents", days: 30, selected: true }),
+    /* @__PURE__ */ React.createElement(Item, { icon: "image", name: "IMG_1988.jpg", from: "phone", pair: "Camera backup", days: 30, selected: true }),
+    /* @__PURE__ */ React.createElement(SectionHeader, null, "Earlier"),
+    /* @__PURE__ */ React.createElement(Item, { icon: "article", name: "Notes (phone copy).md", from: "phone", pair: "Work documents", days: 21, selected: true }),
+    /* @__PURE__ */ React.createElement(Item, { icon: "music_note", name: "Track 04.flac", from: "phone", pair: "Music", days: 3 })
+  );
+}
+function App() {
+  return /* @__PURE__ */ React.createElement(
+    Showcase,
+    {
+      narrow: true,
+      title: "Recycle bin",
+      intro: "One bin for both sides. Anything sync removed or overwrote is here for 30 days, labelled with the side it came from and the pair that moved it.",
+      notes: [
+        ["Restore is the easy action", "One tap per row, or select several and Restore. Every restore gets a snackbar with Undo."],
+        ["Delete forever asks once", "A dialog with the count and where the files are removed from. It is the only dialog in daily use."],
+        ["Where the files are kept", "Files from the phone are held in Drive Sync's private storage; files from Drive sit in Drive's own bin. Days left turn amber at 3."]
+      ]
+    },
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Bin, with Undo after a restore" }, /* @__PURE__ */ React.createElement(Bin, null)),
+    /* @__PURE__ */ React.createElement(PhoneFrame, { label: "Selection, then Delete forever" }, /* @__PURE__ */ React.createElement(Select, null))
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
+})();
+</script>
+</body>
+</html>

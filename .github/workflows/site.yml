@@ -1,0 +1,68 @@
+name: site
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/site.yml']
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths: ['site/**', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: site
+
+jobs:
+  build:
+    name: build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Private design package token
+        # The website needs Kahf Labs' private @kahf/design package. Fork pull requests and the public repository have
+        # no KAHF_DESIGN_READ_TOKEN, so the steps below are skipped (the job stays green). A secret can't sit in a
+        # step's `if`, so this step turns "is it set" into an output.
+        id: tok
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.KAHF_DESIGN_READ_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "have_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_token=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::KAHF_DESIGN_READ_TOKEN is not set (fork pull request or public repository), so the website build is skipped: it needs Kahf Labs' private @kahf/design package. The engine, CLI and Android workflows don't need it."
+          fi
+      - if: steps.tok.outputs.have_token == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read access to the private @kahf/design
+        if: steps.tok.outputs.have_token == 'true'
+        # npm fetches it from GitHub over git+ssh; this sends that to HTTPS with a read-only token (fine-grained,
+        # kahf-design only, stored as the repository secret KAHF_DESIGN_READ_TOKEN).
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.KAHF_DESIGN_READ_TOKEN }}
+        run: |
+          # actions/checkout leaves this repository's GITHUB_TOKEN as an extra header for github.com, and git sends it
+          # in place of the token above: kahf-design then answers "Repository not found".
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          # Only kahf-design's URLs get the token, in each form npm may try.
+          repo=github.com/Ahmad-AlModhayan/kahf-design
+          to="url.https://x-access-token:${TOKEN}@${repo}.insteadOf"
+          git config --global "$to" "ssh://git@${repo}"
+          git config --global --add "$to" "git@github.com:Ahmad-AlModhayan/kahf-design"
+          git config --global --add "$to" "https://${repo}"
+      - if: steps.tok.outputs.have_token == 'true'
+        run: npm install --no-audit --no-fund
+      - if: steps.tok.outputs.have_token == 'true'
+        run: npm run build
