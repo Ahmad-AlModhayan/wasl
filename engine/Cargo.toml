@@ -1,0 +1,110 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.4.0"
+edition = "2024"
+rust-version = "1.88"
+license = "AGPL-3.0-only"
+publish = false
+
+[workspace.dependencies]
+wasl-proto = { path = "crates/wasl-proto" }
+wasl-core = { path = "crates/wasl-core" }
+wasl-fs = { path = "crates/wasl-fs" }
+wasl-ignore = { path = "crates/wasl-ignore" }
+wasl-store = { path = "crates/wasl-store" }
+wasl-drive = { path = "crates/wasl-drive" }
+wasl-engine = { path = "crates/wasl-engine" }
+wasl-crypto = { path = "crates/wasl-crypto" }
+wasl-ipc = { path = "crates/wasl-ipc" }
+wasl-chunk = { path = "crates/wasl-chunk" }
+wasl-net = { path = "crates/wasl-net" }
+wasl-devices = { path = "crates/wasl-devices" }
+wasl-pairs = { path = "crates/wasl-pairs" }
+wasl-vfs = { path = "crates/wasl-vfs" }
+wasl-vfs-windows = { path = "crates/wasl-vfs-windows" }
+wasl-vfs-fuse = { path = "crates/wasl-vfs-fuse" }
+
+regex = "1"
+ignore = "0.4"
+rusqlite = { version = "0.40", features = ["bundled"] }
+tempfile = "3"
+serde = { version = "1", features = ["derive"] }
+unicode-normalization = "0.1"
+same-file = "1"
+serde_json = "1"
+thiserror = "2"
+proptest = "1"
+uniffi = "0.32"
+blake3 = "1"
+# Chunk compression between devices (docs/COMPRESSION.md).
+zstd = { version = "0.13.4", default-features = false }
+# Unified diffs of files an agent changed (`wasl agent show --diff`).
+similar = "2"
+filetime = "0.2"
+async-trait = "0.1"
+bytes = "1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+md-5 = "0.10"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "gzip"] }
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
+tokio = { version = "1", features = ["sync", "time", "fs", "io-util", "rt", "macros"] }
+wiremock = "0.6"
+# Vault v1 primitives (docs/ENCRYPTION.md). Primitive crates only; the format is our own.
+aes-gcm = { version = "0.10", features = ["zeroize"] }
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.3"
+zeroize = { version = "1", features = ["derive"] }
+# Vault v2 primitives (docs/ENCRYPTION.md "Format v2", docs/ON_DEMAND.md §1).
+argon2 = { version = "0.5", default-features = false, features = ["alloc", "zeroize"] }
+hkdf = "0.12"
+aes-siv = "0.7"
+# Reading a passphrase from the terminal without echo (`wasl vault decrypt`).
+rpassword = "7"
+# Content-defined chunking (docs/DEVICE_SYNC.md §5). Pinned exactly: its cut points are part of
+# the device protocol, so every peer must cut identically.
+fastcdc = "=3.2.1"
+# Device identity and group signatures (docs/DEVICE_SYNC.md §2–3).
+ed25519-dalek = { version = "2.2", features = ["rand_core", "zeroize"] }
+# Device transport and discovery (docs/DEVICE_SYNC.md §6–7). The ring provider everywhere: aws-lc-rs
+# needs cmake/NASM, which the Android cross-build does not have.
+quinn = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rustls-webpki = { version = "0.103", default-features = false, features = ["alloc"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring"] }
+ciborium = "0.2"
+mdns-sd = { version = "0.21", default-features = false, features = ["async"] }
+# Interface addresses for the addresses a device publishes (already used by mdns-sd).
+if-addrs = "0.15"
+# Linux FUSE mount for files on demand (docs/ON_DEMAND.md §2.2), used only by wasl-vfs-fuse.
+# Default features off: fuser's pure-Rust mount (no libfuse headers to build; at run time the
+# `fusermount3` helper from the distribution's fuse3 package).
+fuser = { version = "0.18", default-features = false }
+nix = { version = "0.31", default-features = false, features = ["user"] }
+xattr = { version = "1", default-features = false }
+# Windows Cloud Files (files on demand, docs/ON_DEMAND.md §2.2): the OS API binding, used only by
+# wasl-vfs-windows.
+windows = "0.62"
+windows-registry = "0.6"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.dev]
+# Line numbers in backtraces, not full debug info. Full debug info made `target/` grow past 200 GB
+# (mostly test binaries and incremental caches). For a debugger session:
+# CARGO_PROFILE_DEV_DEBUG=true cargo build
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 1
+# Dependencies are not stepped through: no debug info for them.
+debug = false

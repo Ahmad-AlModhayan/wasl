@@ -1,0 +1,54 @@
+[package]
+name = "wasl-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "UniFFI bindings of the Wasl engine (libwasl) for Android and other foreign callers"
+
+[lib]
+# libwasl_mobile.so / wasl_mobile.dll (not "wasl": that is the desktop CLI binary, and on
+# Windows a library and a binary of one name in one workspace write the same .pdb)
+name = "wasl_mobile"
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+bindgen = ["uniffi/cli"]
+
+[dependencies]
+wasl-core = { workspace = true, features = ["ffi"] }
+wasl-store = { workspace = true, features = ["ffi"] }
+wasl-engine = { workspace = true, features = ["ffi"] }
+wasl-fs.workspace = true
+wasl-drive.workspace = true
+wasl-crypto.workspace = true
+wasl-devices = { workspace = true, features = ["ffi"] }
+wasl-pairs.workspace = true
+wasl-net.workspace = true
+wasl-vfs.workspace = true
+zeroize.workspace = true
+uniffi = { workspace = true, features = ["tokio"] }
+async-trait.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+[target.'cfg(unix)'.dependencies]
+# statvfs, for the free space a copy through the folder grant needs.
+nix = { workspace = true, features = ["fs"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+wasl-devices.workspace = true
+wiremock.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,100 @@
+{
+  "v": 3,
+  "assetGroups": {
+    "Logos": {
+      "files": {
+        "app-icon-512.svg": {
+          "blob": "25bdb6e5326bc763d1232dff2a45623d",
+          "name": "app-icon-512.svg",
+          "size": 727,
+          "type": "image/svg+xml"
+        },
+        "drive-sync-lockup-reversed.svg": {
+          "blob": "7a22d790556f22daa13dbf41caf3fa79",
+          "name": "drive-sync-lockup-reversed.svg",
+          "size": 9925,
+          "type": "image/svg+xml"
+        },
+        "drive-sync-lockup.svg": {
+          "blob": "eee0125e8dfc293c2d759ddca2a18e69",
+          "name": "drive-sync-lockup.svg",
+          "size": 9833,
+          "type": "image/svg+xml"
+        },
+        "drive-sync-mark.svg": {
+          "blob": "10aba60f01118eb06eee421bb00f8fee",
+          "name": "drive-sync-mark.svg",
+          "size": 565,
+          "type": "image/svg+xml"
+        },
+        "ic_launcher_background.svg": {
+          "blob": "38ebd183ef61c931f9e6c9b187d80d43",
+          "name": "ic_launcher_background.svg",
+          "size": 193,
+          "type": "image/svg+xml"
+        },
+        "ic_launcher_foreground.svg": {
+          "blob": "cba16e3b94ec44feb437448bdc0bce42",
+          "name": "ic_launcher_foreground.svg",
+          "size": 633,
+          "type": "image/svg+xml"
+        },
+        "ic_launcher_monochrome.svg": {
+          "blob": "b2c81a99200c8f0a7cebdc44aa0a2ede",
+          "name": "ic_launcher_monochrome.svg",
+          "size": 643,
+          "type": "image/svg+xml"
+        },
+        "ic_stat_drive_sync.svg": {
+          "blob": "7bab773db82c8a57481307491caee078",
+          "name": "ic_stat_drive_sync.svg",
+          "size": 592,
+          "type": "image/svg+xml"
+        }
+      },
+      "name": "Logos",
+      "order": [
+        "drive-sync-mark.svg",
+        "drive-sync-lockup.svg",
+        "drive-sync-lockup-reversed.svg",
+        "app-icon-512.svg",
+        "ic_launcher_foreground.svg",
+        "ic_launcher_background.svg",
+        "ic_launcher_monochrome.svg",
+        "ic_stat_drive_sync.svg"
+      ],
+      "tile": "m"
+    }
+  },
+  "blobs": {},
+  "createdOnFiles": {
+    "at": "2026-10-03T08:06:21Z",
+    "v": 1
+  },
+  "docs": {
+    "sections": []
+  },
+  "groups": [
+    "Logos"
+  ],
+  "lastChange": {
+    "at": "2026-10-03T08:06:21Z",
+    "by": "Kahf Labs",
+    "note": "First version: tokens, logo, status system, 29 components, 11 screen pages",
+    "via": "Cowork"
+  },
+  "layout": "files",
+  "libraries": [
+    {
+      "name": "react",
+      "version": "18"
+    },
+    {
+      "name": "react-dom",
+      "version": "18"
+    }
+  ],
+  "namespace": "DriveSync",
+  "sections": {},
+  "title": "Drive Sync"
+}

@@ -1,0 +1,33 @@
+[package]
+name = "wasl-ipc"
+description = "The local protocol between wasld, the wasl CLI and the tray app (SRS FR-E4, FR-A3)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "Apache-2.0"
+publish.workspace = true
+
+[dependencies]
+wasl-proto.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+getrandom.workspace = true
+base64.workspace = true
+zeroize.workspace = true
+async-trait.workspace = true
+dirs = "6"
+tokio = { workspace = true, features = ["net", "io-util", "sync", "rt", "time", "macros"] }
+
+# Whether the data folder's volume keeps access lists (security review S3-3): a Win32 call, made
+# Platform ACL volume checks are injected by the caller (`wasld`) so `wasl-ipc` stays pure Apache-2.0.
+
+[dev-dependencies]
+tempfile.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

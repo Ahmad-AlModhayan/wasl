@@ -1,0 +1,37 @@
+[package]
+name = "wasl-cli"
+description = "The wasl command-line tool: talks to wasld over the local protocol (SRS FR-A3, NFR-8)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "Apache-2.0"
+publish.workspace = true
+
+[lib]
+name = "wasl_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wasl"
+path = "src/main.rs"
+
+[dependencies]
+wasl-proto.workspace = true
+wasl-ipc.workspace = true
+rpassword.workspace = true
+zeroize.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+getrandom.workspace = true
+clap = { version = "4", features = ["derive"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dirs = "6"
+tokio = { workspace = true, features = ["rt", "macros", "time", "sync"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

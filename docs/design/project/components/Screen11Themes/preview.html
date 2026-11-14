@@ -1,0 +1,45 @@
+<!-- @dsCard group="Screens" page height=1010 width=1690 subtitle="11 · The same screen in all four themes" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Themes screen — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+const { Showcase, PhoneFrame, Screen, TopAppBar, IconButton, NavigationBar, Fab, FolderPairCard, StatusBanner, Button } = window.DriveSync;
+function Home() {
+  return /* @__PURE__ */ React.createElement(Screen, { appbar: /* @__PURE__ */ React.createElement(TopAppBar, { nav: null, logo: true, title: "Drive Sync", actions: /* @__PURE__ */ React.createElement(IconButton, { icon: "account_circle", label: "Account" }) }), fab: /* @__PURE__ */ React.createElement(Fab, { icon: "add" }, "New pair"), nav: /* @__PURE__ */ React.createElement(NavigationBar, { active: "pairs", badges: { problems: 3 } }) }, /* @__PURE__ */ React.createElement("div", { className: "ds-screen-pad", style: { paddingTop: 4 } }, /* @__PURE__ */ React.createElement(StatusBanner, { status: "approval", title: "Waiting for your OK", actions: /* @__PURE__ */ React.createElement(Button, { size: "sm" }, "Review 41 deletions") }, "41 files were deleted from Work on your phone."), /* @__PURE__ */ React.createElement(
+    FolderPairCard,
+    {
+      name: "Camera backup",
+      mode: "up",
+      status: "syncing",
+      conditions: "Wi-Fi only",
+      phonePath: "DCIM / Camera",
+      drivePath: "My Drive / Photos / Pixel",
+      sync: { value: 0.37, done: 142, total: 380, doneBytes: "1.2 GB", totalBytes: "3.4 GB", direction: "up", eta: "About 6 min left" },
+      storage: [{ side: "drive", total: 15, pair: 3.4, other: 6.1 }]
+    }
+  )));
+}
+function App() {
+  const themes = [["light", "Light \xB7 brand fallback"], ["dark", "Dark \xB7 brand fallback"], ["dyn-light", "Dynamic colour \xB7 light (sample wallpaper)"], ["dyn-dark", "Dynamic colour \xB7 dark (sample wallpaper)"]];
+  return /* @__PURE__ */ React.createElement(
+    Showcase,
+    {
+      title: "Four themes, one status language",
+      intro: "Brand green is the fallback when dynamic colour is off or unavailable. With dynamic colour every Material role follows the wallpaper; status colours, storage-low and the logo do not.",
+      notes: [
+        ["What moves", "primary, secondary, tertiary, surfaces and outlines: every Material 3 role, generated from the wallpaper."],
+        ["What stays", "The six status colours, storage-low and the logo ink are fixed, so Needs approval looks the same on every phone."],
+        ["Test both", "Every screen is checked in all four: text on its surface at 4.5:1 or more, icons and borders at 3:1."]
+      ]
+    },
+    themes.map(([id, label]) => /* @__PURE__ */ React.createElement("div", { key: id, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 12 } }, /* @__PURE__ */ React.createElement("div", { "data-theme": id }, /* @__PURE__ */ React.createElement(PhoneFrame, null, /* @__PURE__ */ React.createElement(Home, null))), /* @__PURE__ */ React.createElement("div", { className: "ds-phone-cap" }, label)))
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
+})();
+</script>
+</body>
+</html>

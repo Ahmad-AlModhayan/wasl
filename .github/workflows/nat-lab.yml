@@ -1,0 +1,42 @@
+name: nat-lab
+
+# Two devices behind two NATs (Linux network namespaces) connecting by hole punching:
+# engine/crates/wasl-net/tests/nat_lab.rs. Needs root, so it runs on its own.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    paths: ['engine/crates/wasl-net/**', 'engine/Cargo.lock', '.github/workflows/nat-lab.yml']
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths: ['engine/crates/wasl-net/**', 'engine/Cargo.lock', '.github/workflows/nat-lab.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: engine
+
+jobs:
+  nat-lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - run: sudo apt-get install -y iproute2 iptables
+      # Built as the runner user; only the test binary runs as root.
+      - run: cargo test -p wasl-net --test nat_lab --no-run
+      - name: nat lab (root)
+        run: |
+          bin=$(cargo test -p wasl-net --test nat_lab --no-run --message-format=json \
+            | jq -r 'select(.profile.test == true and .target.name == "nat_lab") | .executable')
+          sudo WASL_NAT_LAB=1 "$bin" nat_lab --exact --nocapture --test-threads=1
