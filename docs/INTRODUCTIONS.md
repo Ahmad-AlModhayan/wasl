@@ -188,7 +188,7 @@ Share codes stay available under "More" for devices that can't ask for offers (0
 - CLI: `wasl device offers`, `wasl device accept`, `wasl device decline`, `wasl device keep`, `wasl pair share --with <device>`; `wasl device list` shows new devices and who added them.
 - Phone binding (`WaslDevices`): `offers`, `decline_offer`, `accept_offer`, `keep_device`, `share_with`, `sharing`; `info` carries `added_by` and `known`.
 
-**Desktop** (`desktop/src/screens/introductions.ts`).
+**Native UI clients** (separate repositories communicating across `wasl-ipc` / `wasl-ffi`).
 - **Devices:**
   - A new device shows "New", who added it, and Keep beside Remove.
   - "Offered to this computer" lists offers with Accept and Decline. Accept asks for the folder, then opens the new pair's preview.

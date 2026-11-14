@@ -9,10 +9,10 @@
 ## 1. Introduction
 
 ### 1.1 Purpose
-Specifies the shared Rust engine `libwasl`, its two transports (Google Drive and direct device sync), ignore rules, safety layer, files on demand, encryption vaults, and the Android and desktop applications built on it.
+Specifies the shared Rust engine (`wasl-core` / `libwasl`, `AGPL-3.0-only`), its two transports (Google Drive and device sync), ignore rules, safety layer, files on demand, encryption vaults, `Apache-2.0` wire protocol/IPC/CLI interfaces, and the requirements placed on native applications across the FFI/IPC boundary.
 
 ### 1.2 Scope
-In scope: Android 11+, Windows 10/11, macOS 13+, Linux; Google Drive; direct sync between a user's own devices on the local network and across the internet. Out of scope: other clouds, iOS, any Kahf-operated server, syncing dependency or build environments.
+In scope: Android 11+, Windows 10/11, macOS 13+, Linux; Google Drive; direct sync between a user's own devices on the local network and across the internet (with optional public/self-hosted STUN/relay nodes and Managed Relay & Blind-Cache fallback). Out of scope: other clouds, iOS, syncing dependency or build environments. Native UI applications live in separate repositories and consume `wasl-ffi` / `wasl-ipc`.
 
 ### 1.3 Baseline rule
 Every behaviour the Android 1.1.4 app has today (described in `docs/ARCHITECTURE.md`, `docs/USER_GUIDE.md`, `docs/AUTOMATION.md`) is a requirement unless this document changes it. Its JVM tests are ported to the Rust engine before the Kotlin engine is retired.
@@ -52,7 +52,7 @@ Every behaviour the Android 1.1.4 app has today (described in `docs/ARCHITECTURE
                         (REST v3, Changes API)   (QUIC; LAN discovery;
                                                   rendezvous via Drive app data)
 ```
-No Kahf server. Network peers: Google APIs, the user's own devices, and optionally public STUN servers (configurable, used only to learn a device's public address).
+Drive sync connects only to Google APIs; device sync prefers direct peer connections (LAN, IPv6, mapped port, hole punching) with configurable public/self-hosted STUN/discovery nodes or optional encrypted Managed Relay & Blind-Cache fallback.
 
 ### 2.2 User classes
 Device owner (all features); automation tools (Android intents with secret; desktop CLI under the same OS user); third-party apps reading files on demand through the OS.
@@ -66,7 +66,7 @@ Device owner (all features); automation tools (Android intents with secret; desk
 - Google Drive stores whole files: no partial-file updates through the API.
 - Drive `appProperties`: at most 30 per app per file, each key plus value at most 124 bytes.
 - Android background limits: WorkManager 15-minute floor; data-sync foreground service capped at 6 h per 24 h; network restricted in Doze.
-- No ads, analytics, crash SDKs or telemetry; no Kahf-operated server.
+- No ads, analytics, crash SDKs or telemetry.
 
 ## 3. Functional requirements
 
@@ -135,8 +135,8 @@ Priority: **M** must, **S** should, **C** could. Milestones refer to PRD §8.
 | FR-N4 | Transport: QUIC (quinn) with TLS 1.3; each side authenticates the other's Ed25519 key pinned from the group list; no certificate authorities | M | Connection from a key outside the group is refused |
 | FR-N5 | LAN discovery by mDNS/DNS-SD (`_wasl._udp`), announcing only a random per-boot token; the device ID is revealed only after a successful authenticated handshake | M | Packet capture shows no device name or ID in announcements |
 | FR-N6 | Rendezvous for reach `lan_and_internet`: each device publishes a signed, short-lived candidate file in the Drive app-data folder (`peers/<device_id>.json`: LAN addresses, IPv6 addresses, public address learned through STUN, UPnP/NAT-PMP mapped port if obtained, expiry). To connect, a device writes a signed `offers/<from>-<to>.json` with a start time; the other device, polling its offers while active, replies; both start simultaneous UDP sends at the agreed time to open the path (hole punching) | M | Connection succeeds between two home routers with endpoint-independent NAT |
-| FR-N7 | Candidate order: same LAN → IPv6 direct → mapped port → hole punching. STUN servers are a configurable list of public servers; no Kahf STUN | M | |
-| FR-N8 | When no direct path exists: route `drive_and_devices` continues through Drive with no user action; route `devices` waits, shows "Can't reach <device> from this network", and accepts a user-supplied address (Tailscale/WireGuard IP or a self-hosted relay URL) | M | |
+| FR-N7 | Candidate order: same LAN → IPv6 direct → mapped port → hole punching. STUN/discovery nodes are configurable, including free rate-limited public STUN/discovery nodes | M | |
+| FR-N8 | When no direct path exists or devices are rarely online together: route `drive_and_devices` continues through Drive with no user action; route `devices` waits, shows "Can't reach <device> from this network", and accepts a user-supplied address (Tailscale/WireGuard IP, a self-hosted `AGPL-3.0-only` relay URL, or an optional Kahf Managed Relay / Blind-Cache endpoint) | M | |
 | FR-N9 | Chunked transfer between devices: files above 16 MB are split by FastCDC (1 MB min, 4 MB average, 16 MB max); the receiver requests only chunks it does not have (from any version of any file in the pair); chunks verified by BLAKE3; resume at chunk granularity | M | 1 MB change in a 10 GB file moves < 32 MB |
 | FR-N10 | Files are written to a temporary file in the target folder and atomically renamed after verification | M | Kill mid-transfer leaves no partial target file |
 | FR-N11 | Reach `lan` never attempts rendezvous, STUN or any internet connection for that pair | M | Packet capture test |
@@ -202,9 +202,8 @@ Priority: **M** must, **S** should, **C** could. Milestones refer to PRD §8.
 | FR-R2 | English and Arabic, complete RTL mirroring, Readex Pro for both scripts on Android (design decision 2026-10-22); the desktop sets in the Kahf family's IBM Plex Sans and Plex Sans Arabic (desktop redesign, 2026-11-01, #60) | M | Screenshot tests in both languages |
 | FR-R3 | Android storage modes: Storage Access Framework (default) and All files access (optional), per pair | M | Test suite passes in both modes |
 | FR-R4 | Privacy policy and terms on the Wasl site, linked in the apps | M | |
-| FR-R5 | Signed installers built with the Tauri bundler: MSIX (Windows), notarised DMG (macOS), AppImage and .deb (Linux); in-app update check against the Wasl site | M | |
-| FR-R6 | Free and Pro feature gating: Free allows 3 pairs, LAN device sync and all safety features; Pro unlocks unlimited pairs, internet device sync, vaults, multiple accounts and desktop files on demand. Safety features are never gated | M | Gating tests per feature |
-| FR-R7 | Licence without a Kahf server: a licence is a signed token the app verifies offline with the embedded public key. A verified licence is recorded in the signed `group.json`, so every device in the user's group gets Pro | M | Forged or edited licence rejected; new device in a Pro group is Pro |
+| FR-R5 | Signed installers and in-app updates built by Kahf Labs for official proprietary UI releases: MSIX (Windows), notarised DMG (macOS), AppImage and .deb (Linux) | M | |
+| FR-R6 | No local feature gating (`docs/OPEN_MODEL.md`): Wasl has no Pro tier; unlimited pairs and devices, internet P2P sync, encrypted vaults, multiple accounts, ignore rules, desktop files on demand, Android scheduling, and core CLI access are all free without offline Pro licence tokens (FR-R7 retired) | M | No local feature or pair-count gate exists |
 
 ### 3.14 Agent changes (docs/AGENT_CHANGES.md)
 | ID | Requirement | Pri | Acceptance |
@@ -272,7 +271,7 @@ Snapshot, file journal and restore for any folder an agent can reach, synced or 
 - `oplog_ops(origin_device, changeset_id, seq, entity_uri, op, prev?, next?, reverts?, outcome?, at)` (v11; primary key (`origin_device`, `changeset_id`, `seq`), referencing `oplog_changesets(origin_device, id)`; `prev` and `next` JSON; outcome `applied`, `discarded`, `skipped_changed`, `failed`, `reverted`)
 - `agent_watches`, `agent_journal`, `agent_markers`, `agent_restores` (v12, agent undo; columns in `docs/AGENT_UNDO.md` §6); `agent_changesets.pair_id` becomes optional, with `watch_id`
 
-Drive app-data folder: `group.json` (signed device list and licence), `peers/<device_id>.json` (signed candidates, expiry ≤ 10 min), `offers/<from>-<to>.json` (signed, deleted after use), `index/` (overflow version vectors), `backup/` (config backups).
+Drive app-data folder: `group.json` (signed device list), `peers/<device_id>.json` (signed candidates, expiry ≤ 10 min), `offers/<from>-<to>.json` (signed, deleted after use), `index/` (overflow version vectors), `backup/` (config backups).
 
 ## 7. Architecture and stack
 
@@ -286,10 +285,13 @@ Rust workspace:
 - `wasl-chunk`: FastCDC (`fastcdc`), BLAKE3 (`blake3`)
 - `wasl-crypto`: v1 and v2 vaults (`aes-gcm`, `aes-siv`, `argon2`, `pbkdf2`), device keys (`ed25519-dalek`)
 - `wasl-vfs`: files-on-demand trait with Cloud Files, File Provider and FUSE (`fuser`) back ends
-- `wasl-ffi`: UniFFI bindings for Kotlin
-- `wasld`, `wasl` (CLI): desktop daemon and command line
+- `wasl-ffi`: UniFFI bindings (`AGPL-3.0-only`)
+- `wasl-proto`: pure IPC wire protocol & DTOs (`Apache-2.0`)
+- `wasl-ipc`: local socket client/server transport (`Apache-2.0`)
+- `wasld`: background sync daemon & recovery helper (`AGPL-3.0-only`)
+- `wasl-cli` (`wasl`): thin command line client (`Apache-2.0`)
 
-Android keeps its Kotlin/Compose UI, WorkManager, SAF, DocumentsProvider, notification, widget, tile and intents, calling the engine through `wasl-ffi`. The desktop app is built with Tauri 2: its Rust side links `libwasl` directly and talks to `wasld`; its web UI uses the Kahf design system. The macOS File Provider extension is a Swift target.
+Official Android and desktop native UI applications live in separate client repositories across the FFI/IPC boundary and talk to the engine through `wasl-ffi` and `wasl-ipc`.
 
 ## 8. Verification
 
@@ -313,7 +315,7 @@ Android keeps its Kotlin/Compose UI, WorkManager, SAF, DocumentsProvider, notifi
 | G1 No data loss | FR-F1–F7, FR-B3, FR-N10, NFR-1, NFR-2 |
 | G2 Never stop silently | FR-B4–B8, FR-D4, FR-N8, FR-N12 |
 | G3 Routes and reach | FR-P3, FR-N6–N8, FR-N11 |
-| G4 Zero running cost | FR-N5–N8 |
+| G4 Direct P2P & optional relay | FR-N5–N8 |
 | G5 One engine | FR-E1–E5 |
 | G6 Developer folders | FR-G1–G8 |
 | G7 Files on demand | FR-O1–O5, FR-V2 |

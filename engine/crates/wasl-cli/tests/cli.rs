@@ -4,13 +4,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
-use wasl_core::{PlanSummary, RunStatus, SyncMode};
-use wasl_engine::{Phase, Progress, RunOutcome};
 use wasl_ipc::{
     Account, DaemonStatus, DriveFolder, ErrorKind, Event, Handler, IgnoreExplanation, Overall, PairState,
     Paths, RemoteError, Request, Server, ok,
 };
-use wasl_store::Pair;
+use wasl_proto::{Pair, Phase, PlanSummary, Progress, RunOutcome, RunStatus, SyncMode};
 
 const PHOTOS: &str = "aaaa1111-0000-4000-8000-000000000001";
 const WORK: &str = "bbbb2222-0000-4000-8000-000000000002";
@@ -36,13 +34,15 @@ struct Fake {
     oplog_asked: Mutex<Vec<serde_json::Value>>,
     /// When set, the device list can't be read.
     devices_fail: std::sync::atomic::AtomicBool,
+    /// When set, both Status and Accounts report no signed-in accounts.
+    accounts_empty: std::sync::atomic::AtomicBool,
 }
 
 const DEV: &str = "WASL-0123-4567-89AB-CDEF-GHJK-MNPQ-RSTV";
 
 /// One staged changeset in the Work pair, in the read format (`show` adds its operations).
-fn oplog_page(with_ops: bool) -> wasl_engine::OplogPage {
-    use wasl_engine::{OplogEntry, OplogOpEntry, rfc3339};
+fn oplog_page(with_ops: bool) -> wasl_proto::OplogPage {
+    use wasl_proto::{OplogEntry, OplogOpEntry, format_rfc3339_utc as rfc3339};
     let t0 = 1_790_000_000_000;
     let operations = vec![
         OplogOpEntry {
@@ -66,12 +66,12 @@ fn oplog_page(with_ops: bool) -> wasl_engine::OplogPage {
             prev: Some(serde_json::json!({"kind": "file", "size": 3, "mtime_ms": t0})),
             next: None,
             reverts: None,
-            outcome: Some(wasl_store::OpOutcome::Applied),
+            outcome: Some(wasl_proto::OpOutcome::Applied),
             at: rfc3339(t0 + 2).unwrap(),
         },
     ];
-    wasl_engine::OplogPage {
-        version: wasl_engine::OPLOG_FORMAT_VERSION,
+    wasl_proto::OplogPage {
+        version: wasl_proto::OPLOG_FORMAT_VERSION,
         changesets: vec![OplogEntry {
             origin_device: DEV.into(),
             origin_device_name: Some("Studio".into()),
@@ -79,7 +79,7 @@ fn oplog_page(with_ops: bool) -> wasl_engine::OplogPage {
             actor: "agent:claude-code".into(),
             label: Some("tidy the notes".into()),
             scope: format!("file://{WORK}/notes/"),
-            status: wasl_store::OplogStatus::Staged,
+            status: wasl_proto::OplogStatus::Staged,
             opened_at: rfc3339(t0).unwrap(),
             closed_at: Some(rfc3339(t0 + 5).unwrap()),
             decided_at: None,
@@ -181,29 +181,42 @@ fn progress(pair_id: &str) -> Progress {
 impl Handler for Fake {
     async fn handle(&self, request: Request) -> Result<serde_json::Value, RemoteError> {
         match request {
-            Request::Status => ok(DaemonStatus {
-                agent_changes: 0,
-                version: "test".into(),
-                protocol: wasl_ipc::PROTOCOL_VERSION,
-                accounts: vec![account()],
-                pairs: pairs()
-                    .into_iter()
-                    .map(|pair| PairState {
-                        pair,
-                        running: false,
-                        progress: None,
-                        open_conflicts: 0,
-                        blocked: false,
-                        folder_bytes: None,
-                        skipped: None,
-                        peers: Vec::new(),
-                        free_bytes: None,
-                    })
-                    .collect(),
-                overall: Overall::UpToDate,
-            }),
+            Request::Status => {
+                let accounts = if self.accounts_empty.load(std::sync::atomic::Ordering::SeqCst) {
+                    Vec::new()
+                } else {
+                    vec![account()]
+                };
+                ok(DaemonStatus {
+                    agent_changes: 0,
+                    version: "test".into(),
+                    protocol: wasl_ipc::PROTOCOL_VERSION,
+                    accounts,
+                    pairs: pairs()
+                        .into_iter()
+                        .map(|pair| PairState {
+                            pair,
+                            running: false,
+                            progress: None,
+                            open_conflicts: 0,
+                            blocked: false,
+                            folder_bytes: None,
+                            skipped: None,
+                            peers: Vec::new(),
+                            free_bytes: None,
+                        })
+                        .collect(),
+                    overall: Overall::UpToDate,
+                })
+            }
             Request::Pairs => ok(pairs()),
-            Request::Accounts => ok(vec![account()]),
+            Request::Accounts => {
+                if self.accounts_empty.load(std::sync::atomic::Ordering::SeqCst) {
+                    ok(Vec::<Account>::new())
+                } else {
+                    ok(vec![account()])
+                }
+            }
             Request::Devices if self.devices_fail.load(std::sync::atomic::Ordering::SeqCst) => {
                 Err(RemoteError {
                     kind: ErrorKind::Other,
@@ -1610,4 +1623,20 @@ async fn oplog_json_keeps_every_field_of_version_1() {
     assert_eq!(12, op["next"]["size"], "states are JSON objects, not strings");
     assert_eq!(serde_json::Value::Null, op["prev"]);
     assert_eq!("applied", cs["operations"][1]["outcome"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn status_and_account_list_json_match_when_empty() {
+    let d = start();
+    d.fake
+        .accounts_empty
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let status = wasl(d.dir.path(), "en", &["status", "--json"]).await;
+    assert_eq!(0, status.code, "{}", status.stderr);
+    let listed = wasl(d.dir.path(), "en", &["account", "list", "--json"]).await;
+    assert_eq!(0, listed.code, "{}", listed.stderr);
+    let status_json: serde_json::Value = serde_json::from_str(&status.stdout).unwrap();
+    let listed_json: serde_json::Value = serde_json::from_str(&listed.stdout).unwrap();
+    assert_eq!(serde_json::json!([]), status_json["accounts"]);
+    assert_eq!(status_json["accounts"], listed_json);
 }

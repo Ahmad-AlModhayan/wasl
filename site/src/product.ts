@@ -1,7 +1,7 @@
 import type { Product } from '@kahf/design/lib/product';
 import { kahf } from '@kahf/design/lib/product';
 
-/** Wasl's site settings. Wasl is open code under PolyForm Shield (see LICENSE); the apps are on request until they reach Google Play.
+/** Wasl's site settings. Wasl's core sync engine is AGPL-3.0-only with Apache-2.0 protocol/CLI layers (see LICENSE and docs/OPEN_MODEL.md); the apps are on request until they reach Google Play.
     playUrl: set it then, and every "Ask for access" becomes "Get it on Google Play". */
 export const playUrl = '';
 

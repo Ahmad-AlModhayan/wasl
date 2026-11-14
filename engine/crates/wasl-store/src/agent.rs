@@ -18,168 +18,24 @@ use rusqlite::{Connection, OptionalExtension, Row, params};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
-/// Where a changeset is in its life.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ChangesetStatus {
-    /// The agent is still working.
-    Open,
-    /// Ended; its files wait for the user and are not synced.
-    Held,
-    Accepted,
-    Reverted,
-    /// Reverted except for files the user changed after the session (or that failed).
-    PartlyReverted,
+pub use wasl_proto::store::{
+    AgentEntry, Changeset, ChangesetStatus, EarlierVersion, EntryKind, ManifestRow, SavedCopy,
+};
+
+pub trait ChangesetExt {
+    /// The pair id for a session in a pair, or an error for a session in a watched folder.
+    fn pair(&self) -> Result<&str>;
 }
 
-impl ChangesetStatus {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            ChangesetStatus::Open => "open",
-            ChangesetStatus::Held => "held",
-            ChangesetStatus::Accepted => "accepted",
-            ChangesetStatus::Reverted => "reverted",
-            ChangesetStatus::PartlyReverted => "partly_reverted",
-        }
-    }
-
-    fn parse(s: &str) -> rusqlite::Result<ChangesetStatus> {
-        Ok(match s {
-            "open" => ChangesetStatus::Open,
-            "held" => ChangesetStatus::Held,
-            "accepted" => ChangesetStatus::Accepted,
-            "reverted" => ChangesetStatus::Reverted,
-            "partly_reverted" => ChangesetStatus::PartlyReverted,
-            other => return Err(corrupt(format!("changeset status {other:?}"))),
-        })
-    }
-
-    /// Open and held changesets keep their files out of sync.
-    pub fn holds(self) -> bool {
-        matches!(self, ChangesetStatus::Open | ChangesetStatus::Held)
-    }
-
-    /// The op-log status this is recorded as (ADR-0002): `held` is `staged`, `accepted` is
-    /// `committed`, the others keep their names.
-    pub fn in_oplog(self) -> OplogStatus {
-        match self {
-            ChangesetStatus::Open => OplogStatus::Open,
-            ChangesetStatus::Held => OplogStatus::Staged,
-            ChangesetStatus::Accepted => OplogStatus::Committed,
-            ChangesetStatus::Reverted => OplogStatus::Reverted,
-            ChangesetStatus::PartlyReverted => OplogStatus::PartlyReverted,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Changeset {
-    pub id: String,
-    /// The pair the session works in; `None` for a session in a watched folder (#57).
-    pub pair_id: Option<String>,
-    /// `agent:<name>`.
-    pub actor: String,
-    pub label: Option<String>,
-    /// Pair-relative folder the agent works in; empty for the whole pair.
-    pub scope: String,
-    /// The agent's own session id (Claude Code's `session_id`), when it has one.
-    pub session: Option<String>,
-    pub status: ChangesetStatus,
-    pub started_at: i64,
-    pub ended_at: Option<i64>,
-    pub decided_at: Option<i64>,
-}
-
-impl Changeset {
-    /// The pair a pair session works in; refused for a session in a watched folder.
-    pub fn pair(&self) -> Result<&str> {
+impl ChangesetExt for Changeset {
+    fn pair(&self) -> Result<&str> {
         self.pair_id.as_deref().ok_or_else(|| in_watch(&self.id))
     }
 }
 
-/// One item of the scope when the session began (local relative path).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct ManifestRow {
-    pub rel: String,
-    pub is_dir: bool,
-    pub size: u64,
-    pub mtime: i64,
-    /// In this state on Drive or the other devices when the session began.
-    pub synced: bool,
+fn parse_changeset_status(s: &str) -> rusqlite::Result<ChangesetStatus> {
+    ChangesetStatus::parse(s).ok_or_else(|| corrupt(format!("changeset status {s:?}")))
 }
-
-/// An earlier version copied to the agent folder.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct SavedCopy {
-    pub rel: String,
-    /// File name under the changeset's folder.
-    pub location: String,
-    pub size: u64,
-    pub mtime: i64,
-    /// BLAKE3 of the copy (hex), taken while copying; `None` for copies saved before schema v9.
-    #[serde(default)]
-    pub blake3: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EntryKind {
-    Added,
-    Changed,
-    Deleted,
-}
-
-impl EntryKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            EntryKind::Added => "added",
-            EntryKind::Changed => "changed",
-            EntryKind::Deleted => "deleted",
-        }
-    }
-}
-
-/// Where an entry's earlier version is.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EarlierVersion {
-    /// Copied to the agent folder (`location`).
-    Saved,
-    /// The synced version, which Drive or the other devices still hold.
-    Synced,
-    /// None: the file is new.
-    None,
-}
-
-impl EarlierVersion {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            EarlierVersion::Saved => "saved",
-            EarlierVersion::Synced => "synced",
-            EarlierVersion::None => "none",
-        }
-    }
-}
-
-/// One file or folder a session added, changed or deleted.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct AgentEntry {
-    /// Local relative path.
-    pub rel: String,
-    /// Canonical key (Drive names).
-    pub key: String,
-    pub kind: EntryKind,
-    pub is_dir: bool,
-    pub before_size: Option<u64>,
-    pub before_mtime: Option<i64>,
-    pub after_size: Option<u64>,
-    pub after_mtime: Option<i64>,
-    pub source: EarlierVersion,
-    pub location: Option<String>,
-    /// Set by a revert: `reverted`, `skipped_changed` or `failed: <why>`.
-    pub outcome: Option<String>,
-}
-
 fn corrupt(what: String) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
         0,
@@ -199,7 +55,7 @@ fn changeset_from_row(r: &Row<'_>) -> rusqlite::Result<Changeset> {
         label: r.get(3)?,
         scope: r.get(4)?,
         session: r.get(5)?,
-        status: ChangesetStatus::parse(&r.get::<_, String>(6)?)?,
+        status: parse_changeset_status(&r.get::<_, String>(6)?)?,
         started_at: r.get(7)?,
         ended_at: r.get(8)?,
         decided_at: r.get(9)?,

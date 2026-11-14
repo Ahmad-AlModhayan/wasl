@@ -4,53 +4,7 @@
 use crate::{Result, Store, to_i64, to_u64};
 use rusqlite::{OptionalExtension, Row, params};
 
-/// Where the removed file was.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
-pub enum BinSide {
-    /// This device's folder; the file is in the local bin.
-    Local,
-    /// Drive; the file is in Drive's bin.
-    Drive,
-}
-
-impl BinSide {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            BinSide::Local => "local",
-            BinSide::Drive => "drive",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct NewBinEntry {
-    pub id: String,
-    pub pair_id: String,
-    pub side: BinSide,
-    pub key: String,
-    /// `DELETED`, `OVERWRITTEN`, `CONFLICT` or `RESTORED_VERSION`, as in 1.1.4.
-    pub reason: String,
-    /// Local side: the location token from `LocalFs::move_to_bin`. Drive side: empty.
-    pub location: String,
-    pub deleted_at: i64,
-    pub expires_at: i64,
-    pub size: u64,
-    pub account_id: Option<String>,
-    pub remote_file_id: Option<String>,
-    pub display_name: Option<String>,
-    pub pair_name: Option<String>,
-}
-
-/// A bin entry with its version number among entries for the same key and side.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct BinEntry {
-    pub entry: NewBinEntry,
-    pub version_no: u32,
-}
-
+pub use wasl_proto::store::{BinEntry, BinSide, NewBinEntry};
 const COLUMNS: &str = "id, pair_id, side, key, reason, location, deleted_at, expires_at, size, account_id,
     remote_file_id, display_name, pair_name, version_no";
 

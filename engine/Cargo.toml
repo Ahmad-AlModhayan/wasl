@@ -6,10 +6,11 @@ members = ["crates/*"]
 version = "0.4.0"
 edition = "2024"
 rust-version = "1.88"
-license = "PolyForm-Shield-1.0.0"
+license = "AGPL-3.0-only"
 publish = false
 
 [workspace.dependencies]
+wasl-proto = { path = "crates/wasl-proto" }
 wasl-core = { path = "crates/wasl-core" }
 wasl-fs = { path = "crates/wasl-fs" }
 wasl-ignore = { path = "crates/wasl-ignore" }

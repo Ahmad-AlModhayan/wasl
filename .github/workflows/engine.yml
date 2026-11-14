@@ -43,6 +43,14 @@ jobs:
         with:
           workspaces: engine
       - run: cargo fmt --all --check
+      - name: Check open-core license boundaries
+        shell: bash
+        run: |
+          if command -v python3 >/dev/null 2>&1; then
+            python3 scripts/check-license-boundaries.py
+          else
+            python scripts/check-license-boundaries.py
+          fi
       - run: cargo clippy --workspace --all-targets -- -D warnings
       # The on-demand FUSE mount tests (wasl-vfs-fuse/tests/mount.rs) mount for real: fuse3 gives
       # the fusermount3 helper; /dev/fuse is opened as the runner user. Linux only, a few seconds.

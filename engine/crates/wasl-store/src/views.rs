@@ -3,27 +3,7 @@
 use crate::{Result, Store, to_i64, to_u64};
 use rusqlite::{OptionalExtension, Row, params};
 
-/// One view.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct View {
-    pub id: String,
-    pub name: String,
-    pub account_id: String,
-    pub drive_folder_id: String,
-    pub drive_id: Option<String>,
-    /// Display path of the Drive folder, e.g. `My Drive/Photos`.
-    pub remote_path: String,
-    /// Where the view appears on this device.
-    pub local_path: String,
-    pub vault_id: Option<String>,
-    /// Bytes of unpinned content the view may keep.
-    pub cache_limit: u64,
-    pub enabled: bool,
-    pub created_at: i64,
-    pub last_refresh_at: Option<i64>,
-    pub last_error: Option<String>,
-}
-
+pub use wasl_proto::store::View;
 const COLUMNS: &str = "id, name, account_id, drive_folder_id, drive_id, remote_path, local_path, vault_id,
     cache_limit, enabled, created_at, last_refresh_at, last_error";
 

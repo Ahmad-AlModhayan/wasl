@@ -4,7 +4,7 @@ description = "The wasl command-line tool: talks to wasld over the local protoco
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license = "Apache-2.0"
 publish.workspace = true
 
 [lib]
@@ -16,12 +16,8 @@ name = "wasl"
 path = "src/main.rs"
 
 [dependencies]
-wasl-core.workspace = true
-wasl-store.workspace = true
-wasl-engine.workspace = true
+wasl-proto.workspace = true
 wasl-ipc.workspace = true
-wasl-crypto.workspace = true
-wasl-ignore.workspace = true
 rpassword.workspace = true
 zeroize.workspace = true
 serde.workspace = true
@@ -33,8 +29,6 @@ dirs = "6"
 tokio = { workspace = true, features = ["rt", "macros", "time", "sync"] }
 
 [dev-dependencies]
-# The real daemon, for checks that run the CLI against it end to end.
-wasld = { path = "../wasld" }
 tempfile.workspace = true
 async-trait.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

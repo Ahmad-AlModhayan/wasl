@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+wasl-proto.workspace = true
 uniffi = { workspace = true, optional = true }
 wasl-core.workspace = true
 wasl-store.workspace = true
@@ -26,7 +27,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "syn
 tempfile.workspace = true
 
 [features]
-ffi = ["dep:uniffi"]
+ffi = ["dep:uniffi", "wasl-proto/ffi", "wasl-core/ffi", "wasl-store/ffi", "wasl-engine/ffi"]
 
 [lints]
 workspace = true

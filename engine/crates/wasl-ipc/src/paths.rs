@@ -92,6 +92,15 @@ impl Paths {
     /// but a portable install (`WASL_HOME`, `--home`) may sit anywhere, such as a shared folder
     /// whose access list lets every user read the token (security review 2026-10).
     pub fn ensure(&self) -> io::Result<()> {
+        self.ensure_checked(|_| Err(io::Error::other("ACL volume capability check not configured")))
+    }
+
+    pub fn ensure_checked<F>(&self, persists_acls: F) -> io::Result<()>
+    where
+        F: Fn(&std::path::Path) -> io::Result<bool>,
+    {
+        #[cfg(not(windows))]
+        let _ = &persists_acls;
         for d in [&self.data, &self.runtime] {
             std::fs::create_dir_all(d)?;
             #[cfg(unix)]
@@ -102,9 +111,9 @@ impl Paths {
         }
         #[cfg(windows)]
         {
-            user_only(&self.data, true)?;
+            user_only_checked(&self.data, true, &persists_acls)?;
             if self.runtime != self.data {
-                user_only(&self.runtime, true)?;
+                user_only_checked(&self.runtime, true, &persists_acls)?;
             }
         }
         Ok(())
@@ -123,6 +132,17 @@ impl Paths {
 /// gets a warning instead: anyone holding such a drive reads all of it anyway.
 #[cfg(windows)]
 pub(crate) fn user_only(path: &std::path::Path, folder: bool) -> io::Result<()> {
+    user_only_checked(path, folder, &|_| {
+        Err(io::Error::other("ACL volume capability check not configured"))
+    })
+}
+
+#[cfg(windows)]
+fn user_only_checked(
+    path: &std::path::Path,
+    folder: bool,
+    persists_acls: &dyn Fn(&std::path::Path) -> io::Result<bool>,
+) -> io::Result<()> {
     use std::process::{Command, Stdio};
     let system = system32();
     let sid = current_user_sid(&system)?;
@@ -147,7 +167,7 @@ pub(crate) fn user_only(path: &std::path::Path, folder: bool) -> io::Result<()> 
     })
     .trim()
     .to_owned();
-    after_icacls_failed(path, &why, wasl_vfs_windows::volume::persists_acls(path))
+    after_icacls_failed(path, &why, persists_acls(path))
 }
 
 /// What an `icacls` failure means, given whether the volume keeps access lists (or why that

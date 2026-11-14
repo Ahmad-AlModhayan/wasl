@@ -9,118 +9,16 @@ use rusqlite::{OptionalExtension, params};
 use serde_json::json;
 use std::collections::HashMap;
 
-/// Ignored in every new watch until removed from its list (UND-1): folders of installed packages
-/// and build output an agent rewrites wholesale.
-pub const DEFAULT_WATCH_IGNORES: [&str; 4] = ["node_modules/", ".venv/", "target/", "build/"];
+pub use wasl_proto::store::{
+    DEFAULT_WATCH_IGNORES, JournalEntry, NextMeta, SnapshotOrigin, SnapshotRow, StatKey, Watch, WatchGap,
+};
 
-/// A folder on the watch list.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Watch {
-    /// From the same id space as pair ids (ADR-0002).
-    pub id: String,
-    /// The folder's full path.
-    pub root: String,
-    /// The default ignores still applied (`.waslignore` files apply as well).
-    pub ignores: Vec<String>,
-    /// Unix ms.
-    pub added_at: i64,
-}
-
-/// Where a snapshot's bytes are.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SnapshotOrigin {
-    /// A copy-on-write clone in the undo store, hashed later.
-    Cloned,
-    /// The undo store's object, named by its BLAKE3.
-    Stored,
-    /// The synced version of a pair file (its BLAKE3 from the device index); nothing kept here.
-    Synced,
-}
-
-impl SnapshotOrigin {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            SnapshotOrigin::Cloned => "cloned",
-            SnapshotOrigin::Stored => "stored",
-            SnapshotOrigin::Synced => "synced",
-        }
-    }
-
-    fn parse(s: &str) -> Result<Self> {
-        Ok(match s {
-            "cloned" => SnapshotOrigin::Cloned,
-            "stored" => SnapshotOrigin::Stored,
-            "synced" => SnapshotOrigin::Synced,
-            other => return Err(StoreError::Corrupt(format!("snapshot origin {other:?}"))),
-        })
-    }
-}
-
-/// One change a session made in a watched folder (UND-3), or a version Wasl found it had missed
-/// (UND-4).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct JournalEntry {
-    /// 1, 2, 3 … per session; ignored when appending.
-    pub seq: u32,
-    /// The watch id `rel` is relative to.
-    pub root: String,
-    /// `create`, `update` or `delete`. A rename is a `delete` plus a `create` naming `old_rel`.
-    pub op: String,
-    pub rel: String,
-    pub old_rel: Option<String>,
-    /// The content before and after, BLAKE3 hex; `None` for a missing side (or unknown).
-    pub prev_blake3: Option<String>,
-    pub next_blake3: Option<String>,
-    /// Where the new content's bytes are, when kept.
-    pub origin: Option<SnapshotOrigin>,
-    pub location: Option<String>,
-    /// `false`: a version Wasl could not keep; `reason` says why.
-    pub captured: bool,
-    pub reason: Option<String>,
-    /// Unix ms.
-    pub at: i64,
+fn parse_snapshot_origin(s: &str) -> Result<SnapshotOrigin> {
+    SnapshotOrigin::parse(s).ok_or_else(|| StoreError::Corrupt(format!("snapshot origin {s:?}")))
 }
 
 const JOURNAL_COLUMNS: &str =
     "seq, root, op, rel, old_rel, prev_blake3, next_blake3, origin, location, captured, reason, at";
-
-/// The new content's size and mtime (Unix ms), for the op-log state; `None` for a delete.
-pub type NextMeta = Option<(u64, i64)>;
-
-/// A file's size, mtime (Unix ms), ctime and file id: what tells it unchanged (the snapshot's
-/// reuse key).
-pub type StatKey = (u64, i64, Option<i64>, Option<i64>);
-
-/// Something a session missed while Wasl couldn't watch or rescan a watched folder (UND-4).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct WatchGap {
-    pub watch_id: String,
-    /// A file Wasl last knew there; `None` for the whole folder.
-    pub rel: Option<String>,
-    pub reason: String,
-}
-
-/// One file of a watched folder as a session found it at its start.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct SnapshotRow {
-    /// Relative to the watched folder, `/`-separated.
-    pub rel: String,
-    pub size: u64,
-    /// Unix ms.
-    pub mtime: i64,
-    /// Status change time in ns (creation time on Windows); with `file_id`, tells a replaced file
-    /// from an unchanged one of the same size and mtime.
-    pub ctime: Option<i64>,
-    /// The inode (`None` on Windows for now).
-    pub file_id: Option<i64>,
-    /// BLAKE3 hex; `None` for a clone not hashed yet.
-    pub blake3: Option<String>,
-    pub origin: SnapshotOrigin,
-    /// Relative to the undo store; `None` for [`SnapshotOrigin::Synced`].
-    pub location: Option<String>,
-}
-
 fn watch_from(r: &rusqlite::Row<'_>) -> rusqlite::Result<Watch> {
     let ignores: String = r.get(2)?;
     Ok(Watch {
@@ -404,7 +302,7 @@ impl Store {
                 ctime,
                 file_id,
                 blake3,
-                origin: SnapshotOrigin::parse(&origin)?,
+                origin: parse_snapshot_origin(&origin)?,
                 location,
             });
         }
@@ -565,7 +463,7 @@ impl Store {
         let mut out = Vec::new();
         for row in rows {
             let (mut e, origin) = row?;
-            e.origin = origin.as_deref().map(SnapshotOrigin::parse).transpose()?;
+            e.origin = origin.as_deref().map(parse_snapshot_origin).transpose()?;
             out.push(e);
         }
         Ok(out)

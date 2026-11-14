@@ -17,7 +17,7 @@ impl Handler for Fake {
     async fn handle(&self, request: Request) -> Result<serde_json::Value, RemoteError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         match request {
-            Request::Pairs => ok(Vec::<wasl_store::Pair>::new()),
+            Request::Pairs => ok(Vec::<wasl_proto::Pair>::new()),
             Request::Setting { key } if key == "slow" => {
                 tokio::time::sleep(Duration::from_millis(300)).await;
                 ok(Some("slow"))

@@ -7,6 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+wasl-proto.workspace = true
 uniffi = { workspace = true, optional = true }
 wasl-core.workspace = true
 rusqlite.workspace = true
@@ -23,7 +24,7 @@ proptest.workspace = true
 tempfile.workspace = true
 
 [features]
-ffi = ["dep:uniffi", "wasl-core/ffi"]
+ffi = ["dep:uniffi", "wasl-proto/ffi", "wasl-core/ffi"]
 
 [lints]
 workspace = true

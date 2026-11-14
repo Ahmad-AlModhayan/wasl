@@ -1,7 +1,7 @@
 # Wasl
 
 Wasl syncs folders between Android, desktop (Windows, macOS, Linux) and Google Drive, using your own Drive
-account. Every deletion or overwrite can be undone for 30 days, and folders can be encrypted on your device
+account and your own devices. Every deletion or overwrite can be undone for 30 days, and folders can be encrypted on your device
 before they reach Drive.
 
 ## What it does
@@ -14,60 +14,51 @@ before they reach Drive.
 - Google Docs, Sheets and Slides exported as Office or PDF copies.
 - Drive files on demand (browse without downloading, pin for offline).
 - AI agent changes are held on your computer until you accept or revert them ([docs/AGENT_CHANGES.md](docs/AGENT_CHANGES.md)).
-- No ads, no analytics, no Wasl servers: the app talks to Google Drive and to your own devices.
+- No ads, no analytics: Drive traffic goes directly to Google Drive, and P2P traffic goes directly between your devices (with optional public STUN, self-hosted relay, or Kahf managed relay/blind-cache fallback behind strict NATs).
 
 ## Repository layout
 
-| Folder | What it is |
-|---|---|
-| [`app/`](app/README.md) | Android app (Kotlin, Jetpack Compose) |
-| [`engine/`](engine/README.md) | The Rust sync engine, shared by every platform |
-| [`desktop/`](desktop/README.md) | Desktop tray app (Tauri 2) |
-| [`site/`](site/README.md) | The Wasl website (needs the private `@kahf/design`) |
-| [`docs/`](docs/) | Architecture, requirements, user guide, security notes |
+This public repository contains the open-source sync engine, daemon, FFI bindings, protocol, CLI, tools, specs, and website. Official Android and desktop UI apps talk to `wasl-core` across the strict FFI/IPC boundary and are shipped separately.
 
-## Build and install
+| Folder / Crate | What it is | Licence |
+|---|---|---|
+| [`engine/`](engine/README.md) (`wasl-core`, `wasl-engine`, `wasl-store`, `wasl-crypto`, `wasl-net`, `wasl-devices`, `wasl-drive`, `wasl-fs`, `wasl-ignore`, `wasl-pairs`, `wasl-chunk`, `wasl-vfs*`, `wasl-ffi`, `wasld`) | Rust sync engine, daemon (`wasld`), UniFFI bindings, self-hostable core | [AGPL-3.0-only](LICENSE) (commercial dual-licence available) |
+| `engine/crates/wasl-proto`, `wasl-ipc`, `wasl-cli` | Wire protocol & DTOs, local IPC client, thin `wasl` CLI | [Apache-2.0](LICENSE-APACHE) |
+| [`tools/`](tools/) | Vault recovery reference script & Miqyas test harnesses | [AGPL-3.0-only](LICENSE) |
+| [`site/`](site/README.md) | The Wasl website (needs the private `@kahf/design`) | See [NOTICE.md](NOTICE.md) |
+| [`docs/`](docs/) | Architecture, requirements, open-core model, user guide, security notes | See [LICENSE](LICENSE) |
 
-Android needs a Google Cloud OAuth client for your own Drive account; [docs/SETUP.md](docs/SETUP.md) walks through it,
-then:
+## Build and tests
 
-```sh
-./gradlew :app:assembleRelease
-adb install -r app/build/outputs/apk/release/app-release.apk
-```
-
-Release builds need a signing key you provide; see [docs/SETUP.md](docs/SETUP.md#signing-keys). Engine build
-instructions are in [`engine/`](engine/README.md).
-
-The engine, the CLI and the Android app build from this repository alone. The desktop app and the website need
-Kahf Labs' private design package (`@kahf/design`), so they can't be built from a public clone; contributors can
-change their code, but the desktop and website CI jobs are skipped on pull requests from forks; Kahf Labs runs them before
-merging (see [CONTRIBUTING.md](CONTRIBUTING.md)).
-
-## Tests
+Engine, daemon, FFI, protocol, and CLI build from this repository alone (see [`engine/README.md`](engine/README.md)):
 
 ```sh
-./gradlew :app:testDebugUnitTest                      # Android, JVM tests
-(cd engine && cargo test --workspace)                 # engine
+cd engine
+cargo build --workspace --release
+cargo test --workspace
+cargo test -p wasl-ffi --all-features
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all --check
 ```
 
 ## Docs
 
-[SETUP](docs/SETUP.md) · [USER_GUIDE](docs/USER_GUIDE.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) ·
+[OPEN_MODEL](docs/OPEN_MODEL.md) · [SETUP](docs/SETUP.md) · [USER_GUIDE](docs/USER_GUIDE.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) ·
 [ENCRYPTION](docs/ENCRYPTION.md) · [AUTOMATION](docs/AUTOMATION.md) · [DEVICE_SYNC](docs/DEVICE_SYNC.md) ·
 [PRD](docs/PRD.md) · [SRS](docs/SRS.md) · [security notes](docs/SECURITY.md)
 
-## Open code
+## Open-core model & licensing
 
-Wasl is **open code**: the full source is public so you can read it, run it, change it and send pull requests. It is
-**source-available** under the [PolyForm Shield License 1.0.0](LICENSE), not open source by the OSI definition: you may
-not use it to provide a product that competes with Wasl or with another Kahf Labs product built on it, free or paid.
-Contributions need a one-time [CLA](CLA.md) (you keep your copyright); see [CONTRIBUTING.md](CONTRIBUTING.md). Forks may
-not use the Kahf or Wasl names or logos ([TRADEMARKS.md](TRADEMARKS.md)). Report security problems privately
-([SECURITY.md](SECURITY.md)). Everyone is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-The source is under PolyForm Shield (see [LICENSE](LICENSE)); the installed binaries carry no separate terms yet.
+Wasl uses a **decoupled open-core** model ([docs/OPEN_MODEL.md](docs/OPEN_MODEL.md)):
+
+- **Core engine, daemon, FFI, and self-hostable relay (`wasl-core`, `wasld`, `wasl-ffi`, etc.):** [GNU AGPL v3.0](LICENSE) (`AGPL-3.0-only`), with B2B commercial dual-licensing available from Kahf Labs.
+- **Wire protocol, IPC client, and thin CLI (`wasl-proto`, `wasl-ipc`, `wasl-cli`):** [Apache License 2.0](LICENSE-APACHE) (`Apache-2.0`), with zero AGPL dependencies enforced in CI.
+- **Official native UI apps & Managed Relay / Blind-Cache service:** Shipped separately under Kahf Labs proprietary terms. **There is no Wasl Pro version** — all local, Drive, and P2P sync features are free; subscriptions apply only where Kahf incurs ongoing TURN relay bandwidth and blind-cache server costs.
+
+Contributions require a one-time [CLA](CLA.md) (you keep your copyright); see [CONTRIBUTING.md](CONTRIBUTING.md). Forks may not use the Kahf or Wasl names or logos ([TRADEMARKS.md](TRADEMARKS.md)). Report security problems privately ([SECURITY.md](SECURITY.md)), and read third-party notices in [NOTICE.md](NOTICE.md). Everyone is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 | Path | Licence |
 |---|---|
-| Everything not listed below | [PolyForm Shield 1.0.0](LICENSE) |
-| Fonts under `docs/design/project` and the app | SIL Open Font License 1.1, with each font's own notice |
+| `engine/crates/wasl-proto`, `wasl-ipc`, `wasl-cli` | [Apache-2.0](LICENSE-APACHE) |
+| All other `engine/crates/*`, `tools/`, core & relay code | [AGPL-3.0-only](LICENSE) |
+| Fonts under `docs/design/project` | SIL Open Font License 1.1, with each font's own notice |

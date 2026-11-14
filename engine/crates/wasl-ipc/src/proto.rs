@@ -2,12 +2,12 @@
 //! that subscribed, between responses, with no id.
 
 use serde::{Deserialize, Serialize};
-pub use wasl_devices::{
-    DeviceInfo, DevicesInfo, LinkPath, OfferInfo, OfferStatus, PairSharing, PairingStage, PairingStatus,
+use wasl_proto::{
+    BinEntry, ConflictChoice, ConflictUndo, OplogStatus, Pair, Progress, RunOutcome, Trigger, VersionRef,
 };
-use wasl_engine::{ConflictChoice, ConflictUndo, Progress, RunOutcome, Trigger, VersionRef};
-pub use wasl_store::View;
-use wasl_store::{BinEntry, OplogStatus, Pair};
+pub use wasl_proto::{
+    DeviceInfo, DevicesInfo, LinkPath, OfferInfo, OfferStatus, PairSharing, PairingStage, PairingStatus, View,
+};
 
 /// The most changesets one [`Request::OplogList`] answer holds, and its `limit` when a request
 /// leaves it out.
@@ -309,7 +309,7 @@ pub enum Request {
         id: String,
     },
     /// An agent starts working in `path` (a folder in a pair, or the pair's folder). Returns the
-    /// open [`wasl_store::Changeset`]; with a `session` already open, that one.
+    /// open [`wasl_proto::Changeset`]; with a `session` already open, that one.
     /// docs/AGENT_CHANGES.md.
     AgentBegin {
         path: String,
@@ -335,12 +335,12 @@ pub enum Request {
         pair_id: Option<String>,
         all: bool,
     },
-    /// One changeset with its files ([`wasl_engine::ChangesetDetails`]).
+    /// One changeset with its files ([`wasl_proto::ChangesetDetails`]).
     AgentChangeset {
         id: String,
     },
     /// What a session changed in watched folders and what it missed
-    /// ([`wasl_engine::JournalReport`], docs/AGENT_UNDO.md UND-3, UND-4).
+    /// ([`wasl_proto::JournalReport`], docs/AGENT_UNDO.md UND-3, UND-4).
     AgentJournal {
         id: String,
     },
@@ -364,22 +364,22 @@ pub enum Request {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         agent: Option<String>,
     },
-    /// Puts back what the session changed. Returns a [`wasl_engine::RevertReport`].
+    /// Puts back what the session changed. Returns a [`wasl_proto::RevertReport`].
     AgentRevert {
         id: String,
     },
     /// Adds a folder to agent undo's watch list (docs/AGENT_UNDO.md, UND-1). Returns the
-    /// [`wasl_store::Watch`]. A disk's top folder, Wasl's data folder (or one around it) and a
+    /// [`wasl_proto::Watch`]. A disk's top folder, Wasl's data folder (or one around it) and a
     /// folder in or around a watched one are refused.
     AgentWatch {
         path: String,
     },
     /// Takes a folder off the watch list, by watch id or path. Returns the removed
-    /// [`wasl_store::Watch`].
+    /// [`wasl_proto::Watch`].
     AgentUnwatch {
         watch: String,
     },
-    /// The watch list, by path ([`wasl_store::Watch`]s).
+    /// The watch list, by path ([`wasl_proto::Watch`]s).
     AgentWatches,
     /// Sets the default ignores a watch (id or path) still applies; one left out stops applying.
     AgentWatchIgnores {
@@ -387,7 +387,7 @@ pub enum Request {
         ignores: Vec<String>,
     },
     /// The op-log's changesets that match, newest first, each with its `op_count`
-    /// ([`wasl_engine::OplogPage`], ADR-0002 Read format). Read-only, like `OplogShow`.
+    /// ([`wasl_proto::OplogPage`], ADR-0002 Read format). Read-only, like `OplogShow`.
     OplogList {
         actor: Option<String>,
         status: Option<OplogStatus>,
@@ -400,7 +400,7 @@ pub enum Request {
         #[serde(default = "oplog_list_max")]
         limit: u32,
     },
-    /// One changeset with its operations ([`wasl_engine::OplogPage`] with one changeset). No
+    /// One changeset with its operations ([`wasl_proto::OplogPage`] with one changeset). No
     /// `origin_device`: this device. One whose answer would pass [`crate::transport::MAX_LINE`]
     /// is refused with an error that says so.
     OplogShow {

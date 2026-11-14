@@ -32,66 +32,7 @@ pub trait Environment: Send + Sync {
     fn device_state(&self) -> DeviceState;
 }
 
-/// What started a run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
-pub enum Trigger {
-    /// "Sync now": only needs a connection (FR-P4).
-    Manual,
-    /// "Start sync" on the preview: also lifts the first-sync hold.
-    Preview,
-    Schedule,
-    /// A watcher or remote change.
-    Instant,
-    /// Intents, CLI, shortcuts: conditions apply (FR-P4).
-    Automation,
-}
-
-impl Trigger {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Trigger::Manual => "manual",
-            Trigger::Preview => "preview",
-            Trigger::Schedule => "schedule",
-            Trigger::Instant => "instant",
-            Trigger::Automation => "automation",
-        }
-    }
-    fn manual(self) -> bool {
-        matches!(self, Trigger::Manual | Trigger::Preview)
-    }
-}
-
-/// How a sync request ended.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct RunOutcome {
-    /// Empty when no run was recorded (skipped before starting).
-    pub run_id: String,
-    pub status: RunStatus,
-    pub message: Option<String>,
-    pub summary: Option<PlanSummary>,
-    pub error_kind: Option<ErrorKind>,
-    /// Why a skipped run did not start, when a condition stopped it.
-    pub blocker: Option<Blocker>,
-}
-
-/// A dry run: the plan and notes the user sees before anything happens (FR-F1).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct Preview {
-    pub plan: SyncPlan,
-    /// What needs the user's attention (the plan's warnings among them).
-    pub notes: Vec<String>,
-    /// What the comparison did that is not a problem: where its time went, renames followed,
-    /// shortcuts left out.
-    #[serde(default)]
-    pub infos: Vec<String>,
-    /// Sizes of the files the plan deletes or skips (their actions carry none): the device's size
-    /// for device-side items, Drive's for Drive-side ones.
-    pub sizes: HashMap<String, u64>,
-}
+pub use wasl_proto::engine::{Preview, RunOutcome, Trigger};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EngineConfig {
@@ -130,16 +71,7 @@ impl Default for EngineConfig {
         }
     }
 }
-
-pub const HOLD_MESSAGE: &str = "Waiting for your preview";
-/// A run asked for while the pair is already running is skipped with this message.
-pub const ALREADY_RUNNING: &str = "Already running";
-/// Why a run didn't start: its pair's options were being saved at that moment.
-pub const SAVING_MESSAGE: &str = "Its options are being saved. Try again in a moment.";
-pub const STOPPED: &str = "Stopped. Files synced so far stay synced.";
-pub const STALLED: &str = "Stopped after 15 minutes without progress. Trying again shortly.";
-/// A run the process or its caller stopped before it finished.
-pub const INTERRUPTED: &str = "Stopped before it finished. The next sync carries on.";
+pub use wasl_proto::engine::{ALREADY_RUNNING, HOLD_MESSAGE, INTERRUPTED, SAVING_MESSAGE, STALLED, STOPPED};
 /// How near a file's modification time may be to the pair's last run before `as_last_synced`
 /// stops trusting it: the coarsest file clock Wasl meets (FAT's 2 s).
 pub const RACY_MS: i64 = 2_000;

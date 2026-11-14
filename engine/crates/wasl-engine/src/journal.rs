@@ -11,40 +11,12 @@ use crate::undo::{UndoStore, gone, same_file, stat_key, sync_objects, watch_rule
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
-use wasl_store::{JournalEntry, SnapshotOrigin, StatKey, Watch, WatchGap};
+use wasl_store::{JournalEntry, SnapshotOrigin, StatKey, Watch};
 
 /// Larger files are journaled but not captured (UND-11).
 pub const MAX_CAPTURE: u64 = 2 * 1024 * 1024 * 1024;
 
-/// One version of a file in a session, oldest first: the snapshot's (`seq` 0), then each journal
-/// entry's.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Version {
-    /// 0 for the session-start snapshot.
-    pub seq: u32,
-    /// `None` once the file is deleted.
-    pub blake3: Option<String>,
-    /// Where its bytes are, when Wasl kept them here (a synced version is fetched from device
-    /// sync instead).
-    pub path: Option<PathBuf>,
-    pub captured: bool,
-    pub reason: Option<String>,
-    pub at: i64,
-}
-
-/// What a session journaled and what it missed (UND-4), for the session report (UND-10).
-#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct JournalReport {
-    pub entries: Vec<JournalEntry>,
-    /// Entries for versions Wasl could not keep, or found only by a rescan (versions in between
-    /// were not seen).
-    pub not_captured: Vec<JournalEntry>,
-    /// Watched folders the session couldn't snapshot at its start: (watch id, why).
-    pub snapshot_failures: Vec<(String, String)>,
-    /// What it missed while Wasl couldn't watch or rescan a watched folder.
-    #[serde(default)]
-    pub gaps: Vec<WatchGap>,
-}
+pub use wasl_proto::engine::{JournalReport, Version};
 
 /// What Wasl last knew of one path in a session.
 enum Known {

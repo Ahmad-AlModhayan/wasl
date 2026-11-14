@@ -46,8 +46,17 @@ Because the app is personal and never published, it does not need Google's app v
 7. Wait 2–5 minutes for the client to propagate.
 
 ## 4. Build and install
-Only release builds go on the phone. Debug and release share the package name but not the key, so
-switching the phone between them means uninstalling (and losing the app's data).
+
+Build the sync engine, background daemon, and CLI from this repository (`engine/README.md`):
+
+```sh
+cd engine
+cargo build --workspace --release
+```
+
+Official native UI clients (Android and desktop) build from separate client repositories against `wasl-ffi` / `wasl-ipc`. Only release Android builds go on a phone. Debug and release share the package name but not the key, so switching the phone between them means uninstalling (and losing the app's data).
+
+For a standalone Android build in a client checkout:
 
 Mac:
 ```bash

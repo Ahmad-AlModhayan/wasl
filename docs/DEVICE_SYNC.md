@@ -191,8 +191,8 @@ Messages are length-prefixed CBOR. Limits on every length; unknown message types
   addresses (one of each internet kind first, then the best LAN ones), and an answerer runs one
   punch per offerer at a time, at most 4 a minute.
 - **No path** (FR-N8): route `drive_and_devices` continues through Drive; route `devices` waits
-  ("Can't reach <device> from this network") and accepts a typed address (Tailscale/WireGuard IP or
-  a self-hosted relay).
+  ("Can't reach <device> from this network") and accepts a typed address (Tailscale/WireGuard IP, a
+  self-hosted `AGPL-3.0-only` relay, or an optional Kahf Managed Relay / Blind-Cache endpoint).
 - Reach `lan` never contacts STUN, Drive rendezvous or any internet address (FR-N11).
 
 ## 8. Phases

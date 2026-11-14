@@ -14,11 +14,11 @@ use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::{Mutex, mpsc, oneshot};
-use wasl_engine::{
-    ChangesetDetails, ConflictChoice, ConflictDetails, ConflictUndo, DeletionReview, FileVersions, Preview,
-    RestoreResult, RevertReport, RunOutcome, Trigger, VersionRef,
+use wasl_proto::{
+    BinEntry, Changeset, ChangesetDetails, ConflictChoice, ConflictDetails, ConflictRecord, ConflictUndo,
+    DeletionReview, FileVersions, JournalReport, OplogFilter, OplogPage, Pair, Preview, RestoreResult,
+    RevertReport, RunEvent, RunOutcome, RunRecord, Trigger, VersionRef, Watch,
 };
-use wasl_store::{BinEntry, Changeset, ConflictRecord, Pair, RunEvent, RunRecord};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -321,14 +321,11 @@ impl Client {
     pub async fn agent_changeset(&self, id: &str) -> Result<ChangesetDetails, ClientError> {
         self.call(Request::AgentChangeset { id: id.into() }).await
     }
-    pub async fn agent_journal(&self, id: &str) -> Result<wasl_engine::JournalReport, ClientError> {
+    pub async fn agent_journal(&self, id: &str) -> Result<JournalReport, ClientError> {
         self.call(Request::AgentJournal { id: id.into() }).await
     }
     /// The changesets `f` matches, newest first; `f.limit` `None` is as many as the daemon gives.
-    pub async fn oplog_list(
-        &self,
-        f: &wasl_store::OplogFilter,
-    ) -> Result<wasl_engine::OplogPage, ClientError> {
+    pub async fn oplog_list(&self, f: &OplogFilter) -> Result<OplogPage, ClientError> {
         self.call(Request::OplogList {
             actor: f.actor.clone(),
             status: f.status,
@@ -339,11 +336,7 @@ impl Client {
         .await
     }
     /// One changeset with its operations; `origin_device` `None` is the daemon's own device.
-    pub async fn oplog_show(
-        &self,
-        origin_device: Option<&str>,
-        id: &str,
-    ) -> Result<wasl_engine::OplogPage, ClientError> {
+    pub async fn oplog_show(&self, origin_device: Option<&str>, id: &str) -> Result<OplogPage, ClientError> {
         self.call(Request::OplogShow {
             origin_device: origin_device.map(Into::into),
             id: id.into(),
@@ -379,14 +372,14 @@ impl Client {
     pub async fn agent_revert(&self, id: &str) -> Result<RevertReport, ClientError> {
         self.call(Request::AgentRevert { id: id.into() }).await
     }
-    pub async fn agent_watch(&self, path: &str) -> Result<wasl_store::Watch, ClientError> {
+    pub async fn agent_watch(&self, path: &str) -> Result<Watch, ClientError> {
         self.call(Request::AgentWatch { path: path.into() }).await
     }
     /// `watch` is a watch id or the folder's path.
-    pub async fn agent_unwatch(&self, watch: &str) -> Result<wasl_store::Watch, ClientError> {
+    pub async fn agent_unwatch(&self, watch: &str) -> Result<Watch, ClientError> {
         self.call(Request::AgentUnwatch { watch: watch.into() }).await
     }
-    pub async fn agent_watches(&self) -> Result<Vec<wasl_store::Watch>, ClientError> {
+    pub async fn agent_watches(&self) -> Result<Vec<Watch>, ClientError> {
         self.call(Request::AgentWatches).await
     }
     pub async fn agent_watch_ignores(&self, watch: &str, ignores: Vec<String>) -> Result<(), ClientError> {

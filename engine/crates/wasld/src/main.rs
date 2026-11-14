@@ -13,8 +13,14 @@ use {
 };
 
 fn main() {
+    let raw_args: Vec<String> = std::env::args().collect();
+    if raw_args.get(1).map(String::as_str) == Some("vault")
+        && raw_args.get(2).map(String::as_str) == Some("decrypt")
+    {
+        std::process::exit(wasld::vault::run_decrypt(&raw_args[3..]));
+    }
     let mut home: Option<String> = None;
-    let mut args = std::env::args().skip(1);
+    let mut args = raw_args.into_iter().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--version" | "-V" => {
@@ -39,7 +45,7 @@ fn main() {
     #[cfg(feature = "miqyas")]
     let (paths, cfg) = {
         let paths = wasld::miqyas::home(home).unwrap_or_else(|e| fail(&e));
-        if let Err(e) = paths.ensure() {
+        if let Err(e) = ensure_paths(&paths) {
             fail(&e.to_string());
         }
         let cfg = wasld::miqyas::config(&paths).unwrap_or_else(|e| fail(&e));
@@ -51,7 +57,7 @@ fn main() {
             Ok(p) => p,
             Err(e) => fail(&e.to_string()),
         };
-        if let Err(e) = paths.ensure() {
+        if let Err(e) = ensure_paths(&paths) {
             fail(&e.to_string());
         }
         (paths.clone(), release_config(&paths))
@@ -88,6 +94,17 @@ fn release_config(paths: &Paths) -> DaemonConfig {
         devices: Some(wasl_devices::DeviceConfig::default()),
         view_backend: None,
         view_refresh: wasld::views::REFRESH_EVERY,
+    }
+}
+
+fn ensure_paths(paths: &Paths) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        paths.ensure_checked(wasl_vfs_windows::volume::persists_acls)
+    }
+    #[cfg(not(windows))]
+    {
+        paths.ensure()
     }
 }
 

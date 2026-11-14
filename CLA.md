@@ -2,9 +2,7 @@
 
 Version 1.0. Between you ("Contributor") and **Ahmad AlModhayan, trading as Kahf Labs** ("Kahf Labs", "we").
 
-Wasl is source-available under the [PolyForm Shield License 1.0.0](LICENSE). That licence has no clause for
-contributions and does not let anyone sublicense, so without this agreement a pull request would arrive under
-Shield's terms and Kahf Labs could not ship it in Wasl Pro or later change the licence. This agreement fixes that.
+Wasl uses a decoupled open-core model: the sync core, daemon, storage, crypto, network, VFS, FFI, and relay components (`engine/`) are licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`), while the wire protocol (`wasl-proto`), IPC client (`wasl-ipc`), and thin CLI (`wasl-cli`) are licensed under [Apache License 2.0](LICENSE-APACHE) (`Apache-2.0`). Without this agreement, incoming contributions would arrive strictly under AGPL-3.0-only or Apache-2.0 terms without granting Kahf Labs the right to commercially dual-license `wasl-core` or ship contributions inside proprietary native clients across the FFI/IPC boundary. This agreement fixes that.
 **You keep your copyright.** You are not selling or giving us your work; you are licensing it to us.
 
 By opening a pull request, or by signing when CLA Assistant asks, you agree to the following for every

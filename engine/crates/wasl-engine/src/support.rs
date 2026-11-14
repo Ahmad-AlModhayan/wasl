@@ -99,36 +99,7 @@ impl CancelToken {
     }
 }
 
-/// Where a run is.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
-pub enum Phase {
-    Starting,
-    ListingRemote,
-    ScanningLocal,
-    Planning,
-    Transferring,
-    Deleting,
-    Finishing,
-}
-
-/// A snapshot of a run's progress, for the status surfaces (FR-B5).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct Progress {
-    pub pair_id: String,
-    pub run_id: String,
-    pub phase: Phase,
-    pub total_actions: u64,
-    pub done_actions: u64,
-    pub bytes_total: u64,
-    pub bytes_done: u64,
-    /// Files hashed so far (a big first sync spends minutes here).
-    pub checked: u64,
-    pub errors: u64,
-    pub current_file: Option<String>,
-}
+pub use wasl_proto::engine::{Phase, Progress};
 
 /// Receives progress snapshots. Called often; implementations should be cheap.
 pub type ProgressListener = Arc<dyn Fn(&Progress) + Send + Sync>;

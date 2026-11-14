@@ -9,7 +9,7 @@
 
 use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use wasl_core::SyncMode;
+use wasl_proto::SyncMode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {

@@ -53,6 +53,7 @@ reqwest.workspace = true
 sha2.workspace = true
 base64.workspace = true
 getrandom.workspace = true
+rpassword.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time", "signal"] }
 notify = "8.2"
 keyring = { version = "3.6", features = ["apple-native", "windows-native", "async-secret-service", "tokio", "crypto-rust"] }

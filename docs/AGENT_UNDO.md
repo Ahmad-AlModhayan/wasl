@@ -25,7 +25,7 @@ What stays: in a pair folder the agent's changes are still held from sync until 
 2. **The watchers exist.** `wasl-fs` uses ReadDirectoryChangesW, FSEvents and inotify/fanotify, with the periodic scan as the source of truth (FR-C2).
 3. **The agent plumbing exists:** sessions, actors (`agent:claude-code`), `wasl agent run`, the hooks, the **Agent changes** screen, `wasld`'s confirmation dialog.
 4. **Wasl 2's op-log is the model** (ADR-0002): actor-tagged operations in changesets that are staged, committed or reverted. A file journal is that log for files.
-5. **It extends Wasl's first promise,** "no data loss caused by Wasl" (PRD goal 1), to losses caused by agents. Safety is never gated (FR-R6), so agent undo is in Free.
+5. **It extends Wasl's first promise,** "no data loss caused by Wasl" (PRD goal 1), to losses caused by agents. Safety is never gated (FR-R6), and local features have no Pro tier.
 
 The need: TechRadar reports a Claude Code session that allegedly deleted 48,000 files in 103 seconds; Gigazine, Docker's blog, a Cursor thread and Adversa's list describe more `rm -rf` cases (press and user reports, not audited incidents). Claude Code's checkpoints do not track files changed by Bash commands; Gemini CLI's checkpointing is off by default; Git covers committed, tracked files only.
 
@@ -79,8 +79,8 @@ The need: TechRadar reports a Claude Code session that allegedly deleted 48,000 
 - **`wasl-store`** schema v12 (after the op-log's v11): `agent_watches`, `agent_journal(changeset_id, seq, op, rel, old_rel, prev_blake3, next_blake3, origin, captured, reason)`, `agent_markers`, `agent_restores(…, decided_by, inbox_request_id)`; `agent_changesets.pair_id` becomes optional, with `watch_id`.
 - **Op-log.** The journal writes each operation through `wasl-store`'s `oplog` module (ADR-0002, schema v11), in the same transaction as its `agent_journal` row; a restore appends the inverse operations there. The `agent_*` tables keep the working detail (where a captured version is, why one wasn't captured), as they do for pair folders. `wasl-crdt` comes only later: the `oplog` module's pure part moves into it once a second user needs it (#53), with its own ADR.
 - **`wasld`** owns sessions and reuses the `wasl-desktop --confirm-agent` dialog when no inbox is configured. **CLI:** `wasl agent watch`, `unwatch`, `log`, `mark`, `restore`, `undo-restore` beside today's commands.
-- **Desktop app (Tauri 2):** the Agent changes screen gains a Timeline per session and Restore with checkboxes from the CLI's dry-run plan.
-- **Approvals inbox:** requests go to an inbox on the user's own hub, so Wasl's no-Kahf-server rule holds. Android is unchanged.
+- **Native UI clients:** the Agent changes screen consumes `wasld` IPC and `wasl` CLI dry-run/oplog output across the IPC boundary.
+- **Approvals inbox:** requests go to an inbox on the user's own hub. Android is unchanged.
 
 ## 7. Risks
 

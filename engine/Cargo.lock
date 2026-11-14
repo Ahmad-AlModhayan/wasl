@@ -4016,13 +4016,8 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
- "wasl-core",
- "wasl-crypto",
- "wasl-engine",
- "wasl-ignore",
  "wasl-ipc",
- "wasl-store",
- "wasld",
+ "wasl-proto",
  "zeroize",
 ]
 
@@ -4035,6 +4030,7 @@ dependencies = [
  "serde_json",
  "unicode-normalization",
  "uniffi",
+ "wasl-proto",
 ]
 
 [[package]]
@@ -4078,6 +4074,7 @@ dependencies = [
  "wasl-engine",
  "wasl-fs",
  "wasl-net",
+ "wasl-proto",
  "wasl-store",
  "zeroize",
 ]
@@ -4127,6 +4124,7 @@ dependencies = [
  "wasl-fs",
  "wasl-ignore",
  "wasl-net",
+ "wasl-proto",
  "wasl-store",
  "wasl-vfs",
  "wiremock",
@@ -4179,6 +4177,7 @@ dependencies = [
  "regex",
  "tempfile",
  "wasl-core",
+ "wasl-proto",
 ]
 
 [[package]]
@@ -4196,11 +4195,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "wasl-core",
- "wasl-devices",
- "wasl-engine",
- "wasl-store",
- "wasl-vfs-windows",
+ "wasl-proto",
  "zeroize",
 ]
 
@@ -4247,6 +4242,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasl-proto"
+version = "0.4.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uniffi",
+]
+
+[[package]]
 name = "wasl-store"
 version = "0.4.0"
 dependencies = [
@@ -4261,6 +4266,7 @@ dependencies = [
  "uniffi",
  "wasl-core",
  "wasl-drive",
+ "wasl-proto",
 ]
 
 [[package]]
@@ -4315,6 +4321,7 @@ dependencies = [
  "nix 0.31.3",
  "notify",
  "reqwest",
+ "rpassword",
  "serde",
  "serde_json",
  "sha2",

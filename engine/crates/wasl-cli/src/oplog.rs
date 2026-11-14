@@ -5,8 +5,7 @@ use crate::OplogCmd;
 use crate::cmd::{Fail, NOT_FOUND, OK, R, USAGE, connect, find_pair, print_json};
 use crate::out::{self, Tone, paint};
 use wasl_cli::{i18n, t};
-use wasl_engine::{OplogEntry, OplogPage};
-use wasl_store::{OplogFilter, OplogStatus};
+use wasl_proto::{OplogEntry, OplogFilter, OplogPage, OplogStatus, file_uri_parts};
 
 pub async fn run(cmd: OplogCmd) -> R<u8> {
     match cmd {
@@ -99,7 +98,7 @@ fn status_label(s: OplogStatus) -> String {
 
 /// The scope without `file://<pair id>`, as `wasl agent list` shows a path; other schemes whole.
 fn scope_label(scope: &str, pair: &str) -> String {
-    match wasl_store::file_uri_parts(scope) {
+    match file_uri_parts(scope) {
         Some((id, key)) if id == pair => format!("/{key}"),
         _ => scope.to_owned(),
     }
@@ -165,7 +164,7 @@ async fn list(
 
 /// The rows of `wasl oplog list`, header first. A changeset from this device (`me`) has a bare id,
 /// one from another device `<device>:<id>`, as `wasl oplog show` takes them.
-fn list_rows(page: &OplogPage, pairs: &[wasl_store::Pair], me: Option<&str>) -> Vec<Vec<String>> {
+fn list_rows(page: &OplogPage, pairs: &[wasl_proto::Pair], me: Option<&str>) -> Vec<Vec<String>> {
     let mut rows = vec![vec![
         t!(ColId),
         t!(ColActor),
@@ -176,7 +175,7 @@ fn list_rows(page: &OplogPage, pairs: &[wasl_store::Pair], me: Option<&str>) -> 
         t!(ColChanges),
     ]];
     for cs in &page.changesets {
-        let (pair_id, _) = wasl_store::file_uri_parts(&cs.scope).unwrap_or_default();
+        let (pair_id, _) = file_uri_parts(&cs.scope).unwrap_or_default();
         let pair = pairs
             .iter()
             .find(|p| p.id == pair_id)
@@ -248,7 +247,7 @@ fn show_text(cs: &OplogEntry) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{day_start, list_rows, since};
+    use super::{OplogPage, day_start, list_rows, since};
 
     const NOW: i64 = 1_790_000_000_000;
 
@@ -321,7 +320,7 @@ mod tests {
                 "decided_by": null, "decided_actor": null, "imported_at": null
             })
         };
-        let page: wasl_engine::OplogPage = serde_json::from_value(serde_json::json!({
+        let page: OplogPage = serde_json::from_value(serde_json::json!({
             "version": 1, "changesets": [entry("WASL-ME"), entry("WASL-PHONE")]
         }))
         .unwrap();

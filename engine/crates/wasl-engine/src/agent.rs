@@ -12,8 +12,8 @@ use std::sync::Arc;
 use wasl_core::{BaselineEntry, LocalEntry, PlanInput};
 use wasl_fs::LocalFs;
 use wasl_store::{
-    AgentEntry, BinSide, Changeset, ChangesetStatus, EarlierVersion, EntryKind, ManifestRow, NewBinEntry,
-    Pair, SavedCopy, Store,
+    AgentEntry, BinSide, Changeset, ChangesetExt, ChangesetStatus, EarlierVersion, EntryKind, ManifestRow,
+    NewBinEntry, Pair, SavedCopy, Store,
 };
 
 /// A file larger than this is not copied as an earlier version; its revert relies on the synced
@@ -25,8 +25,7 @@ pub const MAX_BEGIN_COPY: u64 = 512 * 1024 * 1024;
 /// Decided changesets are kept this long, like sync history (FR-B6).
 pub const AGENT_HISTORY_MS: i64 = 90 * 24 * 3600 * 1000;
 
-/// Bin reason of an agent's version put aside by a revert.
-pub const AGENT_REVERT: &str = "AGENT_REVERT";
+pub use wasl_proto::engine::AGENT_REVERT;
 
 /// A writer that hashes what goes through it, so a saved copy is hashed as it is written.
 struct Hashing {
@@ -45,26 +44,7 @@ impl io::Write for Hashing {
     }
 }
 
-/// A changeset with what it changed.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct ChangesetDetails {
-    pub changeset: Changeset,
-    pub pair_name: String,
-    pub entries: Vec<AgentEntry>,
-    /// Which client accepted it ("cli", "desktop", "unknown"), when it was recorded.
-    #[serde(default)]
-    pub decided_by: Option<String>,
-}
-
-/// How a revert went.
-#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct RevertReport {
-    pub reverted: Vec<String>,
-    /// Changed after the session ended: left as they are.
-    pub skipped: Vec<String>,
-    /// Path and why.
-    pub failed: Vec<(String, String)>,
-}
+pub use wasl_proto::engine::{ChangesetDetails, RevertReport};
 
 /// `agent:<name>` from a name with or without the prefix: lowercase letters, digits, `.`, `_`, `-`.
 pub fn actor_id(name: &str) -> Result<String> {

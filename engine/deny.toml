@@ -1,7 +1,5 @@
-# cargo-deny: the dependency gate before every release (docs/SECURITY.md S5-2). Shared by both Rust
-# workspaces: the engine (`cd engine && cargo deny check`) and the desktop app
-# (`cargo deny --manifest-path desktop/src-tauri/Cargo.toml check --config engine/deny.toml`).
-# `tools/security-check.sh` runs both, with `cargo audit` and `npm audit`.
+# cargo-deny: third-party dependency gate (docs/SECURITY.md S5-2). Run from `engine/` via
+# `cargo deny check`. `tools/security-check.sh` runs `cargo deny` with `cargo audit`.
 
 [graph]
 # Every platform Wasl ships on: a crate pulled in only for one of them is still shipped.
@@ -32,18 +30,16 @@ ignore = [
     { id = "RUSTSEC-2026-0372", reason = "unmaintained, not vulnerable: zvariant_derive via keyring 3 (Linux secret service); move to zbus 5" },
     # Build time only: askama's derive macro reads its config with it (uniffi's binding generator).
     { id = "RUSTSEC-2026-0374", reason = "unmaintained, not vulnerable, build-time only (askama_derive via uniffi_bindgen)" },
-    # Desktop only, build time only: gtk-rs 0.18's derive macros (Tauri's Linux tray and webview).
-    { id = "RUSTSEC-2024-0370", reason = "unmaintained, not vulnerable, build-time only (proc-macro-error via glib-macros 0.18, Tauri on Linux)" },
 ]
-# The list is shared by both workspaces, so an entry only one of them hits is expected.
 unused-ignored-advisory = "allow"
 
 [licenses]
-# Derived from `cargo metadata` of both workspaces (2026-10-26), not guessed: every license that
-# some dependency needs, alone or as part of an AND. Expressions with OR need only one of these.
-# No strong copyleft (GPL, AGPL, LGPL): r-efi's "MIT OR Apache-2.0 OR LGPL-2.1-or-later" is taken
-# as MIT/Apache-2.0. MPL-2.0 (file-level copyleft) is allowed: uniffi and option-ext (engine),
-# cssparser, selectors and dtoa-short (desktop, via Tauri), all used unmodified.
+# Derived from `cargo metadata` (2026-10-26), not guessed: every third-party license that some
+# dependency needs, alone or as part of an AND. Expressions with OR need only one of these.
+# No strong copyleft third-party dependencies (GPL, AGPL, LGPL): r-efi's "MIT OR Apache-2.0 OR
+# LGPL-2.1-or-later" is taken as MIT/Apache-2.0. MPL-2.0 (file-level copyleft) is allowed: uniffi
+# and option-ext, used unmodified. Note: Wasl's own unpublished crates declare AGPL-3.0-only or
+# Apache-2.0 and are exempted via `[licenses.private]`.
 allow = [
     "MIT",
     "Apache-2.0",

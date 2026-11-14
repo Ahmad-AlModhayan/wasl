@@ -75,8 +75,7 @@ Signing in later
 
 Limits
 
-31. As a Free user with no account, I want the same limits as a Free user with Drive pairs, so that an account changes nothing about what is free.
-32. As a Pro user, I want Devices-only pairs to count the same as Drive pairs, so that there's one set of limits to understand.
+31. As a person with no account, I want the same unlimited pairs as a person with Drive pairs, so that an account changes nothing about what is free.
 
 Every platform
 
@@ -93,7 +92,7 @@ Every platform
 - **"Add a pair" destination chooser.** One question, three answers: My devices, Google Drive, both. With no account, Drive and both are disabled with "Sign in to use Drive", and My devices is selected. The answer sets the pair's route.
 - **Signing in later** adds an account and nothing else. "Also sync with Drive" on a pair is a route change (Devices → Drive and Devices) plus a Drive folder, followed by the usual first-sync preview hold.
 - **Onboarding** gets a first choice (Drive / my devices only). The devices-only branch skips sign-in and leads to "Pair your first device" or, on "Later", an empty Home with "Pair a device". The Drive branch is today's flow.
-- **Limits** are not touched: whatever counts pairs for Free/Pro counts Devices-only pairs the same way.
+- **Limits:** there are no local pair-count limits (no Wasl Pro tier; see `docs/OPEN_MODEL.md`).
 
 ## Testing Decisions
 
@@ -106,7 +105,6 @@ Every platform
 
 - Internet reach without an account.
 - Offers carried through Drive group files for devices that never meet (`docs/INTRODUCTIONS.md` §7).
-- Any change to Free/Pro limits.
 - Moving the group off Drive for people who do have an account.
 
 ## Further Notes

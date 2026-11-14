@@ -6,15 +6,15 @@
 | Owner | Kahf Labs |
 | Status | Android 1.1.4 built and in daily use (as Drive Sync). This document specifies Wasl 2: the Super Sync release |
 | Version | 1.0 (2026-10-19) |
-| Related | SRS: `docs/SRS.md`. Current Android architecture: `docs/ARCHITECTURE.md`. Vault v1 format: `docs/ENCRYPTION.md`. Site: wasl.kahflabs.com |
+| Related | SRS: `docs/SRS.md`. Open-core & licensing model: `docs/OPEN_MODEL.md`. Current Android architecture: `docs/ARCHITECTURE.md`. Vault v1 format: `docs/ENCRYPTION.md`. Site: wasl.kahflabs.com |
 
 ## 1. Summary
 
-Wasl keeps folders the same across an Android phone, Windows, macOS and Linux computers, and Google Drive. Each folder pair chooses its route: through Drive, directly between the user's own devices, or both at once. Direct sync works inside the home network or across the internet, with no Kahf server in the path: devices find each other through the user's own Drive and connect directly.
+Wasl keeps folders the same across an Android phone, Windows, macOS and Linux computers, and Google Drive. Each folder pair chooses its route: through Drive, directly between the user's own devices, or both at once. Direct sync works inside the home network or across the internet directly between devices (with rate-limited public STUN/discovery nodes and optional self-hosted `AGPL-3.0-only` relay or Kahf Managed Relay & Blind-Cache fallback when devices sit behind strict NATs or are rarely online together).
 
-Wasl is the sync that asks before it acts. A first sync, a run that would delete a large share of a folder, and a file changed in two places all stop for a decision. Nothing Wasl deletes or overwrites is gone for 30 days. One Rust engine (`libwasl`) runs on every platform, so the rules are identical everywhere. No ads, no analytics, no Kahf server touching user files.
+Wasl is the sync that asks before it acts. A first sync, a run that would delete a large share of a folder, and a file changed in two places all stop for a decision. Nothing Wasl deletes or overwrites is gone for 30 days. One Rust engine (`wasl-core` / `libwasl`) drives every platform across a strict FFI/IPC boundary, so the rules are identical everywhere. No ads, no analytics, no telemetry.
 
-**Direction.** Beyond Wasl 2, Wasl aims to be the next generation of sync and of safe cloud storage for data, not only folder sync across Android, desktop and Google Drive. Hosted storage is outside Wasl 2 (§4 non-goals) and gets its own spec before it enters this PRD.
+**Direction.** Beyond core folder sync, Wasl includes a self-hostable `AGPL-3.0-only` relay/blind-cache specification (`wasl-relay`) and optional Kahf-managed relay/blind-cache infrastructure only where server bandwidth or encrypted cache storage is required.
 
 ## 2. Problem
 
@@ -40,15 +40,15 @@ Wasl is the sync that asks before it acts. A first sync, a run that would delete
 1. **No data loss caused by Wasl.** Every deletion or overwrite has a 30-day undo path on every side. The same promise covers losses caused by agents: agent undo puts back what an AI agent changed in any folder you watch, synced or not (`docs/AGENT_UNDO.md`).
 2. **Never stop silently.** Every device always shows what Wasl is doing, waiting for, or needs, and every problem has a fix in plain words.
 3. **Three routes per pair.** Drive only, Drive + devices, devices only; device sync reaches the local network only or the internet too.
-4. **Zero running cost for device sync.** Discovery and connection setup use the local network and the user's own Drive; no Kahf relay or signalling server.
-5. **One engine everywhere.** A single Rust core for Android, Windows, macOS and Linux; platform apps only provide UI and OS integration.
+4. **Direct P2P first, optional relay fallback.** Discovery and connection setup use the local network, the user's own Drive, and free rate-limited public STUN/discovery nodes; self-hostable `AGPL-3.0-only` relays or Kahf's optional Managed Relay & Blind-Cache tier handle strict NATs and non-overlapping online windows.
+5. **One engine everywhere.** A single Rust core (`AGPL-3.0-only`) with `Apache-2.0` protocol/CLI layers (`wasl-proto`, `wasl-ipc`, `wasl-cli`) for Android, Windows, macOS and Linux; native UI apps stay separate across the FFI/IPC boundary.
 6. **Clean developer folders.** `.waslignore`, optional `.gitignore` support and presets keep dependency and build folders out of every route.
 7. **Files on demand everywhere.** Drive and vault folders browsable without downloading, through each OS's native mechanism.
 8. **Ship on Google Play and as desktop installers**, with Google's restricted-scope verification passed, in English first for a global audience, with Arabic (full RTL) as the first translation.
 
 **Non-goals**
 - Syncing dependency or build environments between machines (they are OS- and machine-specific; Wasl ignores them).
-- Storing user files on Kahf servers, or running a Kahf relay, in Wasl 2. Hosted storage is a possible later direction (§1).
+- General cloud drive storage in Wasl 2 (Kahf-hosted infrastructure is limited to optional encrypted Managed TURN Relay & Blind-Cache convenience where server bandwidth/storage is incurred; plain Drive sync connects only to the user's own Google Drive).
 - Clouds other than Google Drive in Wasl 2 (OneDrive, Dropbox, WebDAV are candidates for later; the engine keeps a transport interface for them).
 - Live collaborative editing or merging the contents of conflicting files; Wasl keeps both copies.
 - iOS in Wasl 2 (the Rust core keeps it possible later).
@@ -116,8 +116,8 @@ Each milestone ends with a working build used daily on the maintainers' devices 
 
 | Risk | Mitigation |
 |---|---|
-| Restricted `drive` scope verification is slow; unverified apps are capped at 100 users | Start early; server-less design avoids the CASA assessment; privacy policy and terms on the site; separate OAuth clients for Android and desktop verified together |
-| Direct connection fails on strict networks (symmetric NAT, carrier-grade NAT) | *Drive + devices* pairs fall back to Drive automatically; *devices only* pairs wait, explain why, and accept a user-supplied path (Tailscale/WireGuard address or self-hosted relay) |
+| Restricted `drive` scope verification is slow; unverified apps are capped at 100 users | Start early; Drive traffic goes directly between device and Google without storing user credentials on Kahf servers; privacy policy and terms on the site; separate OAuth clients verified together |
+| Direct connection fails on strict networks (symmetric NAT, carrier-grade NAT) | *Drive + devices* pairs fall back to Drive automatically; *devices only* pairs wait, explain why, and accept a user-supplied path (Tailscale/WireGuard address, self-hosted `AGPL-3.0-only` relay, or optional Kahf Managed Relay & Blind-Cache tier) |
 | Android limits background networking (Doze, standby buckets) | The phone joins device sync while Wasl is open, while charging on Wi-Fi, or during a user-started foreground session; Drive covers the rest |
 | False conflicts with three or more devices and two routes | Version vectors plus content hashes in every baseline; vectors stored with each file on Drive so any device can compare states |
 | Rewriting a working engine introduces regressions | Port the Kotlin planner's tests first; Android keeps the old engine until the Rust one passes them and a month of daily use |
@@ -131,12 +131,12 @@ Each milestone ends with a working build used daily on the maintainers' devices 
 1. App ID `com.kahflabs.wasl` on Android; matching bundle identifiers on desktop.
 2. Rust is the single engine; platform code holds no sync logic.
 3. Dependency and build folders are ignored, never packed or transferred.
-4. No Kahf server: device discovery and connection setup run over the local network and the user's own Drive.
+4. Local-first network design: Google Drive sync connects only to the user's own Drive; device discovery and connection setup run over the local network, Drive, and free rate-limited public STUN/discovery nodes (with optional self-hosted `AGPL-3.0-only` relays or Kahf Managed Relay & Blind-Cache fallback behind strict NATs).
 5. English first, for a global audience (2026-10-31); Arabic, with full RTL, is the first translation and ships from the first release. Messages cross module seams as typed reasons each app translates, so more languages only add string tables.
-6. **Free tier plus Pro, no subscription.**
-   - Free: Drive sync with up to 3 pairs, device sync on the local network, and the whole safety layer. Safety is never gated.
-   - Pro: unlimited pairs, device sync over the internet, vaults, multiple accounts, files on demand on desktop. One licence covers every platform and every device in the user's group.
-   - Every Pro feature runs on the user's own devices, Drive and public STUN servers; nothing in Pro may touch a Kahf server, relay or paid API.
-7. **Desktop toolkit: Tauri 2.** Rust like the engine, so `libwasl` links directly; small installers and tray support; the web UI reuses the Kahf design system and its Arabic/RTL work. The macOS File Provider extension is written in Swift. Compose Multiplatform was the alternative (reuses Android screens) but runs on the JVM with a much larger memory footprint.
+6. **Decoupled open-core, no Wasl Pro tier (`docs/OPEN_MODEL.md`).**
+   - Engine (`wasl-core`, `wasld`, `wasl-ffi`, and self-hostable relay): **AGPL-3.0-only** with CLA and B2B commercial dual-licensing. Wire protocol, IPC client, and CLI (`wasl-proto`, `wasl-ipc`, `wasl-cli`): **Apache-2.0**. Native UI clients stay separate across FFI/IPC.
+   - Free locally & P2P: unlimited pairs and devices, Google Drive sync, direct LAN and internet P2P sync, encrypted vaults, multiple accounts, ignore rules, desktop files on demand, Android scheduling, and core CLI access. There is **no Wasl Pro version**.
+   - Managed Relay & Blind-Cache Tier (optional subscription): rate-limited public STUN/discovery nodes remain free; optional recurring fees apply only where Kahf incurs bandwidth and storage costs for high-speed global TURN relays and encrypted always-on blind-cache storage.
+7. **Native UI clients live separately across FFI/IPC:** official Android and desktop UI apps consume `wasl-ffi` / `wasl-ipc` without modifying core sync semantics.
 8. **Store name "Wasl Sync" / «وصل للمزامنة»;** "Wasl" stays the short name in the app. Before launch, search SAIP (Saudi Arabia), WIPO Global Brand Database, EUIPO and USPTO in classes 9 and 42.
 9. **Domain: buy kahflabs.com now.** Privacy policy and terms at wasl.kahflabs.com; domain verified in Google Search Console before the OAuth verification request.

@@ -1,22 +1,10 @@
 *.iml
-.gradle/
-/local.properties
-/.idea/
 .DS_Store
 /build/
-/app/build/
-/captures
-.externalNativeBuild
-.cxx
-*.apk
-*.aab
-/keystore/
-/app/release/
 /dist/
-.kotlin/
 *.log
 .verify/
-# secrets and signing material: never in the repo (the release key lives in ~/.android/)
+# secrets and signing material: never in the repo
 .env
 .env.*
 *.pem

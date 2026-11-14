@@ -2,88 +2,9 @@
 
 use crate::{Result, Store, to_i64, to_u64};
 use rusqlite::{OptionalExtension, Row, params};
-use serde::{Deserialize, Serialize};
 use wasl_core::{ConflictPolicy, RunStatus};
 
-/// Counters of one run.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct RunStats {
-    pub uploaded: u32,
-    pub downloaded: u32,
-    pub exported: u32,
-    pub deleted_local: u32,
-    pub deleted_remote: u32,
-    pub conflicts: u32,
-    pub skipped: u32,
-    pub errors: u32,
-    pub bytes_up: u64,
-    pub bytes_down: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct RunRecord {
-    pub id: String,
-    pub pair_id: String,
-    pub trigger: String,
-    pub status: RunStatus,
-    pub stats: RunStats,
-    pub message: Option<String>,
-    pub started_at: i64,
-    pub ended_at: Option<i64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
-pub enum EventLevel {
-    Info,
-    Warn,
-    Error,
-}
-
-impl EventLevel {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            EventLevel::Info => "INFO",
-            EventLevel::Warn => "WARN",
-            EventLevel::Error => "ERROR",
-        }
-    }
-}
-
-/// One line of a run's log.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct RunEvent {
-    pub at: i64,
-    pub level: EventLevel,
-    /// `UPLOAD`, `DOWNLOAD`, `EXPORT`, `DELETE_LOCAL`, `DELETE_REMOTE`, `CONFLICT`, `MKDIR`, `SKIP`,
-    /// `ERROR`, `BLOCKED`, `INFO`, as in 1.1.4.
-    pub action: String,
-    pub key: Option<String>,
-    pub message: String,
-    pub detail: Option<String>,
-    pub bytes: u64,
-}
-
-/// A file changed on both sides (SRS FR-F4).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct ConflictRecord {
-    pub id: String,
-    pub pair_id: String,
-    pub key: String,
-    pub detected_at: i64,
-    pub policy: ConflictPolicy,
-    /// The renamed local copy, for keep-both.
-    pub local_copy_rel: Option<String>,
-    pub remote_file_id: Option<String>,
-    pub message: String,
-    pub resolved: bool,
-    pub resolved_at: Option<i64>,
-}
+pub use wasl_proto::store::{ConflictRecord, EventLevel, RunEvent, RunRecord, RunStats};
 
 fn run_from_row(r: &Row<'_>) -> rusqlite::Result<RunRecord> {
     let status: String = r.get(3)?;

@@ -133,7 +133,7 @@ on the device (FR-O5).
 |---|---|---|---|
 | Windows | Cloud Files API (placeholders, hydrate on open), the OneDrive mechanism | `wasl-vfs-windows` | Calls Win32 through the `windows` crate: the only crate where `unsafe` is allowed, kept to thin wrappers with the safety reasoning written at each call |
 | Linux | FUSE 3 mount (`fuser`) | `wasl-vfs::fuse` | The pair's folder becomes a mount while wasld runs |
-| macOS | File Provider extension (`NSFileProviderReplicatedExtension`), one domain per view | `desktop/macos-provider` (Swift) talking to wasld; `wasld::provider` | Builds and is tested on a Mac; running it needs an Apple signing team (§2.6) |
+| macOS | File Provider extension (`NSFileProviderReplicatedExtension`), one domain per view | `macos-provider` (Swift, in the separate desktop client repo) talking to wasld; `wasld::provider` | Builds and is tested on a Mac; running it needs an Apple signing team (§2.6) |
 | Android | DocumentsProvider (exists since 1.1.4) | app | Reads through the engine's `Hydrator` so vault v2 and the cache are shared |
 
 ### 2.3 Views, not pairs (design decision 2026-10-22)
@@ -242,12 +242,7 @@ wasld ── ProviderHost: the views' trees, Hydrator ──▶ fetch/<random>  
 
 #### Building and packaging
 
-`desktop/macos-provider/build.sh` builds the extension and the helper with the Swift compiler of
-the Command Line Tools (no Xcode project); `npm run package` runs it (through
-`scripts/stage-engine.mjs`) and `tauri.bundle.conf.json` copies
-`WaslFileProvider.appex` into `Wasl.app/Contents/PlugIns` and `wasl-fileprovider` into
-`Contents/MacOS`. wasld finds the helper next to itself (or at `WASL_FILEPROVIDER_CTL`); without
-it, or when the helper can't find the app group, views are not available, as before.
+In the desktop client packaging workflow, the Swift build compiles the extension and the helper with the Command Line Tools (`WaslFileProvider.appex` into `Wasl.app/Contents/PlugIns` and `wasl-fileprovider` into `Contents/MacOS`). wasld finds the helper next to itself (or at `WASL_FILEPROVIDER_CTL`); without it, or when the helper can't find the app group, views are not available, as before.
 
 #### Signing (required to run it)
 

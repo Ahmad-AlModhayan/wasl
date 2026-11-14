@@ -7,12 +7,12 @@ use std::io::{BufRead, IsTerminal, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wasl_cli::{i18n, service, t};
-use wasl_core::{Action, PlanSummary, RunStatus, SyncMode};
-use wasl_engine::{Phase, Progress, RunOutcome, Trigger};
 use wasl_ipc::{
     Account, Client, ClientError, DaemonStatus, ErrorKind, Event, LocalChangeKind, Overall, PairState, Paths,
 };
-use wasl_store::{BinSide, Pair};
+use wasl_proto::{
+    Action, BinSide, Pair, Phase, PlanSummary, Progress, RunOutcome, RunStatus, SyncMode, Trigger,
+};
 
 pub const OK: u8 = 0;
 pub const GENERAL: u8 = 1;
@@ -403,7 +403,7 @@ async fn status(json: bool) -> R<u8> {
 fn outcome_code(o: &RunOutcome) -> u8 {
     match o.status {
         RunStatus::Success => OK,
-        _ if o.error_kind == Some(wasl_core::ErrorKind::Auth) => AUTH,
+        _ if o.error_kind == Some(wasl_proto::ErrorKind::Auth) => AUTH,
         _ => GENERAL,
     }
 }
@@ -479,7 +479,7 @@ async fn run_pairs(pair: Option<String>, wait: bool, trigger: Trigger) -> R<u8> 
                 let outcomes = res.map_err(|e| Fail::new(GENERAL, e.to_string()))??;
                 let busy = target.is_some()
                     && outcomes.first().is_some_and(|o| {
-                        o.status == RunStatus::Skipped && o.message.as_deref() == Some(wasl_engine::ALREADY_RUNNING)
+                        o.status == RunStatus::Skipped && o.message.as_deref() == Some(wasl_proto::ALREADY_RUNNING)
                     });
                 if busy && wait && events_open {
                     following = true;
@@ -542,7 +542,7 @@ fn report_outcomes(target: Option<&Pair>, outcomes: &[RunOutcome]) -> u8 {
                         println!("{}", t!(SeePreview, p.name));
                     }
                     if o.status == RunStatus::Skipped
-                        && o.message.as_deref() == Some(wasl_engine::HOLD_MESSAGE)
+                        && o.message.as_deref() == Some(wasl_proto::HOLD_MESSAGE)
                     {
                         println!("{}", t!(StartWithPreview, p.name));
                     }
@@ -693,7 +693,7 @@ async fn pair_add(
     rules: Rules,
 ) -> R<u8> {
     for p in &rules.presets {
-        if wasl_ignore::Preset::from_id(p).is_none() {
+        if !wasl_proto::is_valid_preset_id(p) {
             return Err(Fail::new(USAGE, t!(UnknownPreset, p)));
         }
     }
@@ -796,7 +796,7 @@ async fn start_after_preview(reference: &str, start: bool) -> R<u8> {
 async fn pair_preview(reference: &str, limit: usize, start: bool) -> R<u8> {
     let c = connect().await?;
     let p = resolve(&c, reference).await?;
-    if p.route == wasl_core::Route::Devices {
+    if p.route == wasl_proto::Route::Devices {
         // No Drive plan to show: a pair synced with devices only (an accepted offer) starts here.
         println!("{}", t!(PreviewDevicesOnly, p.name));
         return start_after_preview(reference, start).await;
@@ -1801,9 +1801,9 @@ struct PairProblem {
 struct Problems {
     accounts: Vec<Account>,
     pairs: Vec<PairProblem>,
-    conflicts: Vec<wasl_store::ConflictRecord>,
+    conflicts: Vec<wasl_proto::ConflictRecord>,
     /// Agent changesets waiting for a decision (docs/AGENT_CHANGES.md).
-    agent_changes: Vec<wasl_store::Changeset>,
+    agent_changes: Vec<wasl_proto::Changeset>,
 }
 
 async fn problems(json: bool) -> R<u8> {
@@ -1834,11 +1834,11 @@ async fn problems(json: bool) -> R<u8> {
             message: p.status.last_error.clone(),
         });
     }
-    let agent_changes: Vec<wasl_store::Changeset> = c
+    let agent_changes: Vec<wasl_proto::Changeset> = c
         .agent_changesets(None, false)
         .await?
         .into_iter()
-        .filter(|cs| cs.status == wasl_store::ChangesetStatus::Held)
+        .filter(|cs| cs.status == wasl_proto::ChangesetStatus::Held)
         .collect();
     let found = Problems {
         accounts,

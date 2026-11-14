@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Modhayan Labs: the grouped page, and the lab tile (cream mark on ink navy). -->
-    <color name="ds_surface">#F5F4F0</color>
-    <color name="ds_brand_tile">#1F3D6B</color>
-    <color name="ds_brand_mark">#F5F3F0</color>
-</resources>

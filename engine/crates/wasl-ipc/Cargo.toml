@@ -4,14 +4,11 @@ description = "The local protocol between wasld, the wasl CLI and the tray app (
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license = "Apache-2.0"
 publish.workspace = true
 
 [dependencies]
-wasl-core.workspace = true
-wasl-store.workspace = true
-wasl-engine.workspace = true
-wasl-devices.workspace = true
+wasl-proto.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -25,9 +22,7 @@ dirs = "6"
 tokio = { workspace = true, features = ["net", "io-util", "sync", "rt", "time", "macros"] }
 
 # Whether the data folder's volume keeps access lists (security review S3-3): a Win32 call, made
-# in the one crate where unsafe code is allowed.
-[target.'cfg(windows)'.dependencies]
-wasl-vfs-windows.workspace = true
+# Platform ACL volume checks are injected by the caller (`wasld`) so `wasl-ipc` stays pure Apache-2.0.
 
 [dev-dependencies]
 tempfile.workspace = true

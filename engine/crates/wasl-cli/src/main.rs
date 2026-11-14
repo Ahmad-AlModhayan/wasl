@@ -523,7 +523,7 @@ pub enum VaultCmd {
         vault: String,
     },
     /// Decrypts a whole vault folder (format v1 or v2) downloaded from Google Drive, with only
-    /// the passphrase. Works without wasld and without a network.
+    /// the passphrase. Works without a running daemon or network via the offline wasld helper.
     Decrypt {
         /// The downloaded vault folder (the one holding vault.json).
         folder: std::path::PathBuf,
@@ -552,8 +552,8 @@ pub enum Method {
 }
 
 impl Method {
-    pub fn mode(self) -> wasl_core::SyncMode {
-        use wasl_core::SyncMode;
+    pub fn mode(self) -> wasl_proto::SyncMode {
+        use wasl_proto::SyncMode;
         match self {
             Method::TwoWay => SyncMode::TwoWay,
             Method::UploadOnly => SyncMode::UploadOnly,

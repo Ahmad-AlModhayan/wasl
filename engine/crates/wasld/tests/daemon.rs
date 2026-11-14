@@ -8,7 +8,7 @@ use wasl_core::conditions::Conditions;
 use wasl_drive::DriveEndpoints;
 use wasl_engine::Trigger;
 use wasl_ipc::{Client, ErrorKind, Event, Overall, Paths};
-use wasl_store::{Pair, StorageMode};
+use wasl_store::{ChangesetExt, Pair, StorageMode};
 use wasld::daemon::DaemonConfig;
 use wasld::oauth::OAuthConfig;
 use wasld::schedule::Timing;

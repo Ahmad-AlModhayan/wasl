@@ -141,3 +141,14 @@ impl fmt::Display for Preset {
         write!(f, "preset:{}", self.id())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Preset;
+
+    #[test]
+    fn preset_ids_match_proto() {
+        let ids: Vec<&str> = Preset::ALL.iter().map(|p| p.id()).collect();
+        assert_eq!(ids, wasl_proto::PRESET_IDS);
+    }
+}

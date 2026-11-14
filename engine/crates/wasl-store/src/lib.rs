@@ -33,7 +33,9 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-pub use agent::{AgentEntry, Changeset, ChangesetStatus, EarlierVersion, EntryKind, ManifestRow, SavedCopy};
+pub use agent::{
+    AgentEntry, Changeset, ChangesetExt, ChangesetStatus, EarlierVersion, EntryKind, ManifestRow, SavedCopy,
+};
 pub use agent_undo::{
     DEFAULT_WATCH_IGNORES, JournalEntry, NextMeta, SnapshotOrigin, SnapshotRow, StatKey, Watch, WatchGap,
 };

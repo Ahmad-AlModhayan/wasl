@@ -624,9 +624,20 @@ impl Drop for OnDemandRoot {
     }
 }
 
+/// Process-wide lock around WinRT `StorageProviderSyncRootManager` calls: registering or
+/// unregistering sync roots from concurrent threads fails in the Windows Cloud Files API.
+static SYNC_ROOT_REGISTRY: Mutex<()> = Mutex::new(());
+
 /// Registers (or updates) the sync root with the shell, so Explorer shows it with its status
 /// icons and the "Always keep on this device" / "Free up space" menu.
 fn register_sync_root(config: &RootConfig, root: &Path, id: &str) -> Result<()> {
+    let _guard = SYNC_ROOT_REGISTRY
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    register_sync_root_unlocked(config, root, id)
+}
+
+fn register_sync_root_unlocked(config: &RootConfig, root: &Path, id: &str) -> Result<()> {
     let icon = config.icon.clone().unwrap_or_else(|| {
         let sys = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
         format!(r"{sys}\System32\imageres.dll,-1043")
@@ -696,6 +707,9 @@ pub fn registered_sync_roots() -> Result<Vec<(String, PathBuf)>> {
 /// Removes a registration by id (a pair removed while Wasl was not running, or a crash's),
 /// also when its folder has been deleted since.
 pub fn unregister_sync_root(id: &str) -> Result<()> {
+    let _guard = SYNC_ROOT_REGISTRY
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let unregister = || {
         StorageProviderSyncRootManager::Unregister(&HSTRING::from(id))
             .map_err(winrt("unregistering the sync root", Path::new(id)))
@@ -718,7 +732,7 @@ pub fn unregister_sync_root(id: &str) -> Result<()> {
             read_only: false,
             set_aside: None,
         };
-        let r = register_sync_root(&config, &tmp, id).and_then(|()| unregister());
+        let r = register_sync_root_unlocked(&config, &tmp, id).and_then(|()| unregister());
         let _ = fs::remove_dir(&tmp);
         r
     } else if !folder.exists() {

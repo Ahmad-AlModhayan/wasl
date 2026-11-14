@@ -12,6 +12,7 @@ pub mod oauth;
 pub mod provider;
 pub mod schedule;
 pub mod tokens;
+pub mod vault;
 pub mod vaults;
 pub mod views;
 

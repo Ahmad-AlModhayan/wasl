@@ -8,7 +8,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use wasl_cli::{i18n, t};
 use wasl_ipc::Client;
-use wasl_store::{Changeset, ChangesetStatus, EntryKind};
+use wasl_proto::{Changeset, ChangesetStatus, EntryKind};
 
 pub async fn run(cmd: AgentCmd) -> R<u8> {
     match cmd {

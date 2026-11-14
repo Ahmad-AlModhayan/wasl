@@ -4,61 +4,9 @@
 
 use crate::{Engine, EngineError, Result};
 use chrono::{DateTime, SecondsFormat};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use wasl_store::{OpOutcome, OplogChangeset, OplogFilter, OplogKey, OplogOp, OplogStatus};
+use wasl_store::{OplogChangeset, OplogFilter, OplogKey, OplogOp};
 
-/// The read format's version. Adding a field keeps it; removing or renaming one raises it.
-pub const OPLOG_FORMAT_VERSION: u32 = 1;
-
-/// One answer: `{"version": 1, "changesets": [...]}`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OplogPage {
-    pub version: u32,
-    pub changesets: Vec<OplogEntry>,
-}
-
-/// A changeset by its column names, times as RFC 3339 UTC, and the origin device's name. A list
-/// adds `op_count`, a show adds `operations`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OplogEntry {
-    pub origin_device: String,
-    /// The origin device's name, from the device list or this device's own; `None` when unknown.
-    #[serde(default)]
-    pub origin_device_name: Option<String>,
-    pub id: String,
-    pub actor: String,
-    pub label: Option<String>,
-    pub scope: String,
-    pub status: OplogStatus,
-    pub opened_at: String,
-    pub closed_at: Option<String>,
-    pub decided_at: Option<String>,
-    pub decided_by: Option<String>,
-    pub decided_actor: Option<String>,
-    pub imported_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub op_count: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub operations: Option<Vec<OplogOpEntry>>,
-}
-
-/// An operation by its column names: `entity_uri` as `entity`, states as JSON objects.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OplogOpEntry {
-    #[serde(default)]
-    pub origin_device: String,
-    #[serde(default)]
-    pub changeset_id: String,
-    pub seq: u32,
-    pub entity: String,
-    pub op: String,
-    pub prev: Option<Value>,
-    pub next: Option<Value>,
-    pub reverts: Option<u32>,
-    pub outcome: Option<OpOutcome>,
-    pub at: String,
-}
+pub use wasl_proto::oplog::{OPLOG_FORMAT_VERSION, OplogEntry, OplogOpEntry, OplogPage};
 
 /// Milliseconds since the Unix epoch as RFC 3339 UTC, to the millisecond. A time past what a date
 /// can hold (about 262,000 years either way) is a damaged row: refused, never printed as `""`.
@@ -78,59 +26,44 @@ fn rfc3339_in(ms: i64, origin_device: &str, id: &str) -> Result<String> {
     })
 }
 
-impl OplogEntry {
-    pub fn new(cs: OplogChangeset) -> Result<OplogEntry> {
-        let at = |ms: i64| rfc3339_in(ms, &cs.origin_device, &cs.id);
-        let opened_at = at(cs.opened_at)?;
-        let closed_at = cs.closed_at.map(at).transpose()?;
-        let decided_at = cs.decided_at.map(at).transpose()?;
-        let imported_at = cs.imported_at.map(at).transpose()?;
-        Ok(OplogEntry {
-            origin_device: cs.origin_device,
-            origin_device_name: None,
-            id: cs.id,
-            actor: cs.actor,
-            label: cs.label,
-            scope: cs.scope,
-            status: cs.status,
-            opened_at,
-            closed_at,
-            decided_at,
-            decided_by: cs.decided_by,
-            decided_actor: cs.decided_actor,
-            imported_at,
-            op_count: None,
-            operations: None,
-        })
-    }
+fn oplog_entry(cs: OplogChangeset) -> Result<OplogEntry> {
+    let at = |ms: i64| rfc3339_in(ms, &cs.origin_device, &cs.id);
+    let opened_at = at(cs.opened_at)?;
+    let closed_at = cs.closed_at.map(at).transpose()?;
+    let decided_at = cs.decided_at.map(at).transpose()?;
+    let imported_at = cs.imported_at.map(at).transpose()?;
+    Ok(OplogEntry {
+        origin_device: cs.origin_device,
+        origin_device_name: None,
+        id: cs.id,
+        actor: cs.actor,
+        label: cs.label,
+        scope: cs.scope,
+        status: cs.status,
+        opened_at,
+        closed_at,
+        decided_at,
+        decided_by: cs.decided_by,
+        decided_actor: cs.decided_actor,
+        imported_at,
+        op_count: None,
+        operations: None,
+    })
 }
 
-impl OplogOpEntry {
-    pub fn new(k: &OplogKey, op: OplogOp) -> Result<OplogOpEntry> {
-        Ok(OplogOpEntry {
-            origin_device: k.origin_device.clone(),
-            changeset_id: k.id.clone(),
-            seq: op.seq,
-            entity: op.entity_uri,
-            op: op.op,
-            prev: op.prev,
-            next: op.next,
-            reverts: op.reverts,
-            outcome: op.outcome,
-            at: rfc3339_in(op.at, &k.origin_device, &k.id)?,
-        })
-    }
-}
-
-impl OplogPage {
-    /// Sets `origin_device_name` on each changeset `name_of` knows the origin of.
-    pub fn name_devices(&mut self, name_of: impl Fn(&str) -> Option<String>) {
-        for cs in &mut self.changesets {
-            if let Some(name) = name_of(&cs.origin_device) {
-                cs.origin_device_name = Some(name);
-            }
-        }
-    }
+fn oplog_op_entry(k: &OplogKey, op: OplogOp) -> Result<OplogOpEntry> {
+    Ok(OplogOpEntry {
+        origin_device: k.origin_device.clone(),
+        changeset_id: k.id.clone(),
+        seq: op.seq,
+        entity: op.entity_uri,
+        op: op.op,
+        prev: op.prev,
+        next: op.next,
+        reverts: op.reverts,
+        outcome: op.outcome,
+        at: rfc3339_in(op.at, &k.origin_device, &k.id)?,
+    })
 }
 
 impl Engine {
@@ -142,7 +75,7 @@ impl Engine {
             .map(|l| {
                 Ok(OplogEntry {
                     op_count: Some(l.op_count),
-                    ..OplogEntry::new(l.changeset)?
+                    ..oplog_entry(l.changeset)?
                 })
             })
             .collect::<Result<_>>()?;
@@ -176,13 +109,13 @@ impl Engine {
             let operations = s
                 .oplog_ops(&k)?
                 .into_iter()
-                .map(|op| OplogOpEntry::new(&k, op))
+                .map(|op| oplog_op_entry(&k, op))
                 .collect::<Result<_>>()?;
             OplogPage {
                 version: OPLOG_FORMAT_VERSION,
                 changesets: vec![OplogEntry {
                     operations: Some(operations),
-                    ..OplogEntry::new(cs)?
+                    ..oplog_entry(cs)?
                 }],
             }
         };
