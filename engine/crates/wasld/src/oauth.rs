@@ -226,8 +226,8 @@ pub async fn begin(config: &OAuthConfig) -> Result<Pending, OAuthError> {
     })
 }
 
-const PAGE_OK: &str = "<!doctype html><meta charset=utf-8><title>Wasl</title><body style=\"font-family:system-ui;margin:3em\"><h1>Signed in</h1><p>You can close this tab and go back to Wasl.</p><p dir=rtl lang=ar>تم تسجيل الدخول. يمكنك إغلاق هذه الصفحة والعودة إلى وصل.</p>";
-const PAGE_FAIL: &str = "<!doctype html><meta charset=utf-8><title>Wasl</title><body style=\"font-family:system-ui;margin:3em\"><h1>Sign-in didn't finish</h1><p>Go back to Wasl and try again.</p><p dir=rtl lang=ar>لم يكتمل تسجيل الدخول. عُد إلى وصل وحاول مرة أخرى.</p>";
+const PAGE_OK: &str = "<!doctype html><meta charset=utf-8><title>Wasl</title><body style=\"font-family:'Thmanyah Sans',system-ui;margin:3em\"><h1>Signed in</h1><p>You can close this tab and go back to Wasl.</p><p dir=rtl lang=ar>تم تسجيل الدخول. يمكنك إغلاق هذه الصفحة والعودة إلى وصل.</p>";
+const PAGE_FAIL: &str = "<!doctype html><meta charset=utf-8><title>Wasl</title><body style=\"font-family:'Thmanyah Sans',system-ui;margin:3em\"><h1>Sign-in didn't finish</h1><p>Go back to Wasl and try again.</p><p dir=rtl lang=ar>لم يكتمل تسجيل الدخول. عُد إلى وصل وحاول مرة أخرى.</p>";
 
 impl Pending {
     /// Waits (up to `timeout`) for Google's redirect, then exchanges the code.
