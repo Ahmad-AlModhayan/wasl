@@ -64,10 +64,18 @@ impl Device {
                 return;
             }
             if let Ok(Some(status)) = self.child.try_wait() {
-                panic!("device {} exited ({status}) before it answered:\n{}", self.name, self.logs());
+                panic!(
+                    "device {} exited ({status}) before it answered:\n{}",
+                    self.name,
+                    self.logs()
+                );
             }
             if Instant::now() > end {
-                panic!("device {} did not answer in {WAIT:?}:\n{}", self.name, self.logs());
+                panic!(
+                    "device {} did not answer in {WAIT:?}:\n{}",
+                    self.name,
+                    self.logs()
+                );
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
@@ -84,6 +92,43 @@ impl Device {
         let lines: Vec<&str> = text.lines().collect();
         let tail = &lines[lines.len().saturating_sub(40)..];
         format!("--- log of {} ---\n{}", self.name, tail.join("\n"))
+    }
+
+    /// Asks the daemon to sync every pair it has now (a run already going is left alone).
+    pub async fn sync_now(&self) {
+        let Ok(c) = Client::connect(&Paths::at(&self.home)).await else {
+            return;
+        };
+        let Ok(s) = c.status().await else { return };
+        for p in s.pairs {
+            let _ = c.sync(&p.pair.id, wasl_engine::Trigger::Manual).await;
+        }
+    }
+
+    /// What the daemon says about each of its pairs, for failure messages.
+    pub async fn pair_states(&self) -> String {
+        let Ok(c) = Client::connect(&Paths::at(&self.home)).await else {
+            return format!("(device {} does not answer)", self.name);
+        };
+        match c.status().await {
+            Ok(s) => s
+                .pairs
+                .iter()
+                .map(|p| {
+                    format!(
+                        "pair {} on {}: running={} hold={} last={:?} error={:?}",
+                        p.pair.id,
+                        self.name,
+                        p.running,
+                        p.pair.status.hold_for_preview,
+                        p.pair.status.last_status,
+                        p.pair.status.last_error
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            Err(e) => format!("(status of {}: {e})", self.name),
+        }
     }
 
     pub fn path(&self, rel: &str) -> PathBuf {
@@ -110,7 +155,10 @@ where
             return v;
         }
         if Instant::now() > end {
-            let logs: Vec<String> = devices.iter().map(|d| d.logs()).collect();
+            let mut logs = Vec::new();
+            for d in devices {
+                logs.push(format!("{}\n{}", d.logs(), d.pair_states().await));
+            }
             panic!("timed out after {WAIT:?} waiting for {what}\n{}", logs.join("\n"));
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -118,11 +166,15 @@ where
 }
 
 pub async fn at_stage(c: &Client, d: &Device, stage: PairingStage) -> PairingStatus {
-    eventually(&format!("{} to reach pairing stage {stage:?}", d.name), &[d], || async {
-        let s = c.pairing_status().await.ok()?;
-        assert_ne!(PairingStage::Failed, s.stage, "pairing failed: {:?}", s.message);
-        (s.stage == stage).then_some(s)
-    })
+    eventually(
+        &format!("{} to reach pairing stage {stage:?}", d.name),
+        &[d],
+        || async {
+            let s = c.pairing_status().await.ok()?;
+            assert_ne!(PairingStage::Failed, s.stage, "pairing failed: {:?}", s.message);
+            (s.stage == stage).then_some(s)
+        },
+    )
     .await
 }
 
@@ -196,23 +248,44 @@ pub async fn share_folder(a: &Device, b: &Device) {
     ca.sync(PAIR_ID, wasl_engine::Trigger::Preview).await.unwrap();
     cb.sync(&pb.id, wasl_engine::Trigger::Preview).await.unwrap();
     for (c, d, id) in [(&ca, a, PAIR_ID), (&cb, b, pb.id.as_str())] {
-        eventually(&format!("the first sync of {} to end well", d.name), &[a, b], || async {
-            let s = c.status().await.ok()?;
-            let p = s.pairs.iter().find(|p| p.pair.id == id)?;
-            let idle = !p.running
-                && !p.pair.status.hold_for_preview
-                && p.pair.status.last_status == Some(wasl_core::RunStatus::Success);
-            idle.then_some(())
-        })
+        eventually(
+            &format!("the first sync of {} to end well", d.name),
+            &[a, b],
+            || async {
+                let s = c.status().await.ok()?;
+                let p = s.pairs.iter().find(|p| p.pair.id == id)?;
+                let idle = !p.running
+                    && !p.pair.status.hold_for_preview
+                    && p.pair.status.last_status == Some(wasl_core::RunStatus::Success);
+                idle.then_some(())
+            },
+        )
         .await;
     }
 }
 
 /// Waits until `rel` in the folder of `d` holds `content` (or, with `None`, is gone).
 pub async fn expect_file(d: &Device, all: &[&Device], rel: &str, content: Option<&str>) {
+    expect_file_with(d, all, rel, content, true).await
+}
+
+/// Like [`expect_file`]; with `nudge` false nothing asks the daemons to sync, so only their own
+/// folder watchers and schedules can bring the change over.
+pub async fn expect_file_with(d: &Device, all: &[&Device], rel: &str, content: Option<&str>, nudge: bool) {
     let want = content.map(|c| c.as_bytes().to_vec());
     eventually(&format!("{rel} to be {content:?} on {}", d.name), all, || async {
-        (std::fs::read(d.path(rel)).ok() == want).then_some(())
+        if std::fs::read(d.path(rel)).ok() == want {
+            return Some(());
+        }
+        // The watcher and its settle time are not what these tests are about: ask both devices
+        // to look now, so the wait is for the sync itself.
+        if nudge {
+            for dev in all {
+                dev.sync_now().await;
+            }
+            tokio::time::sleep(Duration::from_millis(400)).await;
+        }
+        None
     })
     .await;
 }

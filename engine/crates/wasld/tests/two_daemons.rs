@@ -4,7 +4,7 @@
 
 mod support;
 use std::time::Duration;
-use support::{CURRENT, Device, expect_file, id_of, pair, share_folder};
+use support::{CURRENT, Device, expect_file, expect_file_with, id_of, pair, share_folder};
 
 async fn two() -> (tempfile::TempDir, Device, Device) {
     let root = tempfile::tempdir().unwrap();
@@ -63,9 +63,27 @@ async fn removing_a_device_drops_it_from_the_list_and_stops_its_changes() {
     let ca = a.client().await;
     ca.remove_device(&idb).await.unwrap();
     let devices = ca.devices().await.unwrap().devices;
-    assert!(devices.iter().all(|d| d.id != idb), "A still lists B: {devices:?}");
+    assert!(
+        devices.iter().all(|d| d.id != idb),
+        "A still lists B: {devices:?}"
+    );
 
     std::fs::write(a.path("after.txt"), "y").unwrap();
     tokio::time::sleep(Duration::from_secs(5)).await;
-    assert!(!b.path("after.txt").exists(), "B got a change after it was removed");
+    assert!(
+        !b.path("after.txt").exists(),
+        "B got a change after it was removed"
+    );
+}
+
+/// What an ordinary person does: saves a file and waits. Nothing here asks the daemons to sync.
+/// Ignored until wasl#38 is fixed: on Windows the change never arrives within 60 s.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "wasl#38: a new file does not sync by itself on Windows"]
+async fn a_new_file_syncs_by_itself_without_pressing_sync() {
+    let (_root, a, b) = two().await;
+    pair(&a, &b).await;
+    share_folder(&a, &b).await;
+    std::fs::write(a.path("by-itself.txt"), "hello").unwrap();
+    expect_file_with(&b, &[&a, &b], "by-itself.txt", Some("hello"), false).await;
 }
