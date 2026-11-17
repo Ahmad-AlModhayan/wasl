@@ -831,6 +831,26 @@ async fn with_a_note_explain_does_not_say_the_file_syncs() {
     );
 }
 
+/// An error from the daemon reads in catalogue words in the chosen language, the exit code still follows
+/// its kind, and the cause (tokens and outside paths left out) shows for requests and behind `--details`.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_daemon_error_is_worded_by_the_catalogue() {
+    let d = start();
+    let r = wasl(d.dir.path(), "en", &["view", "pin", "/outside/x"]).await;
+    assert_eq!(4, r.code, "not found keeps exit code 4");
+    assert!(r.stderr.contains("Error: Wasl couldn't find what you asked for."), "{}", r.stderr);
+    assert!(r.stderr.contains("Details: … isn't in a view. See: wasl view list"), "{}", r.stderr);
+    assert!(!r.stderr.contains("/outside"), "{}", r.stderr);
+    let r = wasl(d.dir.path(), "ar", &["view", "pin", "/outside/x"]).await;
+    assert_eq!(4, r.code);
+    assert!(r.stderr.contains("خطأ: تعذّر على وصل العثور على ما طلبته."), "{}", r.stderr);
+    // A passing kind's cause stays behind the flag.
+    d.fake.devices_fail.store(true, std::sync::atomic::Ordering::SeqCst);
+    let r = wasl(d.dir.path(), "en", &["device", "list"]).await;
+    assert_eq!(1, r.code, "{}", r.stderr);
+    assert!(r.stderr.contains("Error: Something went wrong syncing this folder."), "{}", r.stderr);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn without_a_daemon_it_says_how_to_start_one() {
     let empty = tempfile::tempdir().unwrap();
@@ -844,7 +864,7 @@ async fn without_a_daemon_it_says_how_to_start_one() {
         assert_eq!(3, r.code, "{args:?}");
         assert!(
             r.stderr
-                .contains("wasld is not running. Start it with: wasl daemon start"),
+                .contains("Wasl isn't running. Start it with: wasl daemon start"),
             "{}",
             r.stderr
         );
@@ -853,7 +873,7 @@ async fn without_a_daemon_it_says_how_to_start_one() {
     assert_eq!(3, r.code);
     assert!(
         r.stderr
-            .contains("خطأ: wasld لا يعمل. شغّله بالأمر: wasl daemon start"),
+            .contains("خطأ: وصل لا يعمل. شغّله بالأمر: wasl daemon start"),
         "{}",
         r.stderr
     );

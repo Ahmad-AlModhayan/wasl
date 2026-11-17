@@ -3,3 +3,4 @@
 
 pub mod i18n;
 pub mod service;
+pub mod words;

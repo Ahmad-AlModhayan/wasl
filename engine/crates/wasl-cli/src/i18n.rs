@@ -167,13 +167,7 @@ macro_rules! messages {
 
 messages! {
     ErrorLine => "Error: {0}", "خطأ: {0}";
-    NotRunning => "wasld is not running. Start it with: wasl daemon start",
-        "wasld لا يعمل. شغّله بالأمر: wasl daemon start";
-    Untrusted => "The program answering is not this user's wasld.",
-        "البرنامج الذي يجيب ليس wasld الخاص بهذا المستخدم.";
-    WrongProtocol => "wasld speaks protocol {0}; this wasl speaks {1}. Update Wasl.",
-        "wasld يستخدم البروتوكول {0} وهذا الأمر يستخدم {1}. حدّث وصل.";
-    ConnectionLost => "Lost the connection to wasld: {0}", "انقطع الاتصال بـ wasld: {0}";
+    DetailsLine => "Details: {0}", "التفاصيل: {0}";
     NoSuchPair => "No folder pair matches \"{0}\". See: wasl pair list",
         "لا يوجد ربط يطابق \"{0}\". راجع: wasl pair list";
     AmbiguousPair => "\"{0}\" matches more than one folder pair; use its id:\n{1}",
@@ -186,13 +180,6 @@ messages! {
     MethodDownloadOnly => SyncMode::DownloadOnly.names().0, SyncMode::DownloadOnly.names().1;
     MethodDownloadThenDelete => SyncMode::DownloadThenDelete.names().0, SyncMode::DownloadThenDelete.names().1;
     MethodMirrorDown => SyncMode::DownloadMirror.names().0, SyncMode::DownloadMirror.names().1;
-
-    OverallUpToDate => "Synced", "تمت المزامنة";
-    OverallSyncing => "Syncing", "تجري المزامنة";
-    OverallPaused => "Paused", "متوقف مؤقتًا";
-    OverallWaiting => "Waiting", "في الانتظار";
-    OverallNeedsYou => "Needs you", "يحتاج إليك";
-    OverallIdle => "No folder pairs yet", "لا توجد روابط بعد";
 
     PhaseStarting => "Starting", "يبدأ";
     PhaseListingRemote => "Reading Drive", "يقرأ Drive";

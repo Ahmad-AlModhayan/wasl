@@ -13,6 +13,7 @@ pub mod oplog;
 pub mod presets;
 pub mod run;
 pub mod store;
+pub mod words;
 
 pub use conditions::{Blocker, Conditions, DeviceState, blocker};
 pub use devices::{
@@ -37,6 +38,7 @@ pub use oplog::{
 };
 pub use presets::{PRESET_IDS, is_valid_preset_id};
 pub use run::{ErrorKind, RunStatus};
+pub use words::{Fix, Lang, Rendered, Values};
 pub use store::{
     AgentEntry, BinEntry, BinSide, Changeset, ChangesetStatus, ConflictRecord, DEFAULT_WATCH_IGNORES,
     EarlierVersion, EntryKind, EventLevel, JournalEntry, ManifestRow, NewBinEntry, NextMeta, Pair,

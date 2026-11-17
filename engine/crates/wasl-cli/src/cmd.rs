@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::io::{BufRead, IsTerminal, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use wasl_cli::{i18n, service, t};
+use wasl_cli::{i18n, service, t, words};
+use wasl_proto::{Rendered, Values};
 use wasl_ipc::{
     Account, Client, ClientError, DaemonStatus, ErrorKind, Event, LocalChangeKind, Overall, PairState, Paths,
 };
@@ -25,21 +26,41 @@ pub const AUTH: u8 = 5;
 pub struct Fail {
     pub code: u8,
     pub message: String,
+    /// The raw cause, made safe; printed behind `--details`, and straight away when the words
+    /// alone leave nothing to act on.
+    pub details: Option<String>,
 }
 
 impl Fail {
     pub fn new(code: u8, message: String) -> Fail {
-        Fail { code, message }
+        Fail { code, message, details: None }
+    }
+
+    /// A failure worded by the catalogue.
+    pub fn said(code: u8, r: Rendered) -> Fail {
+        let show_now = r.key.starts_with("request.") || matches!(r.key.as_str(), "error.invalid" | "error.unknown");
+        let details = r.details.clone();
+        Fail {
+            code,
+            message: r.text,
+            details: details.filter(|_| show_now || words::details_wanted()),
+        }
     }
 }
 
 impl From<ClientError> for Fail {
     fn from(e: ClientError) -> Fail {
+        let none = Values::default();
         match e {
-            ClientError::NotRunning => Fail::new(NOT_RUNNING, t!(NotRunning)),
-            ClientError::Untrusted => Fail::new(GENERAL, t!(Untrusted)),
-            ClientError::Version(v) => Fail::new(GENERAL, t!(WrongProtocol, v, wasl_ipc::PROTOCOL_VERSION)),
-            ClientError::Io(e) => Fail::new(GENERAL, t!(ConnectionLost, e)),
+            ClientError::NotRunning => Fail::said(NOT_RUNNING, words::say("daemon.not_running", &none, None)),
+            ClientError::Untrusted => Fail::said(GENERAL, words::say("daemon.untrusted", &none, None)),
+            ClientError::Version(v) => {
+                let raw = format!("wasld speaks protocol {v}; this wasl speaks {}", wasl_ipc::PROTOCOL_VERSION);
+                Fail::said(GENERAL, words::say("daemon.version_mismatch", &none, Some(&raw)))
+            }
+            ClientError::Io(e) => {
+                Fail::said(GENERAL, words::say("daemon.connection_lost", &none, Some(&e.to_string())))
+            }
             ClientError::Remote(r) => {
                 let code = match r.kind {
                     ErrorKind::NotFound => NOT_FOUND,
@@ -47,7 +68,7 @@ impl From<ClientError> for Fail {
                     ErrorKind::Invalid | ErrorKind::Unsupported => USAGE,
                     _ => GENERAL,
                 };
-                Fail::new(code, r.message)
+                Fail::said(code, words::say(r.kind.key(), &none, Some(&r.message)))
             }
         }
     }
@@ -251,12 +272,12 @@ fn folders(p: &Pair) -> String {
 
 fn overall_label(o: Overall) -> (String, Tone) {
     match o {
-        Overall::UpToDate => (t!(OverallUpToDate), Tone::Good),
-        Overall::Syncing => (t!(OverallSyncing), Tone::Busy),
-        Overall::Paused => (t!(OverallPaused), Tone::Quiet),
-        Overall::Waiting => (t!(OverallWaiting), Tone::Quiet),
-        Overall::NeedsYou => (t!(OverallNeedsYou), Tone::Bad),
-        Overall::Idle => (t!(OverallIdle), Tone::Quiet),
+        Overall::UpToDate => (words::text("overall.synced"), Tone::Good),
+        Overall::Syncing => (words::text("overall.syncing"), Tone::Busy),
+        Overall::Paused => (words::text("overall.paused"), Tone::Quiet),
+        Overall::Waiting => (words::text("overall.waiting"), Tone::Quiet),
+        Overall::NeedsYou => (words::text("overall.needs_you"), Tone::Bad),
+        Overall::Idle => (words::text("overall.idle"), Tone::Quiet),
     }
 }
 
@@ -314,14 +335,14 @@ fn pair_state(ps: &PairState, accounts: &[Account]) -> (String, Tone) {
     if ps.running {
         return match &ps.progress {
             Some(pr) => (progress_text(pr), Tone::Busy),
-            None => (t!(OverallSyncing), Tone::Busy),
+            None => (words::text("overall.syncing"), Tone::Busy),
         };
     }
     if !p.enabled {
         return (t!(StateOff), Tone::Quiet);
     }
     if p.paused {
-        return (t!(OverallPaused), Tone::Quiet);
+        return (words::text("overall.paused"), Tone::Quiet);
     }
     if let Some(a) = accounts
         .iter()
@@ -339,14 +360,18 @@ fn pair_state(ps: &PairState, accounts: &[Account]) -> (String, Tone) {
         return (t!(StateWaitingPreview), Tone::Quiet);
     }
     match p.status.last_status {
-        Some(RunStatus::Failed) => (
-            t!(StateFailed, p.status.last_error.clone().unwrap_or_default()),
-            Tone::Bad,
-        ),
+        Some(RunStatus::Failed) => {
+            let raw = p.status.last_error.clone().unwrap_or_default();
+            let cause = match p.status.last_error_kind {
+                Some(kind) => cause_words(kind, &raw),
+                None => raw,
+            };
+            (t!(StateFailed, cause), Tone::Bad)
+        }
         Some(RunStatus::Partial) => (t!(RunPartial), Tone::Bad),
         Some(RunStatus::Blocked) => (t!(StateApprove), Tone::Bad),
         None => (t!(StateNeverSynced), Tone::Quiet),
-        _ => (t!(OverallUpToDate), Tone::Good),
+        _ => (words::text("overall.synced"), Tone::Good),
     }
 }
 
@@ -408,10 +433,19 @@ fn outcome_code(o: &RunOutcome) -> u8 {
     }
 }
 
+/// A run's cause in catalogue words (the raw text stays out of the line).
+fn cause_words(kind: wasl_proto::ErrorKind, raw: &str) -> String {
+    words::say(wasl_proto::words::classify(kind, raw), &Values::default(), None).text
+}
+
 fn outcome_line(name: &str, o: &RunOutcome) -> String {
     let msg = o
         .message
         .clone()
+        .map(|raw| match o.error_kind {
+            Some(kind) => cause_words(kind, &raw),
+            None => raw,
+        })
         .or_else(|| o.blocker.as_ref().map(|b| format!("{b:?}")))
         .unwrap_or_default();
     let (line, tone) = match o.status {
@@ -609,7 +643,7 @@ async fn pair_list(json: bool) -> R<u8> {
         let state = if !p.enabled {
             t!(StateOff)
         } else if p.paused {
-            t!(OverallPaused)
+            words::text("overall.paused")
         } else {
             t!(StateOn)
         };
@@ -970,7 +1004,7 @@ async fn account_add() -> R<u8> {
                 _ => {}
             }
         }
-        Err(Fail::new(GENERAL, t!(ConnectionLost, "")))
+        Err(Fail::new(GENERAL, words::say("daemon.connection_lost", &Values::default(), None).text))
     };
     match tokio::time::timeout(Duration::from_secs(300), wait).await {
         Ok(r) => r,
