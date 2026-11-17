@@ -7,13 +7,13 @@ use std::io::{BufRead, IsTerminal, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wasl_cli::{i18n, service, t, words};
-use wasl_proto::{Rendered, Values};
 use wasl_ipc::{
     Account, Client, ClientError, DaemonStatus, ErrorKind, Event, LocalChangeKind, Overall, PairState, Paths,
 };
 use wasl_proto::{
     Action, BinSide, Pair, Phase, PlanSummary, Progress, RunOutcome, RunStatus, SyncMode, Trigger,
 };
+use wasl_proto::{Rendered, Values};
 
 pub const OK: u8 = 0;
 pub const GENERAL: u8 = 1;
@@ -33,12 +33,17 @@ pub struct Fail {
 
 impl Fail {
     pub fn new(code: u8, message: String) -> Fail {
-        Fail { code, message, details: None }
+        Fail {
+            code,
+            message,
+            details: None,
+        }
     }
 
     /// A failure worded by the catalogue.
     pub fn said(code: u8, r: Rendered) -> Fail {
-        let show_now = r.key.starts_with("request.") || matches!(r.key.as_str(), "error.invalid" | "error.unknown");
+        let show_now =
+            r.key.starts_with("request.") || matches!(r.key.as_str(), "error.invalid" | "error.unknown");
         let details = r.details.clone();
         Fail {
             code,
@@ -55,12 +60,16 @@ impl From<ClientError> for Fail {
             ClientError::NotRunning => Fail::said(NOT_RUNNING, words::say("daemon.not_running", &none, None)),
             ClientError::Untrusted => Fail::said(GENERAL, words::say("daemon.untrusted", &none, None)),
             ClientError::Version(v) => {
-                let raw = format!("wasld speaks protocol {v}; this wasl speaks {}", wasl_ipc::PROTOCOL_VERSION);
+                let raw = format!(
+                    "wasld speaks protocol {v}; this wasl speaks {}",
+                    wasl_ipc::PROTOCOL_VERSION
+                );
                 Fail::said(GENERAL, words::say("daemon.version_mismatch", &none, Some(&raw)))
             }
-            ClientError::Io(e) => {
-                Fail::said(GENERAL, words::say("daemon.connection_lost", &none, Some(&e.to_string())))
-            }
+            ClientError::Io(e) => Fail::said(
+                GENERAL,
+                words::say("daemon.connection_lost", &none, Some(&e.to_string())),
+            ),
             ClientError::Remote(r) => {
                 let code = match r.kind {
                     ErrorKind::NotFound => NOT_FOUND,
@@ -1004,7 +1013,10 @@ async fn account_add() -> R<u8> {
                 _ => {}
             }
         }
-        Err(Fail::new(GENERAL, words::say("daemon.connection_lost", &Values::default(), None).text))
+        Err(Fail::new(
+            GENERAL,
+            words::say("daemon.connection_lost", &Values::default(), None).text,
+        ))
     };
     match tokio::time::timeout(Duration::from_secs(300), wait).await {
         Ok(r) => r,

@@ -38,10 +38,10 @@ pub use oplog::{
 };
 pub use presets::{PRESET_IDS, is_valid_preset_id};
 pub use run::{ErrorKind, RunStatus};
-pub use words::{Fix, Lang, Rendered, Values};
 pub use store::{
     AgentEntry, BinEntry, BinSide, Changeset, ChangesetStatus, ConflictRecord, DEFAULT_WATCH_IGNORES,
     EarlierVersion, EntryKind, EventLevel, JournalEntry, ManifestRow, NewBinEntry, NextMeta, Pair,
     PairStatus, RunEvent, RunRecord, RunStats, SavedCopy, SnapshotOrigin, SnapshotRow, StatKey, StorageMode,
     View, Watch, WatchGap,
 };
+pub use words::{Fix, Lang, Rendered, Values};
