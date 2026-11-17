@@ -13,6 +13,7 @@ uniffi::setup_scaffolding!();
 
 mod agent;
 mod agent_undo;
+mod backup;
 mod baseline;
 mod bin;
 mod devices;
@@ -83,6 +84,22 @@ pub enum StoreError {
     Sqlite(#[from] rusqlite::Error),
     #[error("the database was written by a newer Wasl (schema {found}, this build knows {known})")]
     TooNew { found: i64, known: i64 },
+    /// A migration failed. The database was put back as it was before the attempt (`restored`),
+    /// so the data is unchanged; `reason` is what SQLite or the check said.
+    #[error("upgrading the database from schema {from} to {to} failed: {reason}")]
+    MigrationFailed {
+        from: i64,
+        to: i64,
+        restored: bool,
+        reason: String,
+    },
+    /// Another Wasl (a second daemon, the command line, the phone's engine) has this database
+    /// open. Two writers would corrupt each other's runs, so the second one stays out.
+    #[error("another Wasl is already running on {}", .path.display())]
+    AlreadyOpen { path: std::path::PathBuf },
+    /// The data folder or its lock file could not be used.
+    #[error("the data folder could not be used: {0}")]
+    Io(std::io::Error),
     #[error("time {0} ms is outside the range the store can hold")]
     TimeOutOfRange(i64),
     #[error("stored value is invalid: {0}")]
@@ -104,28 +121,95 @@ pub struct Store {
     /// agent changes are written to the op-log under it. `None` (no device key yet): only the
     /// agent tables are written, and the one-time copy brings those changesets in later.
     oplog_device: Option<String>,
+    /// The operating system's lock on the data folder, held until the store is dropped (or the
+    /// process dies: the system then releases it, so a crash leaves nothing stale). `None` for an
+    /// in-memory store.
+    _lock: Option<std::fs::File>,
 }
 
 impl Store {
     /// Opens (creating if needed) and migrates the database at `path`.
+    ///
+    /// When migrations are pending, the database file is copied beside itself first; if one
+    /// fails, the copy is put back and the open fails with [`StoreError::MigrationFailed`]. The
+    /// copy is deleted once the new schema is in place.
     pub fn open(path: impl AsRef<Path>) -> Result<Store> {
+        Self::open_with(path.as_ref(), MIGRATIONS)
+    }
+
+    fn open_with(path: &Path, migrations: &[&str]) -> Result<Store> {
+        let known = migrations.len() as i64;
+        let lock = lock_data_folder(path)?;
         let conn = Connection::open(path)?;
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "synchronous", "NORMAL")?;
-        Self::init(conn)
+        let found: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        if found > known {
+            return Err(StoreError::TooNew { found, known });
+        }
+        // A fresh database has nothing to lose; an up-to-date one needs no copy.
+        let copy = if found > 0 && found < known {
+            // Fold the write-ahead log into the file so the copy opens on its own.
+            conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
+            let fail = |reason: String| StoreError::MigrationFailed {
+                from: found,
+                to: known,
+                restored: true,
+                reason: format!("the database could not be copied first, so nothing was changed: {reason}"),
+            };
+            backup::prune(path);
+            Some(backup::take(path, found).map_err(|e| fail(e.to_string()))?)
+        } else {
+            None
+        };
+        let opened = (|| {
+            conn.pragma_update(None, "journal_mode", "WAL")?;
+            conn.pragma_update(None, "synchronous", "NORMAL")?;
+            Self::init_with(conn, migrations)
+        })();
+        match (opened, copy) {
+            (Ok(mut store), _) => {
+                backup::prune(path);
+                store._lock = Some(lock);
+                Ok(store)
+            }
+            (Err(e), Some(copy)) => {
+                // The failed attempt's connection was dropped when the closure returned.
+                let (restored, reason) = match backup::restore(path, &copy) {
+                    Ok(()) => (true, e.to_string()),
+                    Err(re) => (
+                        false,
+                        format!(
+                            "{e}; putting the copy back failed too ({re}), it is kept at {}",
+                            copy.display()
+                        ),
+                    ),
+                };
+                Err(StoreError::MigrationFailed {
+                    from: found,
+                    to: known,
+                    restored,
+                    reason,
+                })
+            }
+            (Err(e), None) => Err(e),
+        }
     }
 
     pub fn open_in_memory() -> Result<Store> {
         Self::init(Connection::open_in_memory()?)
     }
 
-    fn init(mut conn: Connection) -> Result<Store> {
+    fn init(conn: Connection) -> Result<Store> {
+        Self::init_with(conn, MIGRATIONS)
+    }
+
+    fn init_with(mut conn: Connection, migrations: &[&str]) -> Result<Store> {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
-        migrate(&mut conn)?;
+        migrate(&mut conn, migrations)?;
         Ok(Store {
             conn,
             oplog_device: None,
+            _lock: None,
         })
     }
 
@@ -152,13 +236,37 @@ impl Store {
     }
 }
 
-fn migrate(conn: &mut Connection) -> Result<()> {
-    let known = MIGRATIONS.len() as i64;
+/// Takes the exclusive lock on the data folder: a lock file beside the database, locked with the
+/// operating system's advisory file lock (`flock` on Linux, macOS and Android, `LockFileEx` on
+/// Windows). The lock belongs to the open file, so it is released when the store is dropped or
+/// the process ends, however it ends. Taken before the database is touched.
+fn lock_data_folder(db: &Path) -> Result<std::fs::File> {
+    let mut name = db.as_os_str().to_owned();
+    name.push(".lock");
+    let lock_path = std::path::PathBuf::from(name);
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(StoreError::Io)?;
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(std::fs::TryLockError::WouldBlock) => Err(StoreError::AlreadyOpen {
+            path: db.parent().map(Path::to_path_buf).unwrap_or_default(),
+        }),
+        Err(std::fs::TryLockError::Error(e)) => Err(StoreError::Io(e)),
+    }
+}
+
+fn migrate(conn: &mut Connection, migrations: &[&str]) -> Result<()> {
+    let known = migrations.len() as i64;
     let found: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if found > known {
         return Err(StoreError::TooNew { found, known });
     }
-    for (i, sql) in MIGRATIONS.iter().enumerate().skip(found as usize) {
+    for (i, sql) in migrations.iter().enumerate().skip(found as usize) {
         let version = i as i64 + 1;
         let rebuild = REBUILDS.contains(&version);
         if rebuild {
@@ -339,5 +447,123 @@ mod tests {
                    DROP TABLE child;
                    ALTER TABLE child2 RENAME TO child;";
         apply(&mut c, sql, 99, true).unwrap();
+    }
+
+    /// A database at schema 2 holding one row, closed (so the file is all of it).
+    fn old_db(dir: &Path) -> std::path::PathBuf {
+        let path = dir.join("wasl.db");
+        let m = ["CREATE TABLE a (n INTEGER);", "INSERT INTO a VALUES (7);"];
+        drop(Store::open_with(&path, &m).unwrap());
+        path
+    }
+
+    fn copies(dir: &Path) -> Vec<String> {
+        let mut v: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .filter(|n| n.contains(".pre-v") && n.ends_with(".bak"))
+            .collect();
+        v.sort();
+        v
+    }
+
+    const GOOD: [&str; 3] = [
+        "CREATE TABLE a (n INTEGER);",
+        "INSERT INTO a VALUES (7);",
+        "CREATE TABLE b (n INTEGER);",
+    ];
+    const BAD: [&str; 4] = [
+        "CREATE TABLE a (n INTEGER);",
+        "INSERT INTO a VALUES (7);",
+        "CREATE TABLE b (n INTEGER);",
+        "CREATE TABLE c (n INTEGER); THIS IS NOT SQL;",
+    ];
+
+    #[test]
+    fn a_failed_migration_leaves_the_file_as_it_was_and_says_which_versions() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = old_db(dir.path());
+        let before = std::fs::read(&path).unwrap();
+        match Store::open_with(&path, &BAD) {
+            Err(StoreError::MigrationFailed {
+                from: 2,
+                to: 4,
+                restored: true,
+                ..
+            }) => {}
+            other => panic!("expected MigrationFailed, got {:?}", other.err()),
+        }
+        assert_eq!(before, std::fs::read(&path).unwrap());
+        assert!(copies(dir.path()).is_empty(), "the used copy is gone");
+        assert!(!dir.path().join("wasl.db-wal").exists());
+        // And the old data still opens at the old schema.
+        let s = Store::open_with(&path, &BAD[..2]).unwrap();
+        assert_eq!(2, s.schema_version().unwrap());
+    }
+
+    #[test]
+    fn a_successful_migration_keeps_the_data_and_leaves_no_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = old_db(dir.path());
+        // The copy a run takes is a database on its own: it opens at the schema it was taken at.
+        let c = backup::take(&path, 2).unwrap();
+        assert_eq!(
+            2,
+            Store::open_with(&c, &GOOD[..2])
+                .unwrap()
+                .schema_version()
+                .unwrap()
+        );
+        std::fs::remove_file(&c).unwrap();
+        let s = Store::open_with(&path, &GOOD).unwrap();
+        assert_eq!(3, s.schema_version().unwrap());
+        let n: i64 = s
+            .connection()
+            .query_row("SELECT n FROM a", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(7, n);
+        assert!(copies(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn nothing_pending_makes_no_copy_and_a_fresh_database_makes_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wasl.db");
+        drop(Store::open_with(&path, &GOOD).unwrap());
+        assert!(copies(dir.path()).is_empty());
+        // Up to date now: opening again with a failing list would only matter if one were pending.
+        drop(Store::open_with(&path, &GOOD).unwrap());
+        assert!(copies(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn a_leftover_copy_is_deleted_by_the_next_start_and_never_restored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = old_db(dir.path());
+        // An interrupted run left a copy of schema 1 behind (an older, smaller database).
+        std::fs::write(dir.path().join("wasl.db.pre-v1.bak"), b"stale").unwrap();
+        std::fs::write(dir.path().join("wasl.db.pre-v9.bak"), b"stale").unwrap();
+        std::fs::write(dir.path().join("wasl.db.pre-vx.bak"), b"not ours").unwrap();
+        let before = std::fs::read(&path).unwrap();
+        assert!(Store::open_with(&path, &BAD).is_err());
+        assert_eq!(
+            before,
+            std::fs::read(&path).unwrap(),
+            "restored the new copy, not a stale one"
+        );
+        let s = Store::open_with(&path, &GOOD).unwrap();
+        assert_eq!(3, s.schema_version().unwrap());
+        assert_eq!(vec!["wasl.db.pre-vx.bak".to_string()], copies(dir.path()));
+    }
+
+    #[test]
+    fn a_database_from_a_newer_build_makes_no_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = old_db(dir.path());
+        assert!(matches!(
+            Store::open_with(&path, &GOOD[..1]),
+            Err(StoreError::TooNew { found: 2, known: 1 })
+        ));
+        assert!(copies(dir.path()).is_empty());
     }
 }

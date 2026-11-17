@@ -366,3 +366,34 @@ fn a_pair_with_an_open_or_held_changeset_is_not_deleted() {
     assert_eq!(None, s.get_pair("p").unwrap());
     assert!(s.changesets(None, true).unwrap().is_empty());
 }
+
+#[test]
+fn a_second_store_on_the_same_file_refuses_to_open_and_leaves_the_database_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("wasl.db");
+    let first = Store::open(&path).unwrap();
+    match Store::open(&path) {
+        Err(StoreError::AlreadyOpen { .. }) => {}
+        other => panic!("expected AlreadyOpen, got {:?}", other.err()),
+    }
+    // The first keeps working.
+    assert_eq!(12, first.schema_version().unwrap());
+}
+
+#[test]
+fn the_lock_goes_with_the_store_so_a_new_open_needs_no_cleanup() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("wasl.db");
+    drop(Store::open(&path).unwrap());
+    Store::open(&path).unwrap();
+}
+
+#[test]
+fn stores_on_different_folders_and_in_memory_open_side_by_side() {
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    let _one = Store::open(a.path().join("wasl.db")).unwrap();
+    let _two = Store::open(b.path().join("wasl.db")).unwrap();
+    let _m1 = Store::open_in_memory().unwrap();
+    let _m2 = Store::open_in_memory().unwrap();
+}

@@ -104,6 +104,10 @@ fn now_ms() -> i64 {
 /// Opens a pair's local folder.
 pub type OpenFolder = Arc<dyn Fn(&Pair) -> wasl_engine::Result<Arc<dyn LocalFs>> + Send + Sync>;
 
+/// How long a device run waits for a Drive run of the same pair before it reports "already
+/// syncing".
+const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// How device sync runs in this daemon.
 #[derive(Debug, Clone)]
 pub struct DeviceConfig {
@@ -136,6 +140,9 @@ pub struct Devices {
     paths: Mutex<HashMap<DeviceId, LinkPath>>,
     store: SharedStore,
     open_folder: OpenFolder,
+    /// Shared with the engine ([`Devices::set_pair_locks`]), so a device run and a Drive run of
+    /// one pair never overlap (wasl#20).
+    pair_locks: Mutex<wasl_engine::PairLocks>,
     running: Mutex<HashSet<String>>,
     again: Mutex<HashSet<String>>,
     token: Token,
@@ -227,6 +234,7 @@ impl Devices {
             paths: Mutex::new(HashMap::new()),
             store,
             open_folder,
+            pair_locks: Mutex::new(wasl_engine::PairLocks::default()),
             running: Mutex::new(HashSet::new()),
             again: Mutex::new(HashSet::new()),
             token: Token::random(),
@@ -261,6 +269,16 @@ impl Devices {
                     .state()
                     .trusts_key(pk)
         })
+    }
+
+    /// Takes the engine's per-pair locks (`Engine::pair_locks`) so a device run waits for a Drive
+    /// run of the same pair and the other way round. Call before the first run.
+    pub fn set_pair_locks(&self, locks: wasl_engine::PairLocks) {
+        *self.pair_locks.lock().unwrap_or_else(|p| p.into_inner()) = locks;
+    }
+
+    fn pair_locks(&self) -> wasl_engine::PairLocks {
+        self.pair_locks.lock().unwrap_or_else(|p| p.into_inner()).clone()
     }
 
     pub fn id(&self) -> DeviceId {
@@ -925,6 +943,20 @@ impl Devices {
                 return outcome(RunStatus::Skipped, Some("Already syncing with devices".into()));
             }
         }
+        // The pair's lock, shared with Drive sync: this run waits its turn behind a Drive run of
+        // the same folder, and reports "already syncing" if that run outlasts the wait. Held
+        // until the run ends, however it ends.
+        let Some(_pair_lock) = self.pair_locks().acquire_within(&pair.id, LOCK_WAIT).await else {
+            self.running
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .remove(&pair.id);
+            self.again
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .remove(&pair.id);
+            return outcome(RunStatus::Skipped, Some("Already syncing".into()));
+        };
         // News of the group first, so a device removed elsewhere gets nothing from this run.
         self.exchange_groups().await;
         let mut result;

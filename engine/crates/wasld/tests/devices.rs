@@ -76,6 +76,33 @@ fn node(name: &str) -> Node {
     }
 }
 
+/// What a restart sees: the node's data folder as a copy. The running daemon keeps its lock on the
+/// original (one engine per data folder, wasl#21) and a stopped process isn't possible here, so
+/// the "restarted" daemon opens the copy, flushed first.
+fn restart_copy(n: &Node, name: &str) -> PathBuf {
+    n.daemon
+        .store
+        .lock()
+        .connection()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
+    fn copy(from: &std::path::Path, to: &std::path::Path) {
+        std::fs::create_dir_all(to).unwrap();
+        for e in std::fs::read_dir(from).unwrap() {
+            let e = e.unwrap();
+            let (src, dst) = (e.path(), to.join(e.file_name()));
+            if e.file_type().unwrap().is_dir() {
+                copy(&src, &dst);
+            } else if src.extension().is_none_or(|x| x != "lock") {
+                std::fs::copy(&src, &dst).unwrap();
+            }
+        }
+    }
+    let to = n.data.with_file_name(name);
+    copy(&n.data, &to);
+    to
+}
+
 /// A and B in one group, connected both ways.
 async fn pair_up() -> (Node, Node) {
     let (a, b) = (node("Laptop"), node("Desktop"));
@@ -145,19 +172,21 @@ async fn the_key_and_the_group_survive_a_restart() {
     );
     da.close();
     drop(da);
-    let again = Daemon::open(config(a.data.clone(), a.secrets.clone(), "Laptop")).unwrap();
+    let data = restart_copy(&a, "data-restarted");
+    let damaged = restart_copy(&a, "data-damaged");
+    let again = Daemon::open(config(data.clone(), a.secrets.clone(), "Laptop")).unwrap();
     let d2 = again.devices.clone().unwrap();
     assert_eq!(id, d2.id());
     assert_eq!(members, d2.members());
 
     // A damaged group file is refused, not silently replaced.
     d2.close();
-    let path = a.data.join("group.json");
+    let path = damaged.join("group.json");
     let text = std::fs::read_to_string(&path)
         .unwrap()
         .replace("Desktop", "Desk top");
     std::fs::write(&path, text).unwrap();
-    assert!(Daemon::open(config(a.data.clone(), a.secrets.clone(), "Laptop")).is_err());
+    assert!(Daemon::open(config(damaged.clone(), a.secrets.clone(), "Laptop")).is_err());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1263,7 +1292,7 @@ async fn pairing_makes_each_side_know_the_other() {
 async fn members_present_when_notes_are_first_made_are_known() {
     // An upgrade: B synced before introductions, so it has no note on anyone yet.
     let (_a, b, c) = three_with_a_apart().await;
-    let (data, secrets) = (b.data.clone(), b.secrets.clone());
+    let secrets = b.secrets.clone();
     let c_id = c.daemon.devices.as_ref().unwrap().id().to_string();
     assert_eq!(Some(false), b.daemon.store.lock().device_known(&c_id).unwrap());
     b.daemon
@@ -1273,6 +1302,7 @@ async fn members_present_when_notes_are_first_made_are_known() {
         .execute("DELETE FROM device_notes", [])
         .unwrap();
     b.daemon.devices.as_ref().unwrap().close();
+    let data = restart_copy(&b, "data-restarted");
     let again = Daemon::open(config(data, secrets, "Desktop")).unwrap();
     let info: wasl_ipc::DevicesInfo =
         serde_json::from_value(again.handle(wasl_ipc::Request::Devices).await.unwrap()).unwrap();
@@ -1413,4 +1443,43 @@ async fn a_run_with_no_device_to_sync_with_is_not_a_sync() {
     assert_eq!(Some(wasl_devices::NO_PEER), r.message.as_deref());
     let status = a.daemon.store.lock().get_pair("p").unwrap().unwrap().status;
     assert_eq!(None, status.last_success_at);
+}
+
+/// wasl#20: one lock per pair covers Drive and device runs. A device run started while another
+/// run holds the pair waits its turn, and a Drive-side start while a run holds the pair reports
+/// "already syncing"; once the holder ends, both go through. Other pairs are not held.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_run_and_a_drive_run_of_one_pair_never_overlap() {
+    let a = node("Laptop");
+    let engine = &a.daemon.engine;
+    let devices = a.daemon.devices.clone().unwrap();
+    let pair = a.daemon.store.lock().get_pair("p").unwrap().unwrap();
+
+    // A Drive-side run holds the pair.
+    let held = engine.pair_locks().try_acquire("p").unwrap();
+
+    // A device run waits behind it (nothing about it finishes while the lock is held).
+    let (d2, p2) = (devices.clone(), pair.clone());
+    let run = tokio::spawn(async move { d2.sync_pair(&p2, Trigger::Manual).await });
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert!(!run.is_finished(), "the device run waits for the pair's lock");
+
+    // A Drive-side start meanwhile reports instead of running alongside.
+    let r = engine.sync("p", Trigger::Manual).await;
+    assert_eq!(RunStatus::Skipped, r.status);
+    assert_eq!(Some(wasl_engine::ALREADY_RUNNING.to_string()), r.message);
+
+    // Another pair is free.
+    assert!(engine.pair_locks().try_acquire("other").is_some());
+
+    drop(held);
+    let r = tokio::time::timeout(Duration::from_secs(10), run)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_ne!(Some("Already syncing".to_string()), r.message);
+    // The device run released the lock when it ended.
+    assert!(!engine.pair_locks().is_held("p"));
+    let r = engine.sync("p", Trigger::Manual).await;
+    assert_ne!(Some(wasl_engine::ALREADY_RUNNING.to_string()), r.message, "{r:?}");
 }
