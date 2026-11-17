@@ -42,8 +42,11 @@ pub(crate) fn take(db: &Path, version: i64) -> io::Result<PathBuf> {
 /// the failed attempt, so SQLite can't replay them onto the restored file. The connection that ran
 /// the migration must be closed first.
 pub(crate) fn restore(db: &Path, copy: &Path) -> io::Result<()> {
-    fs::copy(copy, db)?;
-    flush(db)?;
+    // Through a file of its own and a rename, so an interrupted restore never leaves a database
+    // that is half the copy.
+    let part = sibling(db, ".restoring");
+    fs::copy(copy, &part)?;
+    flush(&part)?;
     for ext in ["-wal", "-shm"] {
         match fs::remove_file(sibling(db, ext)) {
             Ok(()) => {}
@@ -51,7 +54,19 @@ pub(crate) fn restore(db: &Path, copy: &Path) -> io::Result<()> {
             Err(e) => return Err(e),
         }
     }
+    fs::rename(&part, db)?;
     fs::remove_file(copy)
+}
+
+/// Sets aside a copy that could not be put back, under a name no later start deletes or
+/// overwrites. Returns where it is.
+pub(crate) fn keep(db: &Path, copy: &Path, version: i64) -> PathBuf {
+    let kept = sibling(db, &format!(".unrestored-v{version}.bak"));
+    if fs::rename(copy, &kept).is_ok() {
+        kept
+    } else {
+        copy.to_path_buf()
+    }
 }
 
 /// Deletes every copy of `db`, whatever schema it was taken at. Best effort: a copy that can't be

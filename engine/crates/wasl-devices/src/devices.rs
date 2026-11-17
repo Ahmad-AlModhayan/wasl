@@ -108,6 +108,21 @@ pub type OpenFolder = Arc<dyn Fn(&Pair) -> wasl_engine::Result<Arc<dyn LocalFs>>
 /// syncing".
 const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
 
+/// A pair's place in `Devices::running`, freed when dropped.
+struct RunningPlace<'a> {
+    running: &'a Mutex<HashSet<String>>,
+    id: &'a str,
+}
+
+impl Drop for RunningPlace<'_> {
+    fn drop(&mut self) {
+        self.running
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .remove(self.id);
+    }
+}
+
 /// How device sync runs in this daemon.
 #[derive(Debug, Clone)]
 pub struct DeviceConfig {
@@ -943,18 +958,16 @@ impl Devices {
                 return outcome(RunStatus::Skipped, Some("Already syncing with devices".into()));
             }
         }
+        // Frees the pair's `running` place however this call ends, also when its caller drops it
+        // while it waits for the lock below.
+        let _running = RunningPlace {
+            running: &self.running,
+            id: &pair.id,
+        };
         // The pair's lock, shared with Drive sync: this run waits its turn behind a Drive run of
         // the same folder, and reports "already syncing" if that run outlasts the wait. Held
         // until the run ends, however it ends.
         let Some(_pair_lock) = self.pair_locks().acquire_within(&pair.id, LOCK_WAIT).await else {
-            self.running
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .remove(&pair.id);
-            self.again
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .remove(&pair.id);
             return outcome(RunStatus::Skipped, Some("Already syncing".into()));
         };
         // News of the group first, so a device removed elsewhere gets nothing from this run.
@@ -971,10 +984,6 @@ impl Devices {
                 break;
             }
         }
-        self.running
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .remove(&pair.id);
         if pair.route == wasl_core::Route::Devices {
             self.record(pair, &result, trigger);
         }

@@ -148,7 +148,15 @@ impl Store {
         // A fresh database has nothing to lose; an up-to-date one needs no copy.
         let copy = if found > 0 && found < known {
             // Fold the write-ahead log into the file so the copy opens on its own.
-            conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
+            let busy: i64 = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))?;
+            if busy != 0 {
+                return Err(StoreError::MigrationFailed {
+                    from: found,
+                    to: known,
+                    restored: true,
+                    reason: "the database is in use, so nothing was changed".into(),
+                });
+            }
             let fail = |reason: String| StoreError::MigrationFailed {
                 from: found,
                 to: known,
@@ -175,13 +183,16 @@ impl Store {
                 // The failed attempt's connection was dropped when the closure returned.
                 let (restored, reason) = match backup::restore(path, &copy) {
                     Ok(()) => (true, e.to_string()),
-                    Err(re) => (
-                        false,
-                        format!(
-                            "{e}; putting the copy back failed too ({re}), it is kept at {}",
-                            copy.display()
-                        ),
-                    ),
+                    Err(re) => {
+                        let kept = backup::keep(path, &copy, found);
+                        (
+                            false,
+                            format!(
+                                "{e}; putting the copy back failed too ({re}), it is kept at {}",
+                                kept.display()
+                            ),
+                        )
+                    }
                 };
                 Err(StoreError::MigrationFailed {
                     from: found,

@@ -1483,3 +1483,23 @@ async fn a_device_run_and_a_drive_run_of_one_pair_never_overlap() {
     let r = engine.sync("p", Trigger::Manual).await;
     assert_ne!(Some(wasl_engine::ALREADY_RUNNING.to_string()), r.message, "{r:?}");
 }
+
+/// wasl#20: a device run dropped while it waits for the pair's lock frees its place, so the next
+/// run isn't turned away as "already syncing with devices" for good.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_run_dropped_while_it_waits_leaves_nothing_behind() {
+    let a = node("Laptop");
+    let devices = a.daemon.devices.clone().unwrap();
+    let pair = a.daemon.store.lock().get_pair("p").unwrap().unwrap();
+    let held = a.daemon.engine.pair_locks().try_acquire("p").unwrap();
+    let (d2, p2) = (devices.clone(), pair.clone());
+    let waiting = tokio::spawn(async move { d2.sync_pair(&p2, Trigger::Manual).await });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    waiting.abort();
+    let _ = waiting.await;
+    drop(held);
+    let r = tokio::time::timeout(Duration::from_secs(10), devices.sync_pair(&pair, Trigger::Manual))
+        .await
+        .unwrap();
+    assert_ne!(Some("Already syncing with devices".to_string()), r.message);
+}
