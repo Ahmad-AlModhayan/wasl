@@ -44,7 +44,7 @@ use crate::peer::{
     PeerLink, PeerResult, PeerService, ShareId,
 };
 use crate::proto::{
-    self, Hello, MAX_FRAME_BYTES, MAX_REQUEST_BYTES, PROTOCOL_VERSION, ProtoError, Request, Response,
+    self, Behind, Hello, MAX_FRAME_BYTES, MAX_REQUEST_BYTES, ProtoError, Request, Response, VersionRange,
 };
 use crate::stun::{self, EndpointWire, Mux, MuxSocket, StunConfig, StunError};
 
@@ -87,8 +87,12 @@ pub enum QuicError {
     Connect(String),
     #[error("reached {found}, not {expected}")]
     WrongPeer { expected: DeviceId, found: DeviceId },
-    #[error("the peer speaks protocol version {0}, this device speaks {PROTOCOL_VERSION}")]
-    Version(u8),
+    /// The two devices share no protocol version; `behind` is the one that must update.
+    #[error("{}", match behind {
+        Behind::This => "this device needs an update to talk to that one",
+        Behind::Peer => "that device needs an update to talk to this one",
+    })]
+    NeedsUpdate { behind: Behind },
     #[error(transparent)]
     Protocol(#[from] ProtoError),
 }
@@ -97,7 +101,7 @@ impl From<QuicError> for PeerError {
     fn from(e: QuicError) -> Self {
         match e {
             QuicError::Protocol(p) => p.into(),
-            QuicError::Version(_) => PeerError::Protocol(e.to_string()),
+            QuicError::NeedsUpdate { .. } => PeerError::Protocol(e.to_string()),
             other => PeerError::Connection(other.to_string()),
         }
     }
@@ -118,6 +122,8 @@ pub struct Endpoint {
     compression_cap: Arc<AtomicU8>,
     /// Compressions running for peers; see [`compress::MAX_PARALLEL`].
     compress_slots: Arc<tokio::sync::Semaphore>,
+    /// The protocol versions this device offers at the hello.
+    versions: VersionRange,
 }
 
 impl Endpoint {
@@ -144,7 +150,16 @@ impl Endpoint {
             trust,
             compression_cap: Arc::new(AtomicU8::new(compress::MAX_LEVEL)),
             compress_slots: Arc::new(tokio::sync::Semaphore::new(compress::MAX_PARALLEL)),
+            versions: VersionRange::CURRENT,
         })
+    }
+
+    /// Offers `range` at the hello instead of the versions this build speaks. For tests that play
+    /// a device from another release; call before [`Endpoint::serve`] or connecting.
+    #[doc(hidden)]
+    pub fn with_protocol_range(mut self, range: VersionRange) -> Self {
+        self.versions = range;
+        self
     }
 
     /// Caps the zstd level this device uses for chunks it sends, whatever peers ask for (0 sends
@@ -170,6 +185,7 @@ impl Endpoint {
         let trust = self.trust.clone();
         let cap = self.compression_cap.clone();
         let slots = self.compress_slots.clone();
+        let versions = self.versions;
         tokio::spawn(async move {
             while let Some(incoming) = endpoint.accept().await {
                 tokio::spawn(serve_connection(
@@ -178,6 +194,7 @@ impl Endpoint {
                     trust.clone(),
                     cap.clone(),
                     slots.clone(),
+                    versions,
                 ));
             }
         });
@@ -225,10 +242,11 @@ impl Endpoint {
                 found: peer,
             });
         }
-        match tokio::time::timeout(HELLO_TIMEOUT, hello(&conn)).await {
-            Ok(Ok(())) => Ok(QuicLink {
+        match tokio::time::timeout(HELLO_TIMEOUT, hello(&conn, self.versions)).await {
+            Ok(Ok(version)) => Ok(QuicLink {
                 conn,
                 peer,
+                version,
                 level: Arc::new(AtomicU8::new(compress::LEVEL_INTERNET)),
                 stats: Arc::new(WireStats::default()),
             }),
@@ -269,6 +287,8 @@ impl fmt::Debug for Endpoint {
 pub struct QuicLink {
     conn: Connection,
     peer: DeviceId,
+    /// The protocol version both ends agreed on.
+    version: u8,
     /// The zstd level asked for chunks (0: raw only). Set from the path: see [`compress`].
     level: Arc<AtomicU8>,
     stats: Arc<WireStats>,
@@ -294,6 +314,11 @@ impl QuicLink {
             self.stats.raw.load(Ordering::Relaxed),
             self.stats.wire.load(Ordering::Relaxed),
         )
+    }
+
+    /// The protocol version this link speaks: the highest both devices support.
+    pub fn version(&self) -> u8 {
+        self.version
     }
 
     /// The peer's address.
@@ -459,17 +484,12 @@ impl PeerLink for QuicLink {
     }
 }
 
-/// The client side of the hello: says our version, hears theirs.
-async fn hello(conn: &Connection) -> Result<(), QuicError> {
+/// The client side of the hello: says our versions, hears theirs, and settles on the highest
+/// both support.
+async fn hello(conn: &Connection, ours: VersionRange) -> Result<u8, QuicError> {
     let broken = |e: &dyn fmt::Display| QuicError::Connect(e.to_string());
     let (mut send, mut recv) = conn.open_bi().await.map_err(|e| broken(&e))?;
-    proto::write_frame(
-        &mut send,
-        &proto::encode(&Hello {
-            version: PROTOCOL_VERSION,
-        }),
-    )
-    .await?;
+    proto::write_frame(&mut send, &proto::encode(&Hello::offering(ours))).await?;
     send.finish().map_err(|e| broken(&e))?;
     let reply: Hello = match proto::read_frame(&mut recv, MAX_REQUEST_BYTES).await {
         Ok(body) => proto::decode(&body)?,
@@ -482,11 +502,16 @@ async fn hello(conn: &Connection) -> Result<(), QuicError> {
         }
         Err(e) => return Err(e.into()),
     };
-    if reply.version != PROTOCOL_VERSION {
-        conn.close(VarInt::from_u32(CLOSE_VERSION), b"unsupported protocol version");
-        return Err(QuicError::Version(reply.version));
+    let theirs = reply.range();
+    match ours.highest_common(theirs) {
+        Some(version) => Ok(version),
+        None => {
+            conn.close(VarInt::from_u32(CLOSE_VERSION), b"unsupported protocol version");
+            Err(QuicError::NeedsUpdate {
+                behind: ours.behind(theirs),
+            })
+        }
     }
-    Ok(())
 }
 
 /// The server side of one connection: the hello, then one task per request stream.
@@ -498,6 +523,7 @@ async fn serve_connection(
     trust: Trust,
     cap: Arc<AtomicU8>,
     slots: Arc<tokio::sync::Semaphore>,
+    versions: VersionRange,
 ) {
     let Ok(conn) = incoming.await else {
         return;
@@ -507,7 +533,7 @@ async fn serve_connection(
         return;
     };
     let peer = DeviceId::from_public_key(&pk);
-    match tokio::time::timeout(HELLO_TIMEOUT, answer_hello(&conn)).await {
+    match tokio::time::timeout(HELLO_TIMEOUT, answer_hello(&conn, versions)).await {
         Ok(Ok(true)) => {}
         Ok(Ok(false)) => {
             // Leave the peer time to read our version before closing.
@@ -538,22 +564,18 @@ async fn serve_connection(
     }
 }
 
-/// Answers the client's hello with our version. `false` when the versions differ.
-async fn answer_hello(conn: &Connection) -> Result<bool, QuicError> {
+/// Answers the client's hello with the version chosen and our range. `false` when the two ranges
+/// share no version.
+async fn answer_hello(conn: &Connection, ours: VersionRange) -> Result<bool, QuicError> {
     let (mut send, mut recv) = conn
         .accept_bi()
         .await
         .map_err(|e| QuicError::Connect(e.to_string()))?;
     let theirs: Hello = proto::decode(&proto::read_frame(&mut recv, MAX_REQUEST_BYTES).await?)?;
-    proto::write_frame(
-        &mut send,
-        &proto::encode(&Hello {
-            version: PROTOCOL_VERSION,
-        }),
-    )
-    .await?;
+    let chosen = ours.highest_common(theirs.range());
+    proto::write_frame(&mut send, &proto::encode(&Hello::answering(ours, chosen))).await?;
     send.finish().map_err(|e| QuicError::Connect(e.to_string()))?;
-    Ok(theirs.version == PROTOCOL_VERSION)
+    Ok(chosen.is_some())
 }
 
 async fn serve_stream(
@@ -997,7 +1019,7 @@ mod tests {
         let accept = server.endpoint.clone();
         tokio::spawn(async move {
             let conn = accept.accept().await.unwrap().await.unwrap();
-            assert!(answer_hello(&conn).await.unwrap());
+            assert!(answer_hello(&conn, VersionRange::CURRENT).await.unwrap());
             while let Ok((mut send, mut recv)) = conn.accept_bi().await {
                 let body = proto::read_frame(&mut recv, MAX_REQUEST_BYTES).await.unwrap();
                 let resp = match proto::decode::<OldRequest>(&body) {
@@ -1076,6 +1098,140 @@ mod tests {
         assert_eq!(Ok(Vec::new()), echo.offers().await);
     }
 
+    /// Hello as a device from before version ranges reads and writes it.
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct OldHello {
+        version: u8,
+    }
+
+    #[test]
+    fn a_hello_with_a_range_reads_as_an_old_hello_and_the_other_way_round() {
+        let ours = Hello::offering(VersionRange { min: 1, max: 3 });
+        let old: OldHello = proto::decode(&proto::encode(&ours)[4..]).unwrap();
+        assert_eq!(
+            1, old.version,
+            "an old device sees the lowest version, which it supports"
+        );
+        let theirs: Hello = proto::decode(&proto::encode(&OldHello { version: 1 })[4..]).unwrap();
+        assert_eq!(VersionRange { min: 1, max: 1 }, theirs.range());
+    }
+
+    #[test]
+    fn ranges_meet_at_the_highest_common_version_or_say_who_is_behind() {
+        let r = |min, max| VersionRange { min, max };
+        assert_eq!(Some(2), r(1, 2).highest_common(r(2, 3)));
+        assert_eq!(Some(1), r(1, 1).highest_common(r(1, 1)));
+        assert_eq!(None, r(1, 1).highest_common(r(2, 3)));
+        assert_eq!(Behind::This, r(1, 1).behind(r(2, 3)));
+        assert_eq!(Behind::Peer, r(2, 3).behind(r(1, 1)));
+    }
+
+    fn ranged(seed: u8, range: VersionRange) -> Endpoint {
+        let local = "127.0.0.1:0".parse().unwrap();
+        Endpoint::bind(local, &DeviceKey::from_seed(&[seed; 32]), anyone())
+            .unwrap()
+            .with_protocol_range(range)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn two_current_devices_speak_version_one() {
+        let (_s, _c, link) = pair().await;
+        assert_eq!(1, link.version());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn ranges_that_overlap_connect_at_the_highest_common_version() {
+        let server = ranged(1, VersionRange { min: 2, max: 3 });
+        server.serve(Arc::new(Echo));
+        let client = ranged(2, VersionRange { min: 1, max: 2 });
+        let link = client.connect(server.local_addr().unwrap(), None).await.unwrap();
+        assert_eq!(2, link.version());
+        assert!(link.shared().await.is_ok(), "and the link works");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_that_needs_a_newer_version_is_refused_naming_the_device_that_is_behind() {
+        // This device speaks [1, 1]; the peer only [2, 3]: this device is behind.
+        let peer = ranged(1, VersionRange { min: 2, max: 3 });
+        peer.serve(Arc::new(Echo));
+        let this = ranged(2, VersionRange { min: 1, max: 1 });
+        let err = this.connect(peer.local_addr().unwrap(), None).await.unwrap_err();
+        assert!(
+            matches!(err, QuicError::NeedsUpdate { behind: Behind::This }),
+            "{err:?}"
+        );
+        // And the other way round: the peer is behind.
+        let old = ranged(3, VersionRange { min: 1, max: 1 });
+        old.serve(Arc::new(Echo));
+        let err = peer.connect(old.local_addr().unwrap(), None).await.unwrap_err();
+        assert!(
+            matches!(err, QuicError::NeedsUpdate { behind: Behind::Peer }),
+            "{err:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_hand_built_old_hello_connects_and_is_answered_in_kind() {
+        let local = "127.0.0.1:0".parse().unwrap();
+        let server = Endpoint::bind(local, &DeviceKey::from_seed(&[1; 32]), anyone()).unwrap();
+        server.serve(Arc::new(Echo));
+        let client = Endpoint::bind(local, &DeviceKey::from_seed(&[2; 32]), anyone()).unwrap();
+        let config = client_config(
+            client.cert.clone(),
+            client.key.clone_key(),
+            Verifier::new(anyone()),
+        )
+        .unwrap();
+        let conn = client
+            .endpoint
+            .connect_with(config, server.local_addr().unwrap(), SERVER_NAME)
+            .unwrap()
+            .await
+            .unwrap();
+        let (mut send, mut recv) = conn.open_bi().await.unwrap();
+        proto::write_frame(&mut send, &proto::encode(&OldHello { version: 1 }))
+            .await
+            .unwrap();
+        send.finish().unwrap();
+        let body = proto::read_frame(&mut recv, 100).await.unwrap();
+        let reply: OldHello = proto::decode(&body).unwrap();
+        assert_eq!(1, reply.version, "an old device compares this with 1");
+        // The connection stays open for requests.
+        let (mut send, mut recv) = conn.open_bi().await.unwrap();
+        proto::write_frame(&mut send, &proto::encode(&Request::Shared))
+            .await
+            .unwrap();
+        send.finish().unwrap();
+        let body = proto::read_frame(&mut recv, MAX_FRAME_BYTES).await.unwrap();
+        assert!(matches!(proto::decode_response(&body), Ok(Response::Shared(_))));
+        conn.close(VarInt::from_u32(0), b"");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_current_device_connects_to_a_hand_built_old_one() {
+        let local = "127.0.0.1:0".parse().unwrap();
+        let server = Endpoint::bind(local, &DeviceKey::from_seed(&[1; 32]), anyone()).unwrap();
+        let accept = server.endpoint.clone();
+        tokio::spawn(async move {
+            let conn = accept.accept().await.unwrap().await.unwrap();
+            let (mut send, mut recv) = conn.accept_bi().await.unwrap();
+            let theirs: OldHello =
+                proto::decode(&proto::read_frame(&mut recv, MAX_REQUEST_BYTES).await.unwrap()).unwrap();
+            assert_eq!(
+                1, theirs.version,
+                "we send the lowest version, which an old device accepts"
+            );
+            proto::write_frame(&mut send, &proto::encode(&OldHello { version: 1 }))
+                .await
+                .unwrap();
+            send.finish().unwrap();
+            let _ = conn.closed().await;
+        });
+        let client = Endpoint::bind(local, &DeviceKey::from_seed(&[2; 32]), anyone()).unwrap();
+        let link = client.connect(server.local_addr().unwrap(), None).await.unwrap();
+        assert_eq!(1, link.version());
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn another_protocol_version_is_turned_away_politely() {
         let local = "127.0.0.1:0".parse().unwrap();
@@ -1095,12 +1251,19 @@ mod tests {
             .await
             .unwrap();
         let (mut send, mut recv) = conn.open_bi().await.unwrap();
-        proto::write_frame(&mut send, &proto::encode(&Hello { version: 2 }))
+        // An old-style device that speaks only version 2.
+        proto::write_frame(&mut send, &proto::encode(&OldHello { version: 2 }))
             .await
             .unwrap();
         send.finish().unwrap();
         let reply: Hello = proto::decode(&proto::read_frame(&mut recv, 100).await.unwrap()).unwrap();
-        assert_eq!(reply.version, PROTOCOL_VERSION);
+        // It is told our range, and that version 2 is not in it.
+        assert_eq!(VersionRange::CURRENT, reply.range());
+        assert_eq!(
+            None,
+            VersionRange::CURRENT.highest_common(VersionRange { min: 2, max: 2 })
+        );
+        assert_ne!(2, reply.version);
         conn.close(VarInt::from_u32(CLOSE_VERSION), b"");
     }
 }

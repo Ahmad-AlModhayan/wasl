@@ -38,7 +38,12 @@ impl From<ClientError> for Fail {
         match e {
             ClientError::NotRunning => Fail::new(NOT_RUNNING, t!(NotRunning)),
             ClientError::Untrusted => Fail::new(GENERAL, t!(Untrusted)),
-            ClientError::Version(v) => Fail::new(GENERAL, t!(WrongProtocol, v, wasl_ipc::PROTOCOL_VERSION)),
+            ClientError::NeedsUpdate {
+                behind: wasl_ipc::Behind::This,
+            } => Fail::new(GENERAL, t!(ClientNeedsUpdate)),
+            ClientError::NeedsUpdate {
+                behind: wasl_ipc::Behind::Peer,
+            } => Fail::new(GENERAL, t!(DaemonNeedsUpdate)),
             ClientError::Io(e) => Fail::new(GENERAL, t!(ConnectionLost, e)),
             ClientError::Remote(r) => {
                 let code = match r.kind {

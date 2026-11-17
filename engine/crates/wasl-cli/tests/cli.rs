@@ -1640,3 +1640,32 @@ async fn status_and_account_list_json_match_when_empty() {
     assert_eq!(serde_json::json!([]), status_json["accounts"]);
     assert_eq!(status_json["accounts"], listed_json);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_daemon_that_needs_a_newer_wasl_says_so_and_exits_with_the_general_code() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = Arc::new(Fake::default());
+    // A daemon from a later release: it speaks only versions 2 and 3.
+    let server = Server::bind(&Paths::at(dir.path()), fake, "test")
+        .unwrap()
+        .with_protocol_range(wasl_ipc::VersionRange { min: 2, max: 3 });
+    tokio::spawn(server.serve());
+    let r = wasl(dir.path(), "en", &["status"]).await;
+    assert_eq!(1, r.code, "{}", r.stderr);
+    assert!(r.stderr.contains("older than the running wasld"), "{}", r.stderr);
+    assert!(r.stderr.contains("Update Wasl"), "{}", r.stderr);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_wasl_that_is_newer_than_the_daemon_says_the_daemon_needs_updating() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = Arc::new(Fake::default());
+    // A daemon from an earlier release than this wasl's lowest version.
+    let server = Server::bind(&Paths::at(dir.path()), fake, "test")
+        .unwrap()
+        .with_protocol_range(wasl_ipc::VersionRange { min: 0, max: 0 });
+    tokio::spawn(server.serve());
+    let r = wasl(dir.path(), "en", &["status"]).await;
+    assert_eq!(1, r.code, "{}", r.stderr);
+    assert!(r.stderr.contains("The running wasld is older"), "{}", r.stderr);
+}
