@@ -38,9 +38,15 @@ cargo build --workspace --release
 ```sh
 cargo test --workspace
 cargo test -p wasl-ffi --all-features
+cargo test -p wasl-engine --test killpoints   # a run stopped at every point of the apply path, then run again
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 ```
+
+The kill-point tests use a fault plan (`wasl_engine::fault`), compiled only under `cfg(test)` or the
+`test-support` feature, which the engine's own tests enable; a release build has no such point. The harness is
+`crates/wasl-engine/tests/common/kill.rs`: it runs a scenario once to count the points it passes, then once per
+point, stopped there as if the process had died, restarts the engine on the same data and runs again.
 
 The ignore engine's comparison tests use `git` and skip themselves when it is not on `PATH`. The parsers that read
 outside data (peer frames, vaults, manifests, Drive JSON, IPC) also have robustness tests and cargo-fuzz targets

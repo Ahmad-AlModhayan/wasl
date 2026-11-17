@@ -113,6 +113,23 @@ fn move_file(from: &Path, to: &Path) -> io::Result<()> {
     }
 }
 
+/// Writes `p`'s content to disk. Opened for writing, because Windows refuses to flush a handle
+/// that can't write; nothing is changed or truncated.
+fn flush_file(p: &Path) -> io::Result<()> {
+    fs::OpenOptions::new().write(true).open(p)?.sync_all()
+}
+
+/// Writes a folder's entries (a new or renamed name) to disk where the platform lets a folder be
+/// opened (Unix). Best effort: a folder that can't be flushed is not a failed install.
+fn flush_dir(dir: &Path) {
+    #[cfg(unix)]
+    if let Ok(d) = fs::File::open(dir) {
+        let _ = d.sync_all();
+    }
+    #[cfg(not(unix))]
+    let _ = dir;
+}
+
 impl LocalFs for StdFs {
     fn list(&self, dir: &str) -> io::Result<Vec<FsEntry>> {
         let mut out = Vec::new();
@@ -179,8 +196,14 @@ impl LocalFs for StdFs {
                 FileTime::from_unix_time(ms.div_euclid(1000), (ms.rem_euclid(1000) * 1_000_000) as u32),
             )?;
         }
+        // The new content is on disk before it takes the name: after a power cut the file is the
+        // old one or the whole new one, never a name with nothing behind it.
+        flush_file(staged)?;
         // Same folder: an atomic rename, so a crash leaves either the old state or the new file.
         move_file(staged, &target)?;
+        if let Some(parent) = target.parent() {
+            flush_dir(parent);
+        }
         let meta = fs::metadata(&target)?;
         Ok(entry(rel.rsplit('/').next().unwrap_or(rel).to_owned(), &meta))
     }
@@ -272,6 +295,43 @@ impl LocalFs for StdFs {
             if fs::symlink_metadata(&target).is_err() {
                 move_file(&src, &target)?;
                 return Ok(location);
+            }
+        }
+    }
+
+    fn bin_copy(&self, rel: &str) -> io::Result<Option<String>> {
+        let src = self.path(rel)?;
+        if rel.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "the pair root cannot be binned",
+            ));
+        }
+        match fs::symlink_metadata(&src) {
+            Ok(m) if m.is_file() => {}
+            Ok(_) => return Err(io::Error::new(io::ErrorKind::Unsupported, "not a plain file")),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e),
+        }
+        fs::create_dir_all(&self.bin_dir)?;
+        let name = rel.rsplit('/').next().unwrap_or(rel);
+        loop {
+            let location = format!(
+                "{}_{}_{name}",
+                now_ms(),
+                BIN_COUNTER.fetch_add(1, Ordering::Relaxed)
+            );
+            let target = self.bin_path(&location)?;
+            if fs::symlink_metadata(&target).is_err() {
+                // A second name for the same bytes: the install renames a new file over `src`, and
+                // the old content lives on under the bin's name. A copy where links aren't allowed.
+                if fs::hard_link(&src, &target).is_err()
+                    && let Err(e) = fs::copy(&src, &target)
+                {
+                    let _ = fs::remove_file(&target);
+                    return Err(e);
+                }
+                return Ok(Some(location));
             }
         }
     }

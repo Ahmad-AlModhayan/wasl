@@ -2,9 +2,10 @@
 //! settle a conflict, restore an old version, work the recycle bin. These touch files and the
 //! baseline, so they live in the engine, not in the apps (FR-E3).
 
+use crate::apply::{Apply, BIN_RETENTION_MS, MAX_LOCAL_VERSIONS};
 use crate::engine::Engine;
 use crate::error::{EngineError, Result};
-use crate::executor::{BIN_RETENTION_MS, Executor, MAX_LOCAL_VERSIONS};
+use crate::executor::Executor;
 use crate::support::{CancelToken, Tracker, new_id};
 use std::sync::{Arc, Mutex};
 use wasl_core::names::conflict_name;
@@ -100,14 +101,24 @@ impl Engine {
         self.store
             .lock()
             .start_run(&run_id, &pair.id, trigger, self.clock.now_ms())?;
+        let apply = Apply::new(
+            self.store.clone(),
+            prepared.local.clone(),
+            self.clock.clone(),
+            pair,
+        )
+        .expecting(prepared.input.local.values());
+        #[cfg(any(test, feature = "test-support"))]
+        let apply = apply.with_fault(self.fault());
         let exec = Arc::new(Executor {
             pair: pair.clone(),
             run_id: run_id.clone(),
             store: self.store.clone(),
-            local: prepared.local,
+            local: prepared.local.clone(),
             remote: prepared.remote,
             remote_ids: Mutex::new(prepared.remote_ids),
             hashes: prepared.hashes,
+            apply,
             concurrency: self.config.concurrency,
             device_name: self.config.device_name.clone(),
             clock: self.clock.clone(),

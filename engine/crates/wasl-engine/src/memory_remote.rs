@@ -204,6 +204,19 @@ impl MemoryRemote {
         self.st().nodes.get(id).is_some_and(|n| n.trashed)
     }
 
+    /// The names of the files in Drive's bin.
+    pub fn trashed_files(&self) -> Vec<String> {
+        let s = self.st();
+        let mut out: Vec<String> = s
+            .nodes
+            .values()
+            .filter(|n| n.trashed && !n.is_dir)
+            .map(|n| n.name.clone())
+            .collect();
+        out.sort();
+        out
+    }
+
     /// Every live file as path → content.
     pub fn files(&self) -> BTreeMap<String, Vec<u8>> {
         let s = self.st();

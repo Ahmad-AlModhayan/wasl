@@ -6,11 +6,14 @@ uniffi::setup_scaffolding!();
 
 mod actions;
 mod agent;
+mod apply;
 mod devices;
 mod drive_remote;
 mod engine;
 mod error;
 mod executor;
+#[cfg(any(test, feature = "test-support"))]
+pub mod fault;
 mod journal;
 mod memory_remote;
 mod on_demand;
@@ -29,6 +32,7 @@ pub use actions::{
 pub use agent::{
     AGENT_HISTORY_MS, AGENT_REVERT, ChangesetDetails, MAX_BEGIN_COPY, MAX_SAVED_FILE, RevertReport, actor_id,
 };
+pub use apply::{BIN_RETENTION_MS, CHANGED_SINCE_PLANNED, CHANGED_SINCE_PLANNED_MESSAGE, MAX_LOCAL_VERSIONS};
 pub use devices::{
     DeviceService, DeviceSync, MAX_PULL_BYTES, MAX_PULL_ENTRIES, PullReport, ScanReport,
     TOMBSTONE_RETENTION_MS, shares_by_id,
@@ -40,7 +44,6 @@ pub use engine::{
     excluded_by_pair_settings, export_beside_note, export_here_note, google_skipped_note, local_only_note,
 };
 pub use error::{EngineError, Result};
-pub use executor::{BIN_RETENTION_MS, MAX_LOCAL_VERSIONS};
 pub use journal::{JournalReport, MAX_CAPTURE, Version};
 pub use memory_remote::{MemoryRemote, Op, ROOT_ID};
 pub use on_demand::{DriveSource, RemoteSource, VaultV1Source, view_tree};
