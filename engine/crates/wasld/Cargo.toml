@@ -26,6 +26,12 @@ required-features = ["miqyas"]
 name = "miqyas"
 required-features = ["miqyas"]
 
+# Two real daemon processes, on the test build (secrets in files, loopback only):
+# cargo test -p wasld --features miqyas --test two_daemons
+[[test]]
+name = "two_daemons"
+required-features = ["miqyas"]
+
 [features]
 # A test build for Miqyas: test folder only, secrets in a file, loopback, no Google, and the
 # `wasl-miqyas` harness, which pairs two test devices without a person. Off in release builds.

@@ -63,3 +63,5 @@ jobs:
         env:
           # On Linux a missing FUSE fails the mount tests instead of skipping them.
           WASL_FUSE_TESTS: ${{ runner.os == 'Linux' && 'require' || '' }}
+      # Two real wasld processes, paired, syncing and removing (test build, loopback only).
+      - run: cargo test -p wasld --features miqyas --test two_daemons
