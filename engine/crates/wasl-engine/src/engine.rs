@@ -184,6 +184,8 @@ pub struct Engine {
     pub(crate) config: EngineConfig,
     listener: Option<ProgressListener>,
     active: Mutex<HashMap<String, Arc<Active>>>,
+    /// One lock per pair, shared with device sync (wasl#20).
+    pair_locks: crate::PairLocks,
     /// Pairs whose options are being saved, with how many saves: the save runs outside the
     /// `active` lock, so a status poll doesn't wait for it.
     saving: Mutex<HashMap<String, usize>>,
@@ -246,6 +248,7 @@ impl Engine {
             config,
             listener,
             active: Mutex::new(HashMap::new()),
+            pair_locks: crate::PairLocks::default(),
             saving: Mutex::new(HashMap::new()),
             previews: Mutex::new(HashMap::new()),
             hash_memos: Mutex::new(HashMap::new()),
@@ -264,6 +267,18 @@ impl Engine {
     pub fn with_fault_plan(mut self, plan: Arc<crate::fault::FaultPlan>) -> Engine {
         self.fault = Some(plan);
         self
+    }
+
+    /// Uses these locks instead of its own, so device sync built from the same value never runs
+    /// a pair while this engine does (wasl#20). Call before the first run.
+    pub fn with_pair_locks(mut self, locks: crate::PairLocks) -> Engine {
+        self.pair_locks = locks;
+        self
+    }
+
+    /// The per-pair locks, to hand to device sync.
+    pub fn pair_locks(&self) -> crate::PairLocks {
+        self.pair_locks.clone()
     }
 
     fn hash_memo(&self, pair_id: &str) -> Arc<HashCache> {
@@ -517,6 +532,11 @@ impl Engine {
         // same lock (`update_pair`), so either it lands first and this run reads the moved pair
         // (held for its preview), or this run holds the place and the change is refused until it
         // ends. Reading first let a run sync the old folder and then clear the new hold (#94).
+        // The pair's lock comes first: a device run of the same pair holds it too, and the two
+        // never overlap. A sync the person pressed reports "already syncing" rather than wait.
+        let Some(_pair_lock) = self.pair_locks.try_acquire(pair_id) else {
+            return skipped(ALREADY_RUNNING, None);
+        };
         let run_id = new_id(self.clock.as_ref());
         let active = Arc::new(Active {
             cancel: Arc::new(CancelToken::default()),

@@ -195,6 +195,10 @@ impl Daemon {
             },
             Some(listener),
         );
+        // One lock per pair for Drive and device runs alike (wasl#20).
+        if let Some(d) = &devices {
+            d.set_pair_locks(engine.pair_locks());
+        }
         engine.recover().map_err(|e| e.to_string())?;
         // Not fatal: the copy is tried again at the next start, and the agent tables, which sync
         // and revert read, are untouched by it.

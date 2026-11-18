@@ -123,6 +123,8 @@ impl WaslDevices {
             &cfg,
         )
         .map_err(other)?;
+        // The phone's Drive call and device call take one lock per pair (wasl#20).
+        devices.set_pair_locks(engine.engine.pair_locks());
         // Arrivals and offers change on their own (docs/INTRODUCTIONS.md).
         let ev = events.clone();
         devices.on_change(Arc::new(move || ev.changed()));

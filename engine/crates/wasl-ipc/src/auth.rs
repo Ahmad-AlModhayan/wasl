@@ -16,12 +16,40 @@ use sha2::Sha256;
 use std::io;
 use std::path::Path;
 
+use crate::proto::VersionRange;
+
 pub(crate) const NONCE_LEN: usize = 32;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Hello {
+    /// The lowest version the client speaks: a daemon from before ranges ignores this field, and
+    /// a client from before ranges sent its one version here.
     pub version: u32,
     pub nonce: String,
+    /// The range the client supports. Left out by a client from before ranges, which reads as
+    /// `[version, version]`; a reader from before ranges ignores the fields.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max: Option<u32>,
+}
+
+impl Hello {
+    pub fn offering(range: VersionRange, nonce: String) -> Hello {
+        Hello {
+            version: range.min,
+            nonce,
+            min: Some(range.min),
+            max: Some(range.max),
+        }
+    }
+
+    pub fn range(&self) -> VersionRange {
+        VersionRange {
+            min: self.min.unwrap_or(self.version),
+            max: self.max.unwrap_or(self.version),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,7 +66,33 @@ pub(crate) struct ClientProof {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Welcome {
     pub version: String,
+    /// The protocol version chosen: the highest both sides support, or the daemon's lowest when
+    /// there is none (a client from before ranges compares this with its own and refuses).
     pub protocol: u32,
+    /// The range the daemon supports. Left out by a daemon from before ranges, which reads as
+    /// `[protocol, protocol]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max: Option<u32>,
+}
+
+impl Welcome {
+    pub fn answering(version: String, ours: VersionRange, chosen: Option<u32>) -> Welcome {
+        Welcome {
+            version,
+            protocol: chosen.unwrap_or(ours.min),
+            min: Some(ours.min),
+            max: Some(ours.max),
+        }
+    }
+
+    pub fn range(&self) -> VersionRange {
+        VersionRange {
+            min: self.min.unwrap_or(self.protocol),
+            max: self.max.unwrap_or(self.protocol),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
