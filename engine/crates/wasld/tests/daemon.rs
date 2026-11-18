@@ -245,11 +245,15 @@ async fn start_seeded(
     };
     let p = paths.clone();
     let handle = tokio::spawn(async move { wasld::serve(&p, cfg, timing).await });
-    // Wait for the socket.
-    for _ in 0..100 {
-        if Client::connect(&paths).await.is_ok() {
-            break;
-        }
+    // Wait for the socket. A loaded machine can take longer than the five seconds this once waited
+    // to bring the daemon up (#48), so wait until it answers or ends, not for a fixed time.
+    let deadline = std::time::Instant::now() + Duration::from_secs(120);
+    while Client::connect(&paths).await.is_err() {
+        assert!(!handle.is_finished(), "the daemon ended before it answered");
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the daemon didn't answer within two minutes"
+        );
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
     Running {
@@ -1492,7 +1496,13 @@ async fn a_full_local_disk_needs_you_with_the_storage_fix() {
             p.status.last_status = Some(RunStatus::Failed);
             p.status.last_error_kind = Some(wasl_proto::ErrorKind::Io);
             p.status.last_error = Some(format!("write failed (os error {os_error})"));
-            p.status.last_run_at = Some(1);
+            // Just run, so the schedule (600 minutes) doesn't start a run of its own and the folder
+            // reads as the failed run left it (#48). With a run long ago it is due at the first
+            // tick, and a loaded machine reads the status in the middle of that run.
+            p.status.last_run_at = Some({
+                use wasl_engine::Clock as _;
+                wasl_engine::SystemClock.now_ms()
+            });
             p.status.consecutive_failures = 1;
             store.create_pair(&p).unwrap();
         }),
