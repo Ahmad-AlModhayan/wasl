@@ -3,7 +3,7 @@
 
 use crate::auth::{self, ClientProof, DaemonProof, Opening, Token, Welcome};
 use crate::paths::Paths;
-use crate::proto::{Event, Frame, PROTOCOL_VERSION, RemoteError, Request};
+use crate::proto::{Event, Frame, RemoteError, Request, VersionRange};
 use crate::transport::{self, BoxStream, Listener};
 use std::io;
 use std::sync::Arc;
@@ -22,6 +22,8 @@ pub struct Server<H: Handler> {
     handler: Arc<H>,
     events: broadcast::Sender<Event>,
     version: String,
+    /// The protocol versions this daemon offers at the handshake.
+    versions: VersionRange,
     /// Connections that have not finished the handshake yet.
     unproven: Arc<Semaphore>,
 }
@@ -47,8 +49,17 @@ impl<H: Handler> Server<H> {
             handler,
             events,
             version: version.into(),
+            versions: VersionRange::CURRENT,
             unproven: Arc::new(Semaphore::new(MAX_UNPROVEN)),
         })
+    }
+
+    /// Offers `range` at the handshake instead of the versions this build speaks. For tests that
+    /// play a daemon from another release.
+    #[doc(hidden)]
+    pub fn with_protocol_range(mut self, range: VersionRange) -> Self {
+        self.versions = range;
+        self
     }
 
     /// Sends events to subscribed clients. Cheap to clone and keep.
@@ -78,8 +89,9 @@ impl<H: Handler> Server<H> {
             let handler = self.handler.clone();
             let events = self.events.clone();
             let version = self.version.clone();
+            let versions = self.versions;
             tokio::spawn(async move {
-                let _ = connection(stream, permit, token, handler, events, version).await;
+                let _ = connection(stream, permit, token, handler, events, version, versions).await;
             });
         }
     }
@@ -92,6 +104,7 @@ async fn connection<H: Handler>(
     handler: Arc<H>,
     events: broadcast::Sender<Event>,
     version: String,
+    versions: VersionRange,
 ) -> io::Result<()> {
     let (mut reader, mut writer) = transport::split(stream);
     reader.set_limit(transport::MAX_HANDSHAKE_LINE);
@@ -111,10 +124,11 @@ async fn connection<H: Handler>(
             return Err(refused());
         }
         writer
-            .write(&Welcome {
-                version: version.clone(),
-                protocol: PROTOCOL_VERSION,
-            })
+            .write(&Welcome::answering(
+                version.clone(),
+                versions,
+                versions.highest_common(hello.range()),
+            ))
             .await?;
         Ok::<(), io::Error>(())
     };
@@ -238,10 +252,10 @@ fn probe(name: &str, token: &Token) -> io::Result<bool> {
         }
     };
     let mine = auth::nonce()?;
-    let mut hello = serde_json::to_vec(&Opening::Hello(Hello {
-        version: PROTOCOL_VERSION,
-        nonce: mine.clone(),
-    }))
+    let mut hello = serde_json::to_vec(&Opening::Hello(Hello::offering(
+        VersionRange::CURRENT,
+        mine.clone(),
+    )))
     .map_err(io::Error::other)?;
     hello.push(b'\n');
     (&pipe).write_all(&hello)?;

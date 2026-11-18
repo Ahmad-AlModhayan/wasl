@@ -25,8 +25,10 @@ use crate::peer::{
     MAX_PAIR_MESSAGES, MAX_PAIR_NAME_BYTES, Offer, PairReply, PairRound, PeerError, ShareId,
 };
 
-/// The protocol version this build speaks.
+/// The newest protocol version this build speaks.
 pub const PROTOCOL_VERSION: u8 = 1;
+/// The oldest protocol version this build still speaks.
+pub const MIN_PROTOCOL_VERSION: u8 = 1;
 /// Largest frame body read from a peer: a full chunk and its envelope.
 pub const MAX_FRAME_BYTES: usize = 17 << 20;
 /// Largest request frame body a device accepts.
@@ -61,9 +63,87 @@ impl From<ProtoError> for PeerError {
 }
 
 /// The first message each way on a connection.
+///
+/// `version` keeps the meaning it had before ranges: the version this device will speak. Sent as
+/// the lowest version it supports, a device from before ranges (which compares it for equality
+/// with its own) still accepts it. `min` and `max` carry the range; a device that predates them
+/// ignores the fields (CBOR maps skip unknown keys, checked in the tests below), and a `Hello`
+/// without them reads as the one-version range `[version, version]`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hello {
     pub version: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max: Option<u8>,
+}
+
+impl Hello {
+    /// Our hello: the whole range, with `version` set to the lowest.
+    pub fn offering(range: VersionRange) -> Self {
+        Self {
+            version: range.min,
+            min: Some(range.min),
+            max: Some(range.max),
+        }
+    }
+
+    /// The answer to a peer's hello: the version chosen (our lowest when there is none, so an
+    /// old peer reading `version` sees a mismatch), and our range.
+    pub fn answering(range: VersionRange, chosen: Option<u8>) -> Self {
+        Self {
+            version: chosen.unwrap_or(range.min),
+            min: Some(range.min),
+            max: Some(range.max),
+        }
+    }
+
+    /// The versions the sender supports.
+    pub fn range(&self) -> VersionRange {
+        VersionRange {
+            min: self.min.unwrap_or(self.version),
+            max: self.max.unwrap_or(self.version),
+        }
+    }
+}
+
+/// The lowest and highest protocol version a device supports (both inclusive).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VersionRange {
+    pub min: u8,
+    pub max: u8,
+}
+
+/// Which side of a refused connection needs an update.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Behind {
+    /// This device speaks only versions older than the peer's.
+    This,
+    /// The peer speaks only versions older than this device's.
+    Peer,
+}
+
+impl VersionRange {
+    /// The versions this build speaks.
+    pub const CURRENT: VersionRange = VersionRange {
+        min: MIN_PROTOCOL_VERSION,
+        max: PROTOCOL_VERSION,
+    };
+
+    /// The highest version both ranges contain, if any.
+    pub fn highest_common(self, other: VersionRange) -> Option<u8> {
+        let top = self.max.min(other.max);
+        (top >= self.min.max(other.min)).then_some(top)
+    }
+
+    /// For ranges with nothing in common: who is behind.
+    pub fn behind(self, other: VersionRange) -> Behind {
+        if self.max < other.min {
+            Behind::This
+        } else {
+            Behind::Peer
+        }
+    }
 }
 
 /// What a device asks (one per stream). Mirrors [`crate::peer::PeerLink`].
@@ -510,7 +590,7 @@ mod tests {
 
         #[test]
         fn hello_round_trips(version in any::<u8>()) {
-            let hello = Hello { version };
+            let hello = Hello { version, min: None, max: None };
             prop_assert_eq!(decode::<Hello>(body(&encode(&hello))).unwrap(), hello);
         }
 

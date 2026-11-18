@@ -59,12 +59,18 @@ impl From<ClientError> for Fail {
         match e {
             ClientError::NotRunning => Fail::said(NOT_RUNNING, words::say("daemon.not_running", &none, None)),
             ClientError::Untrusted => Fail::said(GENERAL, words::say("daemon.untrusted", &none, None)),
-            ClientError::Version(v) => {
-                let raw = format!(
-                    "wasld speaks protocol {v}; this wasl speaks {}",
-                    wasl_ipc::PROTOCOL_VERSION
-                );
-                Fail::said(GENERAL, words::say("daemon.version_mismatch", &none, Some(&raw)))
+            ClientError::NeedsUpdate { behind } => {
+                let (key, raw) = match behind {
+                    wasl_ipc::Behind::This => (
+                        "daemon.client_needs_update",
+                        "this wasl needs an update to talk to the running wasld",
+                    ),
+                    wasl_ipc::Behind::Peer => (
+                        "daemon.daemon_needs_update",
+                        "the running wasld needs an update to talk to this wasl",
+                    ),
+                };
+                Fail::said(GENERAL, words::say(key, &none, Some(raw)))
             }
             ClientError::Io(e) => Fail::said(
                 GENERAL,
@@ -371,13 +377,13 @@ fn pair_state(ps: &PairState, accounts: &[Account]) -> (String, Tone) {
     match p.status.last_status {
         Some(RunStatus::Failed) => {
             let raw = p.status.last_error.clone().unwrap_or_default();
-            let cause = match p.status.last_error_kind {
-                Some(kind) => cause_words(kind, &raw),
-                None => raw,
-            };
+            let cause = words::run_cause(false, p.status.last_error_kind, &raw, &p.name).text;
             (t!(StateFailed, cause), Tone::Bad)
         }
-        Some(RunStatus::Partial) => (t!(RunPartial), Tone::Bad),
+        Some(RunStatus::Partial) => match &p.status.last_error {
+            Some(raw) => (words::run_cause(true, None, raw, &p.name).text, Tone::Bad),
+            None => (t!(RunPartial), Tone::Bad),
+        },
         Some(RunStatus::Blocked) => (t!(StateApprove), Tone::Bad),
         None => (t!(StateNeverSynced), Tone::Quiet),
         _ => (words::text("overall.synced"), Tone::Good),
@@ -442,21 +448,18 @@ fn outcome_code(o: &RunOutcome) -> u8 {
     }
 }
 
-/// A run's cause in catalogue words (the raw text stays out of the line).
-fn cause_words(kind: wasl_proto::ErrorKind, raw: &str) -> String {
-    words::say(wasl_proto::words::classify(kind, raw), &Values::default(), None).text
-}
-
-fn outcome_line(name: &str, o: &RunOutcome) -> String {
-    let msg = o
-        .message
-        .clone()
-        .map(|raw| match o.error_kind {
-            Some(kind) => cause_words(kind, &raw),
-            None => raw,
-        })
-        .or_else(|| o.blocker.as_ref().map(|b| format!("{b:?}")))
-        .unwrap_or_default();
+/// A run's line and, behind `--details`, the redacted cause: the raw text stays out of the line.
+fn outcome_line(name: &str, o: &RunOutcome) -> (String, Option<String>) {
+    let (msg, details) = match &o.message {
+        Some(raw) => {
+            let r = words::run_cause(o.status == RunStatus::Partial, o.error_kind, raw, name);
+            (r.text, r.details)
+        }
+        None => (
+            o.blocker.as_ref().map(|b| format!("{b:?}")).unwrap_or_default(),
+            None,
+        ),
+    };
     let (line, tone) = match o.status {
         RunStatus::Success => (
             t!(
@@ -476,7 +479,16 @@ fn outcome_line(name: &str, o: &RunOutcome) -> String {
         RunStatus::Cancelled => (t!(OutcomeCancelled, name), Tone::Quiet),
         RunStatus::Running => (t!(OutcomeRunning, name), Tone::Busy),
     };
-    paint(line.trim_end_matches([' ', ':']), tone)
+    (paint(line.trim_end_matches([' ', ':']), tone), details)
+}
+
+/// Prints an outcome's line, and its cause when `--details` asked for it.
+fn print_outcome(name: &str, o: &RunOutcome) {
+    let (line, details) = outcome_line(name, o);
+    println!("{line}");
+    if let Some(d) = details.filter(|_| words::details_wanted()) {
+        eprintln!("{}", t!(DetailsLine, d));
+    }
 }
 
 async fn sync(pair: Option<String>, wait: bool) -> R<u8> {
@@ -562,7 +574,7 @@ async fn run_pairs(pair: Option<String>, wait: bool, trigger: Trigger) -> R<u8> 
                 }
                 Some(Event::RunFinished { pair_id, outcome }) if wait && target.is_none() => {
                     out::finish_progress_line();
-                    println!("{}", outcome_line(&name_of(&pair_id), &outcome));
+                    print_outcome(&name_of(&pair_id), &outcome);
                 }
                 Some(Event::ShuttingDown) => {
                     out::finish_progress_line();
@@ -580,7 +592,7 @@ fn report_outcomes(target: Option<&Pair>, outcomes: &[RunOutcome]) -> u8 {
             let o = outcomes.first();
             match o {
                 Some(o) => {
-                    println!("{}", outcome_line(&p.name, o));
+                    print_outcome(&p.name, o);
                     if o.status == RunStatus::Blocked {
                         println!("{}", t!(SeePreview, p.name));
                     }

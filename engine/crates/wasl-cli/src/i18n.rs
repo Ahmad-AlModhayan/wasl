@@ -238,7 +238,7 @@ messages! {
     ColSize => "SIZE", "الحجم";
 
     OutcomeSuccess => "{0}: synced ({1})", "{0}: تمت المزامنة ({1})";
-    OutcomePartial => "{0}: synced, but some files failed: {1}", "{0}: تمت المزامنة لكن فشلت بعض الملفات: {1}";
+    OutcomePartial => "{0}: {1}", "{0}: {1}";
     OutcomeFailed => "{0}: sync failed: {1}", "{0}: فشلت المزامنة: {1}";
     OutcomeBlocked => "{0}: stopped to ask you first: {1}", "{0}: توقفت المزامنة لتسألك أولًا: {1}";
     OutcomeSkipped => "{0}: did not start: {1}", "{0}: لم تبدأ المزامنة: {1}";

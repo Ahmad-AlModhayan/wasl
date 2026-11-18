@@ -2,7 +2,9 @@
 //! language comes from the CLI's choice, and nothing here words anything itself.
 
 use crate::i18n;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 use wasl_proto::words::{self, Lang, Rendered, Values};
 
 static DETAILS: AtomicBool = AtomicBool::new(false);
@@ -23,9 +25,50 @@ fn lang() -> Lang {
     }
 }
 
-/// The entry `key` in the current language, with its values, fix and Details.
+/// The entry `key` in the current language, with its values, fix and Details. A cause the catalogue
+/// can't name is logged to standard error once per run, however many folders show it.
 pub fn say(key: &str, values: &Values, raw: Option<&str>) -> Rendered {
-    words::render(key, values, lang(), raw, &[], &mut |line| eprintln!("{line}"))
+    static LOGGED: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    words::render(key, values, lang(), raw, &[], &mut |line| {
+        let fresh = LOGGED
+            .get_or_init(Default::default)
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .insert(line.clone());
+        if fresh {
+            eprintln!("{line}");
+        }
+    })
+}
+
+/// A cause shown without a run's words: the raw text with tokens and paths taken out.
+pub fn plain(raw: &str) -> String {
+    words::redact(raw, None, &[])
+}
+
+/// Why a run on `folder` ended as it did: the words, and the redacted cause behind them. A
+/// partial run counts the items that did not sync. Without a kind (an older daemon), the cause itself.
+pub fn run_cause(
+    status_partial: bool,
+    kind: Option<wasl_proto::ErrorKind>,
+    raw: &str,
+    folder: &str,
+) -> Rendered {
+    let values = Values::default().folder(folder);
+    if status_partial {
+        let n = words::partial_count(raw);
+        return say("run.partial", &values.count(n), Some(raw));
+    }
+    match kind {
+        Some(kind) => say(words::classify(kind, raw), &values, Some(raw)),
+        None => Rendered {
+            key: String::new(),
+            text: plain(raw),
+            fix: None,
+            values,
+            details: None,
+        },
+    }
 }
 
 /// The words of an entry that takes no values (a status label).

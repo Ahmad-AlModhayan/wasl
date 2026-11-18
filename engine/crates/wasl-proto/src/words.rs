@@ -41,6 +41,7 @@ pub enum Fix {
     OpenStorageSettings,
     OpenDriveStorage,
     OpenToRename,
+    UnlockVault,
     GrantAccessAgain,
     UpdateWasl,
 }
@@ -228,6 +229,8 @@ pub struct Entry {
 
 /// The key of the entry an unknown error gets.
 pub const FALLBACK: &str = "error.unknown";
+/// The key of the entry a request failure the catalogue can't name gets.
+pub const REQUEST_FALLBACK: &str = "request.other";
 
 const fn e(
     key: &'static str,
@@ -316,37 +319,54 @@ pub const ENTRIES: &[Entry] = &[
         &[Count],
         "Badge or heading on the home screen. {count} is the number of folders that need the person.",
     ),
+    // ---- a run that finished but not every item synced
+    e(
+        "run.partial",
+        Forms::one_other(
+            "{count} item in {folder} didn't sync. Wasl will try again at the next sync.",
+            "{count} items in {folder} didn't sync. Wasl will try again at the next sync.",
+        ),
+        Forms::six(
+            "لا عناصر في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.",
+            "عنصر واحد في {folder} لم تتم مزامنته. سيحاول وصل مجددًا في المزامنة التالية.",
+            "عنصران في {folder} لم تتم مزامنتهما. سيحاول وصل مجددًا في المزامنة التالية.",
+            "{count} عناصر في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.",
+            "{count} عنصرًا في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.",
+            "{count} عنصر في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.",
+        ),
+        Some(Retry),
+        &[Folder, Count],
+        "Shown after a run that finished with some items failing. {count} is how many items failed; Details has the first cause.",
+    ),
     // ---- errors a run can end with (one per coarse error kind)
     e(
         "error.auth",
-        Forms::single("Your Google sign-in has ended, so {folder} can't sync. Nothing was changed."),
-        Forms::single("انتهى تسجيل دخولك إلى Google، لذلك لا يمكن مزامنة {folder}. لم يتغير شيء."),
+        Forms::single("Your Google sign-in has ended, so {folder} can't sync."),
+        Forms::single("انتهى تسجيل دخولك إلى Google، لذلك لا يمكن مزامنة {folder}."),
         Some(SignInAgain),
         &[Folder],
         "Shown on a folder or in a notification when Google no longer accepts the saved sign-in.",
     ),
     e(
         "error.permission",
-        Forms::single(
-            "Wasl isn't allowed to use {folder} any more, so it stopped syncing there. Nothing was changed.",
-        ),
-        Forms::single("لم يعد وصل مسموحًا له باستخدام {folder}، لذلك توقفت المزامنة هناك. لم يتغير شيء."),
+        Forms::single("Wasl isn't allowed to use {folder} any more, so it stopped syncing there."),
+        Forms::single("لم يعد وصل مسموحًا له باستخدام {folder}، لذلك توقفت المزامنة هناك."),
         Some(OpenFolder),
         &[Folder],
         "The folder or the account refused Wasl access; the run stops (a fatal error). {folder} is the synced folder.",
     ),
     e(
         "error.quota",
-        Forms::single("Google Drive is full, so {folder} can't send more files. Nothing was lost."),
-        Forms::single("مساحة Google Drive ممتلئة، لذلك لا يستطيع {folder} رفع المزيد من الملفات. لم يضع شيء."),
+        Forms::single("Google Drive is full, so {folder} can't send more files."),
+        Forms::single("مساحة Google Drive ممتلئة، لذلك لا يستطيع {folder} رفع المزيد من الملفات."),
         Some(OpenDriveStorage),
         &[Folder],
         "The person's Drive storage is full (not this device's disk).",
     ),
     e(
         "error.not_found",
-        Forms::single("Wasl couldn't find something it needed for {folder}. Nothing was changed."),
-        Forms::single("تعذّر على وصل العثور على شيء يحتاجه لـ {folder}. لم يتغير شيء."),
+        Forms::single("Wasl couldn't find something it needed for {folder}."),
+        Forms::single("تعذّر على وصل العثور على شيء يحتاجه لـ {folder}."),
         Some(Retry),
         &[Folder],
         "Something the run needed (a Drive folder, an upload) is gone. Not one vanished file: that is error.file_gone.",
@@ -354,14 +374,14 @@ pub const ENTRIES: &[Entry] = &[
     e(
         "error.locked",
         Forms::single(
-            "{file} is open in another program, so Wasl left it for now. It will be tried again at the next sync.",
+            "The vault in {folder} is locked on this device, so it can't sync. Unlock it, then try again.",
         ),
         Forms::single(
-            "{file} مفتوح في برنامج آخر، لذلك تركه وصل الآن. ستتم محاولته مجددًا في المزامنة التالية.",
+            "الخزنة في {folder} مقفلة على هذا الجهاز، لذلك لا يمكن مزامنتها. افتح قفلها ثم حاول مجددًا.",
         ),
-        Some(Retry),
-        &[File],
-        "Another program holds the file open or locked.",
+        Some(UnlockVault),
+        &[Folder],
+        "A vault folder whose keys this device doesn't hold (locked, or its keys unusable). Not a file held open by another program.",
     ),
     e(
         "error.network",
@@ -419,6 +439,30 @@ pub const ENTRIES: &[Entry] = &[
         "The engine has no folder, device, file or vault by that name. Details carries the engine's own message.",
     ),
     e(
+        "request.auth",
+        Forms::single("Wasl isn't signed in to that Google account, or the sign-in has ended."),
+        Forms::single("وصل غير مسجّل الدخول إلى حساب Google هذا، أو انتهى تسجيل الدخول."),
+        Some(SignInAgain),
+        &[],
+        "A request needed a Google sign-in the engine doesn't have. Details carries the engine's own message.",
+    ),
+    e(
+        "request.network",
+        Forms::single("Wasl couldn't reach Google Drive for that. Check the connection and try again."),
+        Forms::single("تعذّر على وصل الوصول إلى Google Drive لتنفيذ ذلك. تحقق من الاتصال وحاول مجددًا."),
+        Some(Retry),
+        &[],
+        "A request needed Google Drive and the network failed. Details carries the engine's own message.",
+    ),
+    e(
+        "request.other",
+        Forms::single("Something went wrong with that request."),
+        Forms::single("حدث خطأ أثناء تنفيذ هذا الطلب."),
+        Some(Retry),
+        &[],
+        "Catch-all for a request failure the catalogue can't name; each one is logged. Details carries the engine's own message.",
+    ),
+    e(
         "request.permission",
         Forms::single("Wasl isn't allowed to do that."),
         Forms::single("لا يملك وصل الإذن لتنفيذ ذلك."),
@@ -428,40 +472,34 @@ pub const ENTRIES: &[Entry] = &[
     ),
     e(
         "request.locked",
-        Forms::single("That is in use right now, so Wasl can't do it yet."),
-        Forms::single("هذا قيد الاستخدام الآن، لذلك لا يستطيع وصل تنفيذه بعد."),
-        Some(Retry),
+        Forms::single("That is locked on this device. Unlock it, then try again."),
+        Forms::single("هذا مقفل على هذا الجهاز. افتح قفله ثم حاول مجددًا."),
+        Some(UnlockVault),
         &[],
-        "The engine can't do a request because something is held open or locked. Details carries the engine's message.",
+        "A vault, or a view of one, is locked on this device so the engine can't do the request. Details carries the engine's message.",
     ),
     e(
         "error.file_gone",
-        Forms::single("{file} was gone before Wasl could sync it. Skipped it; the rest of {folder} synced."),
-        Forms::single("اختفى {file} قبل أن يتمكن وصل من مزامنته. تم تخطيه ومزامنة بقية {folder}."),
+        Forms::single("{file} was gone before Wasl could sync it, so it was skipped."),
+        Forms::single("اختفى {file} قبل أن يتمكن وصل من مزامنته، لذلك تم تخطيه."),
         Some(Retry),
-        &[File, Folder],
-        "A file was deleted or moved between Wasl listing it and reading it. Not a problem; the next sync is clean.",
+        &[File],
+        "A file was deleted or moved between Wasl listing it and reading it. Not a problem; the next sync is clean. Not raised yet: the engine records a vanished file as a plain-text SKIP event, so no error carries this key today.",
     ),
     e(
         "error.disk_full",
-        Forms::single(
-            "This device's storage is full, so Wasl couldn't save {file} in {folder}. Nothing was lost.",
-        ),
-        Forms::single(
-            "مساحة التخزين في هذا الجهاز ممتلئة، لذلك تعذّر على وصل حفظ {file} في {folder}. لم يضع شيء.",
-        ),
+        Forms::single("This device's storage is full, so Wasl couldn't save {file} in {folder}."),
+        Forms::single("مساحة التخزين في هذا الجهاز ممتلئة، لذلك تعذّر على وصل حفظ {file} في {folder}."),
         Some(OpenStorageSettings),
         &[File, Folder],
         "The disk or phone storage on THIS device is full (contrast error.quota: the person's Drive is full).",
     ),
     e(
         "error.name_refused",
-        Forms::single(
-            "Drive or this device won't accept the name of {file}. Skipped it; the rest of {folder} synced.",
-        ),
-        Forms::single("لا يقبل Drive أو هذا الجهاز اسم {file}. تم تخطيه ومزامنة بقية {folder}."),
+        Forms::single("Drive or this device won't accept the name of {file}, so it was skipped."),
+        Forms::single("لا يقبل Drive أو هذا الجهاز اسم {file}، لذلك تم تخطيه."),
         Some(OpenToRename),
-        &[File, Folder],
+        &[File],
         "The file name is too long, has a character or a reserved name that one side refuses. Wasl never renames it.",
     ),
     e(
@@ -514,14 +552,26 @@ pub const ENTRIES: &[Entry] = &[
         "Whatever answers on Wasl's local address didn't prove it is this user's Wasl.",
     ),
     e(
-        "daemon.version_mismatch",
+        "daemon.client_needs_update",
         Forms::single(
-            "The Wasl running in the background and this app don't speak the same version. Update Wasl.",
+            "This Wasl is older than the one running in the background, so they can't talk to each other. Update Wasl.",
         ),
-        Forms::single("وصل العامل في الخلفية وهذا التطبيق لا يستخدمان الإصدار نفسه. حدّث وصل."),
+        Forms::single("هذا الإصدار من وصل أقدم من الذي يعمل في الخلفية، لذلك لا يستطيعان التخاطب. حدّث وصل."),
         Some(UpdateWasl),
         &[],
-        "The background program and the app speak different protocol versions. Details has both numbers.",
+        "The command line or app speaks only older protocol versions than the background program. Details says which side is behind.",
+    ),
+    e(
+        "daemon.daemon_needs_update",
+        Forms::single(
+            "The Wasl running in the background is older than this one, so they can't talk to each other. Update Wasl and start it again.",
+        ),
+        Forms::single(
+            "وصل العامل في الخلفية أقدم من هذا الإصدار، لذلك لا يستطيعان التخاطب. حدّث وصل وأعد تشغيله.",
+        ),
+        Some(UpdateWasl),
+        &[],
+        "The background program speaks only older protocol versions than the command line or app. Details says which side is behind.",
     ),
     e(
         "daemon.connection_lost",
@@ -551,18 +601,82 @@ pub fn key_for_kind(kind: crate::run::ErrorKind) -> &'static str {
     }
 }
 
+/// The operating system an error message came from: the same `(os error N)` number means different
+/// things on each (28 is "no space" on Linux and macOS, "out of paper" on Windows).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Platform {
+    Windows,
+    /// Linux and Android.
+    Linux,
+    /// macOS and iOS.
+    Apple,
+}
+
+impl Platform {
+    /// The system this program runs on, which is where a local engine's I/O errors come from.
+    pub fn current() -> Platform {
+        if cfg!(windows) {
+            Platform::Windows
+        } else if cfg!(any(target_os = "macos", target_os = "ios")) {
+            Platform::Apple
+        } else {
+            Platform::Linux
+        }
+    }
+
+    /// The error numbers for a full disk or quota, and for a name too long or not valid.
+    fn tables(self) -> (&'static [i32], &'static [i32]) {
+        match self {
+            // ERROR_HANDLE_DISK_FULL, ERROR_DISK_FULL; ERROR_INVALID_NAME, ERROR_FILENAME_EXCED_RANGE.
+            Platform::Windows => (&[39, 112], &[123, 206]),
+            // ENOSPC, EDQUOT; ENAMETOOLONG.
+            Platform::Linux => (&[28, 122], &[36]),
+            // ENOSPC, EDQUOT; ENAMETOOLONG.
+            Platform::Apple => (&[28, 69], &[63]),
+        }
+    }
+}
+
 /// The most specific entry for a failure that came as a coarse `kind` and its raw cause, for callers
 /// that hold nothing more typed (the CLI and apps read the daemon's reply). It only trusts the numbers
-/// the operating system itself puts in an I/O message (`(os error 28)`), never words, so a file called
-/// "Disk full notes.txt" can't change the answer.
+/// the operating system itself puts in an I/O message (`(os error 28)`), read with this system's table,
+/// never words, so a file called "Disk full notes.txt" can't change the answer.
 pub fn classify(kind: crate::run::ErrorKind, raw: &str) -> &'static str {
+    classify_for(Platform::current(), kind, raw)
+}
+
+/// [`classify`] for errors that came from `platform`.
+pub fn classify_for(platform: Platform, kind: crate::run::ErrorKind, raw: &str) -> &'static str {
     use crate::run::ErrorKind as K;
-    let code = os_error_code(raw);
-    match (kind, code) {
-        (K::Io | K::Quota | K::Other, Some(28 | 112 | 39 | 122)) => "error.disk_full",
-        (K::Io | K::Other | K::Permission, Some(36 | 63 | 123 | 206)) => "error.name_refused",
-        _ => key_for_kind(kind),
+    if matches!(kind, K::Io | K::Other)
+        && let Some(code) = os_error_code(raw)
+    {
+        let (disk_full, name_refused) = platform.tables();
+        if disk_full.contains(&code) {
+            return "error.disk_full";
+        }
+        if name_refused.contains(&code) {
+            return "error.name_refused";
+        }
     }
+    key_for_kind(kind)
+}
+
+/// What a run that finished with failing items says in `RunOutcome::message`: the first cause alone
+/// for one item, and a count in front for several. [`partial_count`] reads the count back.
+pub fn partial_message(errors: u64, first: &str) -> String {
+    match errors {
+        1 => first.to_owned(),
+        n => format!("{n} items couldn't sync. First: {first}"),
+    }
+}
+
+/// How many items a partial run's message says did not sync (one when it carries no count).
+pub fn partial_count(message: &str) -> u64 {
+    message
+        .split_once(" items couldn't sync. First: ")
+        .and_then(|(n, _)| n.parse().ok())
+        .unwrap_or(1)
 }
 
 /// The number in a trailing `(os error N)`, as `std::io::Error` prints it.
@@ -638,8 +752,8 @@ fn fill(template: &str, values: &Values, lang: Lang) -> String {
 }
 
 /// Renders `key` in `lang`. A key the catalogue doesn't have renders the fallback entry, keeps the
-/// requested key out of the result's `key`, and calls `log` once with a line naming it, so it can be
-/// added to the catalogue. `raw` is the underlying cause; it becomes Details after [`redact`].
+/// requested key out of the result's `key`, and calls `log` once with a line naming it and its
+/// redacted cause, so it can be added to the catalogue. The two catch-all entries log the same way. `raw` is the underlying cause; it becomes Details after [`redact`].
 pub fn render(
     key: &str,
     values: &Values,
@@ -649,10 +763,17 @@ pub fn render(
     log: &mut dyn FnMut(String),
 ) -> Rendered {
     let ent = entry(key).unwrap_or_else(|| entry(FALLBACK).expect("the fallback entry exists"));
-    if ent.key == FALLBACK {
-        log(format!(
-            "wasl: no specific catalogue entry for error {key:?}; showing the fallback"
-        ));
+    if ent.key == FALLBACK || ent.key == REQUEST_FALLBACK {
+        let cause = raw
+            .map(|r| redact(r, values.folder_root(), secrets))
+            .map(|c| c.chars().take(200).collect::<String>())
+            .filter(|c| !c.is_empty());
+        log(match cause {
+            Some(c) => {
+                format!("wasl: no specific catalogue entry for error {key:?} ({c}); showing the fallback")
+            }
+            None => format!("wasl: no specific catalogue entry for error {key:?}; showing the fallback"),
+        });
     }
     let forms = match lang {
         Lang::En => &ent.en,
@@ -1002,7 +1123,7 @@ mod tests {
     #[test]
     fn a_missing_value_reads_plainly_and_a_value_is_not_filled_twice() {
         let r = render(
-            "error.file_gone",
+            "error.disk_full",
             &Values::default(),
             Lang::En,
             None,
@@ -1011,10 +1132,10 @@ mod tests {
         );
         assert_eq!(
             r.text,
-            "a file was gone before Wasl could sync it. Skipped it; the rest of this folder synced."
+            "This device's storage is full, so Wasl couldn't save a file in this folder."
         );
         let r = render(
-            "error.file_gone",
+            "error.disk_full",
             &Values::default().file("{folder}").folder("Docs"),
             Lang::En,
             None,
@@ -1023,84 +1144,258 @@ mod tests {
         );
         assert_eq!(
             r.text,
-            "{folder} was gone before Wasl could sync it. Skipped it; the rest of Docs synced."
+            "This device's storage is full, so Wasl couldn't save {folder} in Docs."
         );
     }
 
     #[test]
     fn only_the_operating_systems_error_numbers_pick_the_specific_entries() {
         use crate::run::ErrorKind as K;
+        use Platform::*;
+        // The same number means different things on each system: 28 is "no space" on Linux and macOS
+        // but "out of paper" on Windows; 63 is "name too long" on macOS only; 39 is "disk full" on
+        // Windows but "directory not empty" on Linux.
         let cases = [
-            (K::Io, "No space left on device (os error 28)", "error.disk_full"),
             (
+                Linux,
+                K::Io,
+                "No space left on device (os error 28)",
+                "error.disk_full",
+            ),
+            (
+                Apple,
+                K::Io,
+                "No space left on device (os error 28)",
+                "error.disk_full",
+            ),
+            (Windows, K::Io, "Out of paper. (os error 28)", "error.io"),
+            (
+                Windows,
                 K::Io,
                 "There is not enough space on the disk. (os error 112)",
                 "error.disk_full",
             ),
             (
+                Windows,
+                K::Io,
+                "The disk is full. (os error 39)",
+                "error.disk_full",
+            ),
+            (Linux, K::Io, "Directory not empty (os error 39)", "error.io"),
+            (Linux, K::Io, "boom (os error 112)", "error.io"),
+            (
+                Linux,
+                K::Io,
+                "Disk quota exceeded (os error 122)",
+                "error.disk_full",
+            ),
+            (
+                Apple,
+                K::Io,
+                "Disk quota exceeded (os error 69)",
+                "error.disk_full",
+            ),
+            (Apple, K::Io, "boom (os error 122)", "error.io"),
+            (
+                Windows,
                 K::Io,
                 "The filename or extension is too long. (os error 206)",
                 "error.name_refused",
             ),
-            (K::Io, "File name too long (os error 36)", "error.name_refused"),
             (
-                K::Quota,
-                "storageQuotaExceeded: the user's Drive storage quota has been exceeded",
-                "error.quota",
+                Windows,
+                K::Io,
+                "The filename is not valid. (os error 123)",
+                "error.name_refused",
+            ),
+            (Windows, K::Io, "File name too long (os error 36)", "error.io"),
+            (
+                Linux,
+                K::Io,
+                "File name too long (os error 36)",
+                "error.name_refused",
+            ),
+            (Linux, K::Io, "boom (os error 63)", "error.io"),
+            (Linux, K::Io, "boom (os error 123)", "error.io"),
+            (
+                Apple,
+                K::Io,
+                "File name too long (os error 63)",
+                "error.name_refused",
+            ),
+            (Apple, K::Io, "boom (os error 36)", "error.io"),
+            (Windows, K::Io, "boom (os error 281)", "error.io"),
+            // A refused permission stays a permission problem, whatever number it carries.
+            (
+                Linux,
+                K::Permission,
+                "File name too long (os error 36)",
+                "error.permission",
             ),
             (
+                Windows,
+                K::Permission,
+                "access denied (os error 123)",
+                "error.permission",
+            ),
+            // Drive's quota is not this device's disk.
+            (Linux, K::Quota, "quota (os error 28)", "error.quota"),
+            (
+                Linux,
                 K::Permission,
                 "Disk full notes.txt: access denied (os error 5)",
                 "error.permission",
             ),
-            (K::Io, "cannot read Folder plan.docx (os error 5)", "error.io"),
-            (K::Io, "boom (os error 281)", "error.io"),
             (
+                Linux,
                 K::Auth,
                 "invalid_grant: token has been expired or revoked",
                 "error.auth",
             ),
-            (K::NotFound, "This pair has no Drive folder", "error.not_found"),
-            (K::Network, "dns error", "error.network"),
+            (
+                Linux,
+                K::NotFound,
+                "This pair has no Drive folder",
+                "error.not_found",
+            ),
+            (Linux, K::Network, "dns error", "error.network"),
         ];
-        for (kind, raw, key) in cases {
-            assert_eq!(classify(kind, raw), key, "{raw}");
+        for (platform, kind, raw, key) in cases {
+            assert_eq!(classify_for(platform, kind, raw), key, "{platform:?} {raw}");
             assert!(entry(key).is_some());
         }
+        // The caller's own platform is the default.
+        assert_eq!(
+            classify(K::Io, "boom (os error 281)"),
+            classify_for(Platform::current(), K::Io, "boom (os error 281)")
+        );
         let fix = |k| entry(k).unwrap().fix;
         assert_eq!(fix("error.disk_full"), Some(Fix::OpenStorageSettings));
         assert_eq!(fix("error.quota"), Some(Fix::OpenDriveStorage));
         assert_eq!(fix("error.name_refused"), Some(Fix::OpenToRename));
-        let gone = render(
-            "error.file_gone",
-            &Values::default().file("a.txt").folder("Docs"),
+    }
+
+    #[test]
+    fn a_locked_entry_speaks_of_a_locked_vault_not_a_busy_file() {
+        // The engine's Locked is a vault whose keys this device doesn't hold (wasld vaults.rs, ffi).
+        for key in ["error.locked", "request.locked"] {
+            let ent = entry(key).unwrap();
+            assert_eq!(ent.fix, Some(Fix::UnlockVault), "{key}");
+            for t in ent.en.all() {
+                assert!(t.contains("locked"), "{key}: {t}");
+                assert!(
+                    !t.contains("another program") && !t.contains("in use"),
+                    "{key}: {t}"
+                );
+            }
+            for t in ent.ar.all() {
+                assert!(t.contains("مقفل"), "{key}: {t}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_request_has_its_own_words_for_every_kind() {
+        // A request the person made (a CLI command) never reads as a sync: no "sync", no folder.
+        for key in [
+            "request.auth",
+            "request.network",
+            "request.permission",
+            "request.not_found",
+            "request.locked",
+            "request.other",
+        ] {
+            let ent = entry(key).unwrap_or_else(|| panic!("{key} is not in the catalogue"));
+            assert!(ent.slots.is_empty(), "{key} takes no values");
+            for t in ent.en.all() {
+                assert!(!t.contains("sync"), "{key}: {t}");
+            }
+        }
+        assert_eq!(entry("request.auth").unwrap().fix, Some(Fix::SignInAgain));
+        assert_eq!(entry("request.network").unwrap().fix, Some(Fix::Retry));
+        // The catch-all for requests is an unknown error too: it logs, with the redacted cause.
+        let mut lines = Vec::new();
+        let r = render(
+            "request.other",
+            &Values::default(),
             Lang::En,
-            None,
+            Some("boom for user@example.com"),
             &[],
-            &mut quiet(),
+            &mut |l| lines.push(l),
+        );
+        assert_eq!(r.key, "request.other");
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("boom for [hidden]"), "{lines:?}");
+        assert!(!lines[0].contains("user@example.com"));
+    }
+
+    #[test]
+    fn a_partial_run_says_how_many_items_did_not_sync() {
+        assert_eq!(partial_message(1, "Photo a.jpg: failed"), "Photo a.jpg: failed");
+        assert_eq!(partial_count(&partial_message(1, "Photo a.jpg: failed")), 1);
+        assert_eq!(partial_count(&partial_message(7, "Photo a.jpg: failed")), 7);
+        assert_eq!(partial_count("some text with no count"), 1);
+        let r = |n, lang| {
+            render(
+                "run.partial",
+                &Values::default().folder("Docs").count(n),
+                lang,
+                Some(&partial_message(n, "x")),
+                &[],
+                &mut quiet(),
+            )
+        };
+        assert_eq!(
+            r(1, Lang::En).text,
+            "1 item in Docs didn't sync. Wasl will try again at the next sync."
         );
         assert_eq!(
-            gone.text,
-            "a.txt was gone before Wasl could sync it. Skipped it; the rest of Docs synced."
+            r(3, Lang::En).text,
+            "3 items in Docs didn't sync. Wasl will try again at the next sync."
+        );
+        assert!(r(3, Lang::Ar).text.contains('3') && r(3, Lang::Ar).text.contains("Docs"));
+        assert!(
+            r(3, Lang::En)
+                .details
+                .unwrap()
+                .starts_with("3 items couldn't sync")
         );
     }
 
     #[test]
-    fn a_failure_that_stops_the_run_never_says_the_rest_synced() {
-        // The engine stops the whole run for Auth, Permission and Quota (EngineError::is_fatal).
-        for key in [
-            "error.auth",
-            "error.permission",
-            "error.quota",
-            "error.not_found",
-            "error.io",
-        ] {
-            let ent = entry(key).unwrap();
+    fn a_catch_all_logs_the_cause_it_could_not_name() {
+        let mut lines = Vec::new();
+        render(
+            FALLBACK,
+            &Values::default(),
+            Lang::En,
+            Some("weird failure at C:\\Users\\Jane Doe\\x.txt"),
+            &[],
+            &mut |l| lines.push(l),
+        );
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("weird failure"), "{lines:?}");
+        assert!(!lines[0].contains("Jane"), "{lines:?}");
+    }
+
+    #[test]
+    fn no_entry_claims_what_it_cannot_know() {
+        // After a failure the engine may have changed or kept other files, and a run reports only
+        // its first cause, so no entry says nothing changed, nothing was lost, or the rest synced.
+        for ent in ENTRIES {
             for t in ent.en.all().chain(ent.ar.all()) {
-                assert!(
-                    !t.contains("the rest") && !t.contains("بقية") && !t.contains("Skipped"),
-                    "{key}: {t}"
-                );
+                let lower = t.to_lowercase();
+                for claim in [
+                    "nothing was changed",
+                    "nothing was lost",
+                    "the rest",
+                    "everything else",
+                    "لم يتغير شيء",
+                    "لم يضع شيء",
+                    "بقية",
+                ] {
+                    assert!(!lower.contains(claim), "{}: claims {claim:?}: {t}", ent.key);
+                }
             }
         }
     }

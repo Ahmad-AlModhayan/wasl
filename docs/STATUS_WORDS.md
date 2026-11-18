@@ -70,45 +70,59 @@ falling back to English.
 - Arabic (many): {count} مجلدًا يحتاج إليك
 - Arabic (other): {count} مجلد يحتاج إليك
 
+## `run.partial`
+
+- Note: Shown after a run that finished with some items failing. {count} is how many items failed; Details has the first cause.
+- Values: folder, count
+- Fix: `retry`
+- English (one): {count} item in {folder} didn't sync. Wasl will try again at the next sync.
+- English (other): {count} items in {folder} didn't sync. Wasl will try again at the next sync.
+- Arabic (zero): لا عناصر في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.
+- Arabic (one): عنصر واحد في {folder} لم تتم مزامنته. سيحاول وصل مجددًا في المزامنة التالية.
+- Arabic (two): عنصران في {folder} لم تتم مزامنتهما. سيحاول وصل مجددًا في المزامنة التالية.
+- Arabic (few): {count} عناصر في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.
+- Arabic (many): {count} عنصرًا في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.
+- Arabic (other): {count} عنصر في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.
+
 ## `error.auth`
 
 - Note: Shown on a folder or in a notification when Google no longer accepts the saved sign-in.
 - Values: folder
 - Fix: `sign_in_again`
-- English: Your Google sign-in has ended, so {folder} can't sync. Nothing was changed.
-- Arabic: انتهى تسجيل دخولك إلى Google، لذلك لا يمكن مزامنة {folder}. لم يتغير شيء.
+- English: Your Google sign-in has ended, so {folder} can't sync.
+- Arabic: انتهى تسجيل دخولك إلى Google، لذلك لا يمكن مزامنة {folder}.
 
 ## `error.permission`
 
 - Note: The folder or the account refused Wasl access; the run stops (a fatal error). {folder} is the synced folder.
 - Values: folder
 - Fix: `open_folder`
-- English: Wasl isn't allowed to use {folder} any more, so it stopped syncing there. Nothing was changed.
-- Arabic: لم يعد وصل مسموحًا له باستخدام {folder}، لذلك توقفت المزامنة هناك. لم يتغير شيء.
+- English: Wasl isn't allowed to use {folder} any more, so it stopped syncing there.
+- Arabic: لم يعد وصل مسموحًا له باستخدام {folder}، لذلك توقفت المزامنة هناك.
 
 ## `error.quota`
 
 - Note: The person's Drive storage is full (not this device's disk).
 - Values: folder
 - Fix: `open_drive_storage`
-- English: Google Drive is full, so {folder} can't send more files. Nothing was lost.
-- Arabic: مساحة Google Drive ممتلئة، لذلك لا يستطيع {folder} رفع المزيد من الملفات. لم يضع شيء.
+- English: Google Drive is full, so {folder} can't send more files.
+- Arabic: مساحة Google Drive ممتلئة، لذلك لا يستطيع {folder} رفع المزيد من الملفات.
 
 ## `error.not_found`
 
 - Note: Something the run needed (a Drive folder, an upload) is gone. Not one vanished file: that is error.file_gone.
 - Values: folder
 - Fix: `retry`
-- English: Wasl couldn't find something it needed for {folder}. Nothing was changed.
-- Arabic: تعذّر على وصل العثور على شيء يحتاجه لـ {folder}. لم يتغير شيء.
+- English: Wasl couldn't find something it needed for {folder}.
+- Arabic: تعذّر على وصل العثور على شيء يحتاجه لـ {folder}.
 
 ## `error.locked`
 
-- Note: Another program holds the file open or locked.
-- Values: file
-- Fix: `retry`
-- English: {file} is open in another program, so Wasl left it for now. It will be tried again at the next sync.
-- Arabic: {file} مفتوح في برنامج آخر، لذلك تركه وصل الآن. ستتم محاولته مجددًا في المزامنة التالية.
+- Note: A vault folder whose keys this device doesn't hold (locked, or its keys unusable). Not a file held open by another program.
+- Values: folder
+- Fix: `unlock_vault`
+- English: The vault in {folder} is locked on this device, so it can't sync. Unlock it, then try again.
+- Arabic: الخزنة في {folder} مقفلة على هذا الجهاز، لذلك لا يمكن مزامنتها. افتح قفلها ثم حاول مجددًا.
 
 ## `error.network`
 
@@ -158,6 +172,30 @@ falling back to English.
 - English: Wasl couldn't find what you asked for.
 - Arabic: تعذّر على وصل العثور على ما طلبته.
 
+## `request.auth`
+
+- Note: A request needed a Google sign-in the engine doesn't have. Details carries the engine's own message.
+- Values: none
+- Fix: `sign_in_again`
+- English: Wasl isn't signed in to that Google account, or the sign-in has ended.
+- Arabic: وصل غير مسجّل الدخول إلى حساب Google هذا، أو انتهى تسجيل الدخول.
+
+## `request.network`
+
+- Note: A request needed Google Drive and the network failed. Details carries the engine's own message.
+- Values: none
+- Fix: `retry`
+- English: Wasl couldn't reach Google Drive for that. Check the connection and try again.
+- Arabic: تعذّر على وصل الوصول إلى Google Drive لتنفيذ ذلك. تحقق من الاتصال وحاول مجددًا.
+
+## `request.other`
+
+- Note: Catch-all for a request failure the catalogue can't name; each one is logged. Details carries the engine's own message.
+- Values: none
+- Fix: `retry`
+- English: Something went wrong with that request.
+- Arabic: حدث خطأ أثناء تنفيذ هذا الطلب.
+
 ## `request.permission`
 
 - Note: The engine refused a request the person isn't allowed to make. Details carries the engine's own message.
@@ -168,35 +206,35 @@ falling back to English.
 
 ## `request.locked`
 
-- Note: The engine can't do a request because something is held open or locked. Details carries the engine's message.
+- Note: A vault, or a view of one, is locked on this device so the engine can't do the request. Details carries the engine's message.
 - Values: none
-- Fix: `retry`
-- English: That is in use right now, so Wasl can't do it yet.
-- Arabic: هذا قيد الاستخدام الآن، لذلك لا يستطيع وصل تنفيذه بعد.
+- Fix: `unlock_vault`
+- English: That is locked on this device. Unlock it, then try again.
+- Arabic: هذا مقفل على هذا الجهاز. افتح قفله ثم حاول مجددًا.
 
 ## `error.file_gone`
 
-- Note: A file was deleted or moved between Wasl listing it and reading it. Not a problem; the next sync is clean.
-- Values: file, folder
+- Note: A file was deleted or moved between Wasl listing it and reading it. Not a problem; the next sync is clean. Not raised yet: the engine records a vanished file as a plain-text SKIP event, so no error carries this key today.
+- Values: file
 - Fix: `retry`
-- English: {file} was gone before Wasl could sync it. Skipped it; the rest of {folder} synced.
-- Arabic: اختفى {file} قبل أن يتمكن وصل من مزامنته. تم تخطيه ومزامنة بقية {folder}.
+- English: {file} was gone before Wasl could sync it, so it was skipped.
+- Arabic: اختفى {file} قبل أن يتمكن وصل من مزامنته، لذلك تم تخطيه.
 
 ## `error.disk_full`
 
 - Note: The disk or phone storage on THIS device is full (contrast error.quota: the person's Drive is full).
 - Values: file, folder
 - Fix: `open_storage_settings`
-- English: This device's storage is full, so Wasl couldn't save {file} in {folder}. Nothing was lost.
-- Arabic: مساحة التخزين في هذا الجهاز ممتلئة، لذلك تعذّر على وصل حفظ {file} في {folder}. لم يضع شيء.
+- English: This device's storage is full, so Wasl couldn't save {file} in {folder}.
+- Arabic: مساحة التخزين في هذا الجهاز ممتلئة، لذلك تعذّر على وصل حفظ {file} في {folder}.
 
 ## `error.name_refused`
 
 - Note: The file name is too long, has a character or a reserved name that one side refuses. Wasl never renames it.
-- Values: file, folder
+- Values: file
 - Fix: `open_to_rename`
-- English: Drive or this device won't accept the name of {file}. Skipped it; the rest of {folder} synced.
-- Arabic: لا يقبل Drive أو هذا الجهاز اسم {file}. تم تخطيه ومزامنة بقية {folder}.
+- English: Drive or this device won't accept the name of {file}, so it was skipped.
+- Arabic: لا يقبل Drive أو هذا الجهاز اسم {file}، لذلك تم تخطيه.
 
 ## `error.invalid`
 
@@ -246,13 +284,21 @@ falling back to English.
 - English: The program answering is not this user's Wasl.
 - Arabic: البرنامج الذي يجيب ليس وصل الخاص بهذا المستخدم.
 
-## `daemon.version_mismatch`
+## `daemon.client_needs_update`
 
-- Note: The background program and the app speak different protocol versions. Details has both numbers.
+- Note: The command line or app speaks only older protocol versions than the background program. Details says which side is behind.
 - Values: none
 - Fix: `update_wasl`
-- English: The Wasl running in the background and this app don't speak the same version. Update Wasl.
-- Arabic: وصل العامل في الخلفية وهذا التطبيق لا يستخدمان الإصدار نفسه. حدّث وصل.
+- English: This Wasl is older than the one running in the background, so they can't talk to each other. Update Wasl.
+- Arabic: هذا الإصدار من وصل أقدم من الذي يعمل في الخلفية، لذلك لا يستطيعان التخاطب. حدّث وصل.
+
+## `daemon.daemon_needs_update`
+
+- Note: The background program speaks only older protocol versions than the command line or app. Details says which side is behind.
+- Values: none
+- Fix: `update_wasl`
+- English: The Wasl running in the background is older than this one, so they can't talk to each other. Update Wasl and start it again.
+- Arabic: وصل العامل في الخلفية أقدم من هذا الإصدار، لذلك لا يستطيعان التخاطب. حدّث وصل وأعد تشغيله.
 
 ## `daemon.connection_lost`
 

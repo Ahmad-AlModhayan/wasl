@@ -4,6 +4,8 @@
 
 mod auth;
 pub mod client;
+#[cfg(test)]
+mod handshake_tests;
 pub mod paths;
 pub mod proto;
 pub mod server;

@@ -165,6 +165,12 @@ key; the verifier accepts exactly the keys in the group (pinned, no CAs; FR-N4),
 pairing any key (step 2 then decides). One connection per peer; streams:
 
 - `hello`: device ID, version, pairs offered (pair IDs shared with this peer, by name hash).
+  The hello carries the lowest and highest protocol version the device supports (`min`, `max`),
+  and `version` set to the lowest, so a device from before ranges, which compares `version` with
+  its own, still connects. A hello with no range reads as `[version, version]`. Both ends use the
+  highest version they share; with none, the connection is refused with a "needs update" reason
+  that says which side is behind. The daemon's IPC handshake (`wasl-ipc`) does the same with its
+  own version.
 - `index`: "changes since seq N" for a pair; answered in pages.
 - `chunk`: request chunk hashes, receive bytes (bounded window, cancellable). The request carries
   the zstd level the asker accepts (by path: 1 on the LAN, 3 over the internet, 9 on a metered

@@ -17,8 +17,50 @@ fn oplog_list_max() -> u32 {
     OPLOG_LIST_MAX
 }
 
-/// Bumped when a message changes meaning. Clients and daemon must match.
+/// The newest protocol version this build speaks. Bumped when a message changes meaning; a client
+/// and a daemon talk at the highest version both support (see [`VersionRange`]).
 pub const PROTOCOL_VERSION: u32 = 1;
+/// The oldest protocol version this build still speaks.
+pub const MIN_PROTOCOL_VERSION: u32 = 1;
+
+/// The lowest and highest protocol version one side supports (both inclusive).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VersionRange {
+    pub min: u32,
+    pub max: u32,
+}
+
+/// Which side of a refused connection needs an update.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Behind {
+    /// This side speaks only versions older than the other side's.
+    This,
+    /// The other side speaks only versions older than this side's.
+    Peer,
+}
+
+impl VersionRange {
+    /// The versions this build speaks.
+    pub const CURRENT: VersionRange = VersionRange {
+        min: MIN_PROTOCOL_VERSION,
+        max: PROTOCOL_VERSION,
+    };
+
+    /// The highest version both ranges contain, if any.
+    pub fn highest_common(self, other: VersionRange) -> Option<u32> {
+        let top = self.max.min(other.max);
+        (top >= self.min.max(other.min)).then_some(top)
+    }
+
+    /// For ranges with nothing in common: who is behind.
+    pub fn behind(self, other: VersionRange) -> Behind {
+        if self.max < other.min {
+            Behind::This
+        } else {
+            Behind::Peer
+        }
+    }
+}
 
 /// What a client asks. Results are typed per request (see `Client`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -445,13 +487,13 @@ mod error_key_tests {
         let want = [
             (ErrorKind::NotFound, "request.not_found"),
             (ErrorKind::Invalid, "error.invalid"),
-            (ErrorKind::Auth, "error.auth"),
-            (ErrorKind::Network, "error.network"),
+            (ErrorKind::Auth, "request.auth"),
+            (ErrorKind::Network, "request.network"),
             (ErrorKind::Permission, "request.permission"),
             (ErrorKind::Locked, "request.locked"),
             (ErrorKind::Busy, "error.busy"),
             (ErrorKind::Unsupported, "error.unsupported"),
-            (ErrorKind::Other, words::FALLBACK),
+            (ErrorKind::Other, words::REQUEST_FALLBACK),
         ];
         for (kind, key) in want {
             assert_eq!(kind.key(), key);
@@ -466,13 +508,13 @@ impl ErrorKind {
         match self {
             ErrorKind::NotFound => "request.not_found",
             ErrorKind::Invalid => "error.invalid",
-            ErrorKind::Auth => "error.auth",
-            ErrorKind::Network => "error.network",
+            ErrorKind::Auth => "request.auth",
+            ErrorKind::Network => "request.network",
             ErrorKind::Permission => "request.permission",
             ErrorKind::Locked => "request.locked",
             ErrorKind::Busy => "error.busy",
             ErrorKind::Unsupported => "error.unsupported",
-            ErrorKind::Other => wasl_proto::words::FALLBACK,
+            ErrorKind::Other => wasl_proto::words::REQUEST_FALLBACK,
         }
     }
 }

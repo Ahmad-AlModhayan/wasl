@@ -36,6 +36,11 @@ struct Fake {
     devices_fail: std::sync::atomic::AtomicBool,
     /// When set, both Status and Accounts report no signed-in accounts.
     accounts_empty: std::sync::atomic::AtomicBool,
+    /// When set, Photos' last run ended like this (status, kind, message): `wasl status` shows it and
+    /// `wasl sync photos` reports it.
+    photos_run: Mutex<Option<(RunStatus, wasl_proto::ErrorKind, String)>>,
+    /// When set, the device list fails with this kind ("boom").
+    request_error: Mutex<Option<ErrorKind>>,
 }
 
 const DEV: &str = "WASL-0123-4567-89AB-CDEF-GHJK-MNPQ-RSTV";
@@ -194,6 +199,16 @@ impl Handler for Fake {
                     accounts,
                     pairs: pairs()
                         .into_iter()
+                        .map(|mut pair| {
+                            if let (PHOTOS | WORK, Some((status, kind, message))) =
+                                (pair.id.as_str(), self.photos_run.lock().unwrap().clone())
+                            {
+                                pair.status.last_status = Some(status);
+                                pair.status.last_error_kind = Some(kind);
+                                pair.status.last_error = Some(message);
+                            }
+                            pair
+                        })
                         .map(|pair| PairState {
                             pair,
                             running: false,
@@ -217,6 +232,10 @@ impl Handler for Fake {
                     ok(vec![account()])
                 }
             }
+            Request::Devices if self.request_error.lock().unwrap().is_some() => Err(RemoteError {
+                kind: self.request_error.lock().unwrap().unwrap(),
+                message: "boom".into(),
+            }),
             Request::Devices if self.devices_fail.load(std::sync::atomic::Ordering::SeqCst) => {
                 Err(RemoteError {
                     kind: ErrorKind::Other,
@@ -369,6 +388,12 @@ impl Handler for Fake {
                 ok(())
             }
             Request::Sync { id, .. } if id == BROKEN => ok(outcome(RunStatus::Failed, Some("Drive said no"))),
+            Request::Sync { id, .. } if id == PHOTOS && self.photos_run.lock().unwrap().is_some() => {
+                let (status, kind, message) = self.photos_run.lock().unwrap().clone().unwrap();
+                let mut o = outcome(status, Some(&message));
+                o.error_kind = Some(kind);
+                ok(o)
+            }
             Request::Sync { id, .. } => {
                 if let Some(tx) = self.events.get() {
                     let _ = tx.send(Event::Progress {
@@ -865,9 +890,98 @@ async fn a_daemon_error_is_worded_by_the_catalogue() {
     assert_eq!(1, r.code, "{}", r.stderr);
     assert!(
         r.stderr
-            .contains("Error: Something went wrong syncing this folder."),
+            .contains("Error: Something went wrong with that request."),
+        "a request never reads as a sync: {}",
+        r.stderr
+    );
+    // The unknown cause is logged once, with the cause itself.
+    assert_eq!(
+        1,
+        r.stderr.matches("wasl: no specific catalogue entry").count(),
         "{}",
         r.stderr
+    );
+    assert!(r.stderr.contains("the device list can't be read"), "{}", r.stderr);
+}
+
+/// A sign-in or network failure of a request has its own words, not the words of a sync.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_request_that_needs_sign_in_or_the_network_has_request_words() {
+    let d = start();
+    for (kind, want) in [
+        (
+            ErrorKind::Auth,
+            "Error: Wasl isn't signed in to that Google account, or the sign-in has ended.",
+        ),
+        (
+            ErrorKind::Network,
+            "Error: Wasl couldn't reach Google Drive for that. Check the connection and try again.",
+        ),
+    ] {
+        *d.fake.request_error.lock().unwrap() = Some(kind);
+        let r = wasl(d.dir.path(), "en", &["device", "list"]).await;
+        assert!(r.stderr.contains(want), "{kind:?}: {}", r.stderr);
+        assert!(!r.stderr.contains("syncing"), "{}", r.stderr);
+        assert!(r.stderr.contains("Details: boom"), "{}", r.stderr);
+    }
+}
+
+/// A run's cause stays out of the line but shows behind `--details`, redacted; a partial run says how
+/// many items did not sync, and a status of unknown trouble logs once however many folders show it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_outcome_keeps_its_cause_for_details_and_a_partial_run_its_count() {
+    let d = start();
+    *d.fake.photos_run.lock().unwrap() = Some((
+        RunStatus::Partial,
+        wasl_proto::ErrorKind::Other,
+        "2 items couldn't sync. First: a.txt: Couldn't upload for user@example.com".into(),
+    ));
+    let r = wasl(d.dir.path(), "en", &["sync", "photos"]).await;
+    assert_eq!(1, r.code, "{}{}", r.stdout, r.stderr);
+    assert!(
+        r.stdout
+            .contains("Photos: 2 items in Photos didn't sync. Wasl will try again at the next sync."),
+        "{}",
+        r.stdout
+    );
+    assert!(!r.stderr.contains("Details:"), "{}", r.stderr);
+    let r = wasl(d.dir.path(), "en", &["--details", "sync", "photos"]).await;
+    assert!(
+        r.stderr
+            .contains("Details: 2 items couldn't sync. First: a.txt: Couldn't upload for [hidden]"),
+        "{}",
+        r.stderr
+    );
+    assert!(!r.stderr.contains("user@example.com"), "{}", r.stderr);
+
+    // A failed run: the same, with the unknown cause logged once.
+    *d.fake.photos_run.lock().unwrap() = Some((
+        RunStatus::Failed,
+        wasl_proto::ErrorKind::Other,
+        "weird failure at /home/user/Secret/x.txt".into(),
+    ));
+    let r = wasl(d.dir.path(), "en", &["--details", "sync", "photos"]).await;
+    assert!(
+        r.stdout
+            .contains("Photos: sync failed: Something went wrong syncing Photos."),
+        "{}",
+        r.stdout
+    );
+    assert!(r.stderr.contains("Details: weird failure at …"), "{}", r.stderr);
+    assert!(!r.stderr.contains("Secret"), "{}", r.stderr);
+
+    // `wasl status` with several folders (Photos and Work) in the same trouble logs the unknown cause once.
+    let r = wasl(d.dir.path(), "en", &["status"]).await;
+    assert_eq!(
+        1,
+        r.stderr.matches("wasl: no specific catalogue entry").count(),
+        "{}",
+        r.stderr
+    );
+    assert!(
+        r.stdout.contains("Failed: Something went wrong syncing Photos."),
+        "{}",
+        r.stdout
     );
 }
 
@@ -1679,4 +1793,43 @@ async fn status_and_account_list_json_match_when_empty() {
     let listed_json: serde_json::Value = serde_json::from_str(&listed.stdout).unwrap();
     assert_eq!(serde_json::json!([]), status_json["accounts"]);
     assert_eq!(status_json["accounts"], listed_json);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_daemon_that_needs_a_newer_wasl_says_so_and_exits_with_the_general_code() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = Arc::new(Fake::default());
+    // A daemon from a later release: it speaks only versions 2 and 3.
+    let server = Server::bind(&Paths::at(dir.path()), fake, "test")
+        .unwrap()
+        .with_protocol_range(wasl_ipc::VersionRange { min: 2, max: 3 });
+    tokio::spawn(server.serve());
+    let r = wasl(dir.path(), "en", &["status"]).await;
+    assert_eq!(1, r.code, "{}", r.stderr);
+    assert!(
+        r.stderr
+            .contains("This Wasl is older than the one running in the background"),
+        "{}",
+        r.stderr
+    );
+    assert!(r.stderr.contains("Update Wasl"), "{}", r.stderr);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_wasl_that_is_newer_than_the_daemon_says_the_daemon_needs_updating() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = Arc::new(Fake::default());
+    // A daemon from an earlier release than this wasl's lowest version.
+    let server = Server::bind(&Paths::at(dir.path()), fake, "test")
+        .unwrap()
+        .with_protocol_range(wasl_ipc::VersionRange { min: 0, max: 0 });
+    tokio::spawn(server.serve());
+    let r = wasl(dir.path(), "en", &["status"]).await;
+    assert_eq!(1, r.code, "{}", r.stderr);
+    assert!(
+        r.stderr
+            .contains("The Wasl running in the background is older than this one"),
+        "{}",
+        r.stderr
+    );
 }
