@@ -314,7 +314,10 @@ pub fn folder_status_for(
                 kind,
                 ErrorKind::Network | ErrorKind::RateLimit | ErrorKind::Server
             );
-            if transient && st.consecutive_failures < RETRIES_BEFORE_FAILED {
+            // A network failure while the device is offline is the offline wait, however many runs
+            // it has missed: nothing here is the person's to fix.
+            let offline_now = kind == ErrorKind::Network && facts.blocker == Some(Blocker::Offline);
+            if transient && (st.consecutive_failures < RETRIES_BEFORE_FAILED || offline_now) {
                 status.state = FolderState::Waiting;
                 if kind == ErrorKind::Network {
                     status.wait = Some(WaitReason::NoNetwork);
@@ -656,6 +659,25 @@ mod tests {
     }
 
     #[test]
+    fn many_missed_runs_while_offline_still_wait_for_the_network() {
+        let mut p = pair();
+        p.status.last_status = Some(RunStatus::Failed);
+        p.status.last_error_kind = Some(ErrorKind::Network);
+        p.status.consecutive_failures = RETRIES_BEFORE_FAILED + 5;
+        let mut f = facts(&p);
+        f.blocker = Some(Blocker::Offline);
+        let s = decide(&f);
+        assert_eq!(
+            (FolderState::Waiting, Some(WaitReason::NoNetwork)),
+            (s.state, s.wait)
+        );
+        assert!(s.needs_you.is_empty());
+        // Online, the same run history is a failure the person is told about.
+        let s = decide(&facts(&p));
+        assert_eq!(FolderState::Failed, s.state);
+    }
+
+    #[test]
     fn an_offline_device_is_waiting_for_the_network() {
         let p = pair();
         let mut f = facts(&p);
@@ -882,6 +904,11 @@ mod tests {
         assert_eq!(
             OverallState::Paused,
             o(&[st(Waiting, Some(WaitReason::Paused), 0), st(Off, None, 0)], 0).state
+        );
+        assert_eq!(
+            OverallState::Paused,
+            o(&[st(Off, None, 0)], 0).state,
+            "every folder turned off: nothing is syncing, the person stopped it"
         );
         assert_eq!(OverallState::NeedsYou, o(&[st(NeedsYou, None, 1)], 0).state);
         assert_eq!(
