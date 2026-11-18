@@ -47,6 +47,23 @@ struct Fake {
     with_status: std::sync::atomic::AtomicBool,
     /// The language each Status request asked for.
     status_langs: Mutex<Vec<Option<wasl_proto::Lang>>>,
+    /// When set, the account's sign-in is in trouble: the daemon's raw cause and, when it knows it,
+    /// the typed cause.
+    account_trouble: Mutex<Option<(String, Option<wasl_proto::SignInCause>)>>,
+    /// The runs `Request::Runs` returns.
+    run_history: Mutex<Vec<wasl_proto::RunRecord>>,
+}
+
+impl Fake {
+    /// The signed-in account as the daemon reports it now.
+    fn account(&self) -> Account {
+        let mut a = account();
+        if let Some((raw, cause)) = self.account_trouble.lock().unwrap().clone() {
+            a.auth_error = Some(raw);
+            a.sign_in = cause;
+        }
+        a
+    }
 }
 
 /// The statuses the daemon would send: Photos waits for its first preview, the rest are synced.
@@ -232,7 +249,7 @@ impl Handler for Fake {
                 let accounts = if self.accounts_empty.load(std::sync::atomic::Ordering::SeqCst) {
                     Vec::new()
                 } else {
-                    vec![account()]
+                    vec![self.account()]
                 };
                 ok(DaemonStatus {
                     agent_changes: 0,
@@ -301,9 +318,18 @@ impl Handler for Fake {
                 if self.accounts_empty.load(std::sync::atomic::Ordering::SeqCst) {
                     ok(Vec::<Account>::new())
                 } else {
-                    ok(vec![account()])
+                    ok(vec![self.account()])
                 }
             }
+            Request::Runs { pair_id, limit } => ok(self
+                .run_history
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|r| pair_id.as_deref().is_none_or(|id| r.pair_id == id))
+                .take(limit as usize)
+                .cloned()
+                .collect::<Vec<_>>()),
             Request::Devices if self.request_error.lock().unwrap().is_some() => Err(RemoteError {
                 kind: self.request_error.lock().unwrap().unwrap(),
                 message: self
@@ -583,6 +609,7 @@ fn account() -> Account {
         id: "acc1".into(),
         email: "me@example.com".into(),
         auth_error: None,
+        sign_in: None,
     }
 }
 
@@ -1220,6 +1247,200 @@ async fn a_run_outcome_keeps_its_cause_for_details_and_a_partial_run_its_count()
         "{}",
         r.stdout
     );
+}
+
+// ---- Issues #33 and #44: failures in the person's words, in every command that shows them ----
+
+/// What the daemon would hand over raw: a token, an account id, the account's address and a path in a
+/// folder that is not one of the pairs'.
+const RAW: &str = "INTERNAL_FAILURE token=ya29.SECRETTOKEN123 for acc1 at /home/outside/vault/a.txt";
+
+fn run_record(id: &str, pair: &str, status: RunStatus, message: &str) -> wasl_proto::RunRecord {
+    wasl_proto::RunRecord {
+        id: id.into(),
+        pair_id: pair.into(),
+        trigger: "manual".into(),
+        status,
+        stats: wasl_proto::RunStats::default(),
+        message: Some(message.into()),
+        started_at: 1_760_000_000_000,
+        ended_at: Some(1_760_000_060_000),
+    }
+}
+
+/// A daemon whose account can't sign in, whose Photos run failed and whose history holds failed,
+/// partial and blocked runs, all with the raw text above.
+fn a_daemon_in_trouble() -> Daemon {
+    let d = start();
+    *d.fake.account_trouble.lock().unwrap() = Some((RAW.into(), None));
+    *d.fake.photos_run.lock().unwrap() = Some((RunStatus::Failed, wasl_proto::ErrorKind::Auth, RAW.into()));
+    *d.fake.run_history.lock().unwrap() = vec![
+        run_record("r1", PHOTOS, RunStatus::Failed, RAW),
+        run_record(
+            "r2",
+            WORK,
+            RunStatus::Partial,
+            &format!("2 items couldn't sync. First: {RAW}"),
+        ),
+        run_record("r3", MUSIC, RunStatus::Blocked, RAW),
+    ];
+    d
+}
+
+/// Nothing a person or an agent reads carries the raw text, the token, the account id or a path
+/// outside the pair's folder (`--details` aside, which still redacts them).
+fn assert_clean(what: &str, text: &str, raw_text_too: bool) {
+    // An account's id is a field an agent reads in `--json`; it must not show anywhere else.
+    let text = &text
+        .replace("\"id\": \"acc1\"", "")
+        .replace("\"account_id\": \"acc1\"", "");
+    for bad in ["ya29", "SECRETTOKEN", "acc1", "/home/outside", "outside/vault"] {
+        assert!(!text.contains(bad), "{what} shows {bad}:\n{text}");
+    }
+    if raw_text_too {
+        for bad in ["INTERNAL_FAILURE", "internal_failure", "token="] {
+            assert!(!text.contains(bad), "{what} shows {bad}:\n{text}");
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn no_command_shows_the_daemons_raw_text_in_either_language() {
+    let d = a_daemon_in_trouble();
+    for lang in ["en", "ar"] {
+        for args in [&["problems"][..], &["account", "list"], &["history"], &["status"]] {
+            let r = wasl(d.dir.path(), lang, args).await;
+            let what = format!("`wasl {}` in {lang}", args.join(" "));
+            assert_clean(&what, &format!("{}{}", r.stdout, r.stderr), true);
+        }
+        // The same with --details: the cause shows, redacted; the secrets still never do.
+        for args in [
+            &["--details", "problems"][..],
+            &["--details", "account", "list"],
+            &["--details", "history"],
+        ] {
+            let r = wasl(d.dir.path(), lang, args).await;
+            let what = format!("`wasl {}` in {lang}", args.join(" "));
+            assert_clean(&what, &format!("{}{}", r.stdout, r.stderr), false);
+            assert!(r.stderr.contains("INTERNAL_FAILURE"), "{what}: {}", r.stderr);
+        }
+        // --json: an agent reads the key and the values, never prose to parse; the raw message that
+        // stays for compatibility is redacted, and the sentence's Details wait for --details.
+        for args in [
+            &["problems", "--json"][..],
+            &["account", "list", "--json"],
+            &["history", "--json"],
+            &["status", "--json"],
+        ] {
+            let r = wasl(d.dir.path(), lang, args).await;
+            let what = format!("`wasl {}` in {lang}", args.join(" "));
+            assert_eq!(0, r.code, "{what}: {}", r.stderr);
+            assert_clean(&what, &format!("{}{}", r.stdout, r.stderr), false);
+            let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+            assert!(!v.to_string().contains("\"details\""), "{what}: {v}");
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn account_list_says_why_a_sign_in_ended_and_what_to_do() {
+    use wasl_proto::SignInCause::{Ended, Unreadable};
+    let d = start();
+    for (cause, key) in [
+        (None, "account.sign_in_ended"),
+        (Some(Ended), "account.sign_in_ended"),
+        (Some(Unreadable), "account.sign_in_unreadable"),
+    ] {
+        *d.fake.account_trouble.lock().unwrap() = Some((RAW.into(), cause));
+        let r = wasl(d.dir.path(), "en", &["account", "list", "--json"]).await;
+        assert_eq!(0, r.code, "{}", r.stderr);
+        let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+        let w = &v[0]["words"];
+        assert_eq!(key, w["key"], "{cause:?}: {v}");
+        assert_eq!("sign_in_again", w["fix"], "{cause:?}: {v}");
+        assert!(w["text"].as_str().is_some_and(|t| !t.is_empty()), "{v}");
+        assert!(!v[0]["auth_error"].as_str().unwrap().contains("ya29"), "{v}");
+        // The human table says the same words.
+        let table = wasl(d.dir.path(), "en", &["account", "list"]).await;
+        assert!(
+            table.stdout.contains(w["text"].as_str().unwrap()),
+            "{}",
+            table.stdout
+        );
+    }
+    // The two causes read differently, in Arabic too.
+    let mut said = Vec::new();
+    for cause in [Ended, Unreadable] {
+        *d.fake.account_trouble.lock().unwrap() = Some((RAW.into(), Some(cause)));
+        let r = wasl(d.dir.path(), "ar", &["account", "list"]).await;
+        assert!(
+            r.stdout.chars().any(|c| ('\u{600}'..='\u{6ff}').contains(&c)),
+            "{}",
+            r.stdout
+        );
+        said.push(r.stdout);
+    }
+    assert_ne!(said[0], said[1]);
+    // A fine account says it is signed in and carries no sentence.
+    *d.fake.account_trouble.lock().unwrap() = None;
+    let r = wasl(d.dir.path(), "en", &["account", "list", "--json"]).await;
+    let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    assert!(v[0].get("words").is_none(), "{v}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn history_words_how_each_run_ended_and_keeps_the_key_for_agents() {
+    let d = a_daemon_in_trouble();
+    let r = wasl(d.dir.path(), "en", &["history", "--json"]).await;
+    assert_eq!(0, r.code, "{}", r.stderr);
+    let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    let runs = v.as_array().unwrap();
+    assert_eq!(3, runs.len(), "{v}");
+    // The run's own fields stay (a script that reads them keeps working), the sentence sits beside.
+    assert_eq!("r1", runs[0]["id"]);
+    assert_eq!("FAILED", runs[0]["status"]);
+    assert_eq!(wasl_proto::words::FALLBACK, runs[0]["words"]["key"], "{v}");
+    assert_eq!("Photos", runs[0]["words"]["values"]["folder"], "{v}");
+    assert_eq!("run.partial", runs[1]["words"]["key"], "{v}");
+    assert_eq!(2, runs[1]["words"]["values"]["count"], "{v}");
+    assert_eq!("folder.needs_approval", runs[2]["words"]["key"], "{v}");
+    // The raw message is redacted, not echoed.
+    assert!(!runs[0]["message"].as_str().unwrap().contains("ya29"), "{v}");
+
+    let r = wasl(d.dir.path(), "en", &["history"]).await;
+    assert!(
+        r.stdout.contains("Something went wrong syncing Photos."),
+        "{}",
+        r.stdout
+    );
+    assert!(r.stdout.contains("2 items in Work didn't sync"), "{}", r.stdout);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn problems_names_the_failed_folder_with_a_fix_and_an_unreadable_sign_in() {
+    use wasl_proto::SignInCause::Unreadable;
+    let d = a_daemon_in_trouble();
+    *d.fake.account_trouble.lock().unwrap() = Some((RAW.into(), Some(Unreadable)));
+    let r = wasl(d.dir.path(), "en", &["problems", "--json"]).await;
+    let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    assert_eq!(
+        "account.sign_in_unreadable", v["accounts"][0]["words"]["key"],
+        "{v}"
+    );
+    let photos = v["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["name"] == "Photos")
+        .unwrap();
+    // An Auth failure on a folder whose account's sign-in can't be read says that, with the folder.
+    assert_eq!("error.sign_in_unreadable", photos["words"]["key"], "{v}");
+    assert_eq!("sign_in_again", photos["words"]["fix"], "{v}");
+    assert_eq!("Photos", photos["words"]["values"]["folder"], "{v}");
+
+    let r = wasl(d.dir.path(), "en", &["problems"]).await;
+    assert!(r.stdout.contains("must sign in again"), "{}", r.stdout);
+    assert!(r.stdout.contains("Photos"), "{}", r.stdout);
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -160,6 +160,7 @@ mod tests {
             ErrorKind::Permission,
             ErrorKind::Quota,
             ErrorKind::NotFound,
+            ErrorKind::FolderMissing,
             ErrorKind::Locked,
             ErrorKind::Io,
             ErrorKind::Integrity,

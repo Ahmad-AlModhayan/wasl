@@ -581,18 +581,20 @@ impl Daemon {
     }
 
     fn accounts(&self) -> Result<Vec<Account>, RemoteError> {
-        Ok(self
-            .store
-            .lock()
-            .accounts()
+        let s = self.store.lock();
+        s.accounts()
             .map_err(store_err)?
             .into_iter()
-            .map(|(id, email, auth_error)| Account {
-                id,
-                email,
-                auth_error,
+            .map(|(id, email, auth_error)| {
+                let sign_in = s.account_sign_in_cause(&id).map_err(store_err)?;
+                Ok(Account {
+                    id,
+                    email,
+                    auth_error,
+                    sign_in,
+                })
             })
-            .collect())
+            .collect()
     }
 
     pub fn status(&self, lang: Lang) -> Result<DaemonStatus, RemoteError> {
@@ -710,6 +712,7 @@ impl Daemon {
                             id: signed.email.clone(),
                             email: signed.email,
                             auth_error: None,
+                            sign_in: None,
                         },
                     },
                     Err(message) => Event::AccountFailed { message },

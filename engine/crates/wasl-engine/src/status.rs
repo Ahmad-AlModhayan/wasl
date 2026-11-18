@@ -21,13 +21,7 @@ impl Engine {
     ) -> Result<Vec<FolderStatus>> {
         let (pairs, signed_out) = {
             let s = self.store.lock();
-            let signed_out: Vec<String> = s
-                .accounts()?
-                .into_iter()
-                .filter(|(_, _, auth_error)| auth_error.is_some())
-                .map(|(id, _, _)| id)
-                .collect();
-            (s.list_pairs()?, signed_out)
+            (s.list_pairs()?, s.accounts_to_sign_in()?)
         };
         let device = self.env.device_state();
         let mut out = Vec::with_capacity(pairs.len());
@@ -40,11 +34,17 @@ impl Engine {
                     s.runs(Some(&pair.id), LAST_RUNS as u32)?,
                 )
             };
+            let sign_in_cause = pair
+                .account_id
+                .as_ref()
+                .and_then(|a| signed_out.iter().find(|(id, _)| id == a))
+                .map(|(_, cause)| *cause);
             let facts = Facts {
                 pair,
                 running: self.is_running(&pair.id),
                 open_conflicts,
-                signed_out: pair.account_id.as_ref().is_some_and(|a| signed_out.contains(a)),
+                signed_out: sign_in_cause.is_some(),
+                sign_in_cause,
                 blocker: blocker(&pair.conditions, &device, false),
                 free_bytes: free_bytes(pair),
                 skipped,

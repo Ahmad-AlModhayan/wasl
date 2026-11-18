@@ -21,7 +21,7 @@ problem has a fix in plain words.
 
 One **error catalogue** in the engine. Every error Wasl shows (pair status, run history,
 notifications, Problems, the desktop window, the CLI) comes from a catalogue entry, which says
-three things. (The command line is catalogue-worded so far for `status`, `sync` and request failures. `problems`, `history`, `account list` and the `--json` output still show the daemon's raw text; that is follow-up work, tracked in #44.)
+three things. (The command line is catalogue-worded in `status`, `sync`, `problems`, `history`, `account list` and request failures. Its `--json` output carries, beside each daemon field, the entry's `key`, `values` and `fix` for an agent to read; the raw cause stays out of every line and, redacted, shows only as Details behind `--details`.)
 
 1. **What happened**, naming the file or pair.
 2. **What Wasl did** ("Skipped it; the rest of LifeOS synced").
@@ -123,3 +123,14 @@ The tries and the pauses are written down in one place, the module comment of
 reads are the same status: `wasl status --json` carries, per folder, `state` (`waiting`, then `needs_you` at
 give-up), `needs_you` (empty while retrying) and `retry` (`attempt`, `max_tries`, `next_at` in milliseconds;
 absent when the folder isn't being retried). `wasl problems` leaves out a folder that is being retried.
+
+### Failures people hit (issues #33 and #44)
+
+Each failure below has its own entry in both languages, says what happened and what to do, names only the
+file or the folder, and arrives typed (a marker or a stored value, never a guess from the message text):
+
+- a file that vanished before it synced: run event `FILE_GONE` (`error.file_gone`), skipped, next run picks it up;
+- a full disk or quota (`error.disk_full`, `error.disk_quota`, `error.quota`);
+- the synced folder itself gone from this device: `ErrorKind::FolderMissing` (`error.folder_missing`), which needs the person at once and is never retried;
+- a name the disk refuses: run event `NAME_REFUSED` (`error.name_refused`);
+- why a sign-in is needed: `SignInCause` on the account, `Ended` (Google no longer accepts it, `error.auth`, `account.sign_in_ended`) or `Unreadable` (the saved sign-in can't be read on this device, `error.sign_in_unreadable`, `account.sign_in_unreadable`). An older daemon sends no cause and that reads as `Ended`.

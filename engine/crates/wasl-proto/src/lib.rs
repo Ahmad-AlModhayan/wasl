@@ -51,4 +51,4 @@ pub use store::{
     PairStatus, RunEvent, RunRecord, RunStats, SavedCopy, SnapshotOrigin, SnapshotRow, StatKey, StorageMode,
     View, Watch, WatchGap,
 };
-pub use words::{Fix, Lang, Rendered, Values};
+pub use words::{Fix, Lang, Rendered, SignInCause, Values};

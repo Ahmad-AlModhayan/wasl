@@ -27,7 +27,7 @@ use crate::conditions::Blocker;
 use crate::retry::{self, RetryInfo};
 use crate::run::{ErrorKind, RunStatus};
 use crate::store::{Pair, RunRecord, RunStats};
-use crate::words::{self, Lang, Platform, Rendered, Values};
+use crate::words::{self, Lang, Platform, Rendered, SignInCause, Values};
 use serde::{Deserialize, Serialize};
 
 /// How many of a folder's latest runs a status carries.
@@ -146,6 +146,8 @@ pub struct Facts<'a> {
     pub open_conflicts: u32,
     /// The pair's Google account must sign in again.
     pub signed_out: bool,
+    /// Why, when the engine knows; none reads as Google no longer accepting the sign-in.
+    pub sign_in_cause: Option<SignInCause>,
     /// What holds the next run on this device now (offline, Wi-Fi only, …).
     pub blocker: Option<Blocker>,
     /// Free bytes on the drive holding the folder; None when it can't be told.
@@ -271,7 +273,7 @@ pub fn folder_status_for(
     let mut needs: Vec<Rendered> = Vec::new();
     if facts.signed_out {
         needs.push(say(
-            "error.auth",
+            facts.sign_in_cause.unwrap_or(SignInCause::Ended).folder_key(),
             &values,
             raw.filter(|_| kind == ErrorKind::Auth),
         ));
@@ -384,6 +386,7 @@ const FIXABLE: &[&str] = &[
     "error.permission",
     "error.quota",
     "error.not_found",
+    "error.folder_missing",
     "error.locked",
     "error.disk_full",
     "error.disk_quota",
@@ -526,6 +529,7 @@ mod tests {
             running: false,
             open_conflicts: 0,
             signed_out: false,
+            sign_in_cause: None,
             blocker: None,
             free_bytes: Some(10_000_000),
             skipped: None,
@@ -628,6 +632,39 @@ mod tests {
         assert_eq!(FolderState::NeedsYou, s.state);
         assert_eq!(vec!["error.auth"], keys(&s));
         assert_eq!(Some(Fix::SignInAgain), s.needs_you[0].fix);
+    }
+
+    #[test]
+    fn a_sign_in_saved_on_this_device_that_cannot_be_read_says_so() {
+        let p = pair();
+        let mut f = facts(&p);
+        f.signed_out = true;
+        f.sign_in_cause = Some(SignInCause::Unreadable);
+        let s = decide(&f);
+        assert_eq!(FolderState::NeedsYou, s.state);
+        assert_eq!(vec!["error.sign_in_unreadable"], keys(&s));
+        assert_eq!(Some(Fix::SignInAgain), s.needs_you[0].fix);
+        assert!(s.needs_you[0].text.contains("Photos"), "{}", s.needs_you[0].text);
+        // Google ending the session is the other cause; no cause given reads as that.
+        f.sign_in_cause = Some(SignInCause::Ended);
+        assert_eq!(vec!["error.auth"], keys(&decide(&f)));
+        f.sign_in_cause = None;
+        assert_eq!(vec!["error.auth"], keys(&decide(&f)));
+    }
+
+    #[test]
+    fn a_missing_folder_needs_you_at_once_with_its_own_words() {
+        let mut p = pair();
+        p.status.last_status = Some(RunStatus::Failed);
+        p.status.last_error_kind = Some(ErrorKind::FolderMissing);
+        p.status.last_error = Some("gone (os error 3)".into());
+        p.status.consecutive_failures = 1;
+        let s = decide(&facts(&p));
+        assert_eq!(FolderState::NeedsYou, s.state);
+        assert_eq!(vec!["error.folder_missing"], keys(&s));
+        assert_eq!(Some(Fix::OpenFolder), s.needs_you[0].fix);
+        assert_eq!(None, s.retry);
+        assert_eq!(Some("Photos"), s.needs_you[0].values.folder.as_deref());
     }
 
     #[test]
