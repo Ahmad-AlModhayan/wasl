@@ -109,3 +109,17 @@ Where errors show
 
 - **Decided (ADR-0003, 2026-11-03):** the catalogue owns every sentence, pair-rule reasons included, in English and Arabic. It supersedes ADR-0001's rule that each app words reasons from its own tables; the pairs module still returns typed reasons.
 - Seams and the ticket breakdown were confirmed on 2026-11-03.
+
+## A passing failure is retried before it needs the person (#30)
+
+A run that fails because Google Drive can't be reached, asks Wasl to slow down, or has a problem on its side
+is not shown as a problem. The folder reads "waiting" and the engine runs it again after a pause that grows
+with each failure; no app counts tries. Only when the engine's retry policy gives up does the folder become
+"needs you", once, with the entry for the last cause and its fix (Retry). A lasting failure (signed out, the
+Drive folder gone, a full disk, a refused name, no access) needs the person at once and is never retried.
+
+The tries and the pauses are written down in one place, the module comment of
+`engine/crates/wasl-proto/src/retry.rs`, and a test there pins them. What a person sees and what an agent
+reads are the same status: `wasl status --json` carries, per folder, `state` (`waiting`, then `needs_you` at
+give-up), `needs_you` (empty while retrying) and `retry` (`attempt`, `max_tries`, `next_at` in milliseconds;
+absent when the folder isn't being retried). `wasl problems` leaves out a folder that is being retried.

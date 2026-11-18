@@ -1905,6 +1905,13 @@ struct Problems {
     agent_changes: Vec<wasl_proto::Changeset>,
 }
 
+/// The engine is still retrying this folder's passing failure: it isn't a problem for the person
+/// until the retry policy gives up (`wasl_proto::retry`). An older daemon sends no folder status, and
+/// then every failed run is listed as before.
+fn retrying(ps: &wasl_ipc::PairState) -> bool {
+    ps.status.as_ref().is_some_and(|s| s.retry.is_some())
+}
+
 async fn problems(json: bool) -> R<u8> {
     let c = connect().await?;
     let st = c.status().await?;
@@ -1921,7 +1928,7 @@ async fn problems(json: bool) -> R<u8> {
         let problem =
             if ps.blocked || p.status.pending_approval || p.status.last_status == Some(RunStatus::Blocked) {
                 "blocked"
-            } else if p.status.last_status == Some(RunStatus::Failed) {
+            } else if p.status.last_status == Some(RunStatus::Failed) && !retrying(ps) {
                 "failed"
             } else {
                 continue;

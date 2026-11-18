@@ -11,6 +11,7 @@ pub mod engine;
 pub mod model;
 pub mod oplog;
 pub mod presets;
+pub mod retry;
 pub mod run;
 pub mod status;
 pub mod store;
@@ -38,6 +39,7 @@ pub use oplog::{
     revert_result,
 };
 pub use presets::{PRESET_IDS, is_valid_preset_id};
+pub use retry::{RetryInfo, RetryPolicy};
 pub use run::{ErrorKind, RunStatus};
 pub use status::{
     Facts, FolderCounts, FolderState, FolderStatus, LastRun, OverallState, OverallStatus, WaitReason,
