@@ -45,29 +45,95 @@ fn map_chars(s: &str) -> String {
         .collect()
 }
 
+/// What the disk a name lands on refuses. The one function that says what local name a remote name
+/// gets ([`to_local_name_with`]) takes this, so a test on any OS can switch Windows' rules on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NameRules {
+    /// Windows' rules: reserved device names (`CON`, `aux.txt`), a trailing dot or space, `:`, and
+    /// names that look like 8.3 short names.
+    pub windows: bool,
+    /// The characters Drive allows and Android and Windows refuse, `.`, `..`, an empty name and
+    /// one that is too long are mapped.
+    pub reserved_chars: bool,
+}
+
+impl NameRules {
+    /// What every Drive name gets on every device: the reserved characters only.
+    pub const PORTABLE: NameRules = NameRules {
+        windows: false,
+        reserved_chars: true,
+    };
+
+    /// Drive names landing on a disk: the reserved characters, and Windows' rules when `windows`.
+    pub const fn drive(windows: bool) -> NameRules {
+        NameRules {
+            windows,
+            reserved_chars: true,
+        }
+    }
+
+    /// Names another device sent, which that device's disk already accepted: nothing is mapped
+    /// unless this disk is Windows', so a name that is fine here is never renamed here.
+    pub const fn device(windows: bool) -> NameRules {
+        NameRules {
+            windows,
+            reserved_chars: windows,
+        }
+    }
+}
+
+impl Default for NameRules {
+    fn default() -> Self {
+        NameRules::PORTABLE
+    }
+}
+
 /// True when `name` cannot be used as-is for a local file.
 pub fn needs_mapping(name: &str) -> bool {
-    name.chars().any(|c| full_width(c).is_some() || is_control(c))
-        || name == "."
-        || name == ".."
-        || name.is_empty()
-        || name.len() > MAX_NAME_BYTES
+    needs_mapping_with(name, NameRules::PORTABLE)
+}
+
+/// [`needs_mapping`] under `rules`.
+pub fn needs_mapping_with(name: &str, rules: NameRules) -> bool {
+    (rules.reserved_chars
+        && (name.chars().any(|c| full_width(c).is_some() || is_control(c))
+            || name == "."
+            || name == ".."
+            || name.is_empty()
+            || name.len() > MAX_NAME_BYTES))
+        || (rules.windows && windows_refuses(name))
 }
 
 /// The local name for a Drive name. Returns `remote_name` unchanged when no mapping is needed.
 pub fn to_local_name(remote_name: &str) -> String {
-    if !needs_mapping(remote_name) {
+    to_local_name_with(remote_name, NameRules::PORTABLE)
+}
+
+/// The one function that says what local name a remote name gets. Pure and deterministic, so every
+/// device that applies the same name under the same rules gets the same local name.
+pub fn to_local_name_with(remote_name: &str, rules: NameRules) -> String {
+    if !needs_mapping_with(remote_name, rules) {
         return remote_name.to_owned();
     }
-    let mut out = map_chars(remote_name);
+    let mut out = if rules.reserved_chars {
+        map_chars(remote_name)
+    } else {
+        remote_name.to_owned()
+    };
     if out == "." || out == ".." {
         out.insert(0, '＿');
     }
     if out.is_empty() {
         out.push_str("＿unnamed");
     }
-    // Keep under the byte limit while preserving the extension when possible.
-    if out.len() > MAX_NAME_BYTES {
+    // Keep under the byte limit while preserving the extension when possible (with room for the
+    // up to three bytes Windows' rules add).
+    let limit = if rules.windows {
+        MAX_NAME_BYTES - '＿'.len_utf8()
+    } else {
+        MAX_NAME_BYTES
+    };
+    if rules.reserved_chars && out.len() > limit {
         let ext = out.rsplit_once('.').map_or("", |(_, ext)| ext);
         let ext_part = if !ext.is_empty() && utf16_len(ext) < 16 {
             format!(".{ext}")
@@ -75,10 +141,111 @@ pub fn to_local_name(remote_name: &str) -> String {
             String::new()
         };
         let mut base = out.strip_suffix(ext_part.as_str()).unwrap_or(&out).to_owned();
-        while base.len() + ext_part.len() > MAX_NAME_BYTES && base.pop().is_some() {}
+        while base.len() + ext_part.len() > limit && base.pop().is_some() {}
         out = base + &ext_part;
     }
+    if rules.windows {
+        out = windows_safe(out);
+    }
     out
+}
+
+/// What a name still is once mapped, when the disk will refuse it anyway.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NameRefusal {
+    /// A component longer than the disk's limit (255 UTF-16 units).
+    TooLong,
+    /// A component Windows still refuses.
+    Reserved,
+}
+
+/// `None` when `name` (already mapped) is one the disk accepts under `rules`.
+pub fn refusal(name: &str, rules: NameRules) -> Option<NameRefusal> {
+    if utf16_len(name) > MAX_NAME_BYTES {
+        return Some(NameRefusal::TooLong);
+    }
+    (rules.windows && windows_refuses(name)).then_some(NameRefusal::Reserved)
+}
+
+fn windows_refuses(name: &str) -> bool {
+    name.contains(':')
+        || name.ends_with('.')
+        || name.ends_with(' ')
+        || is_windows_device_name(name)
+        || looks_like_short_name(name)
+}
+
+/// Maps what Windows refuses and the character mapping leaves: a device name gets `＿` after its
+/// stem (`aux.txt` becomes `aux＿.txt`), a short-name look-alike its `~` made full-width, and a
+/// trailing dot or space a look-alike.
+fn windows_safe(name: String) -> String {
+    let mut out = name;
+    if is_windows_device_name(&out) {
+        let at = out.find('.').unwrap_or(out.len());
+        out.insert(at, '＿');
+    }
+    if looks_like_short_name(&out) {
+        out = out.replacen('~', "～", 1);
+    }
+    let kept = out.trim_end_matches(['.', ' ']).len();
+    if kept < out.len() {
+        let tail: String = out[kept..]
+            .chars()
+            .map(|c| if c == '.' { '．' } else { '␣' })
+            .collect();
+        out.truncate(kept);
+        out.push_str(&tail);
+    }
+    out
+}
+
+/// `REPORT~1.DOC`: a stem of at most 8 characters with `~` and digits at its end, and an extension
+/// of at most 3. On Windows such a name may refer to a different file's short name.
+pub fn looks_like_short_name(part: &str) -> bool {
+    let (stem, ext) = part.rsplit_once('.').unwrap_or((part, ""));
+    let Some((head, digits)) = stem.rsplit_once('~') else {
+        return false;
+    };
+    !head.is_empty()
+        && !digits.is_empty()
+        && digits.bytes().all(|b| b.is_ascii_digit())
+        && stem.chars().count() <= 8
+        && ext.chars().count() <= 3
+}
+
+/// `CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`, `LPT0`-`LPT9` (and the superscript-digit forms), with
+/// or without an extension, in any case.
+pub fn is_windows_device_name(part: &str) -> bool {
+    let stem = part
+        .split('.')
+        .next()
+        .unwrap_or(part)
+        .trim_end_matches([' ', '.'])
+        .to_ascii_uppercase();
+    match stem.as_str() {
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$" => true,
+        _ => {
+            // Split after three characters, not three bytes: names are often not ASCII.
+            let cut = stem.char_indices().nth(3).map_or(stem.len(), |(i, _)| i);
+            let (prefix, digit) = stem.split_at(cut);
+            (prefix == "COM" || prefix == "LPT")
+                && matches!(
+                    digit,
+                    "0" | "1"
+                        | "2"
+                        | "3"
+                        | "4"
+                        | "5"
+                        | "6"
+                        | "7"
+                        | "8"
+                        | "9"
+                        | "\u{b9}"
+                        | "\u{b2}"
+                        | "\u{b3}"
+                )
+        }
+    }
 }
 
 /// Conflict copy naming: `report (conflicted copy from Pixel, 2026-09-30 14-03).docx`.

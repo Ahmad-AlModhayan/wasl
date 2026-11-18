@@ -42,11 +42,16 @@ pub struct TestEnv {
     pub slow_opens: Mutex<Option<Arc<SlowOpens>>>,
     /// Set to make the pair's folder fold case and accents on any host (see [`Folding`]).
     pub folding: Mutex<Option<Folding>>,
+    /// Set to make the folder refuse names as Windows does, on any host (see [`WindowsNamesFs`]).
+    pub windows_names: Mutex<bool>,
 }
 
 impl Environment for TestEnv {
     fn local_fs(&self, _pair: &Pair) -> wasl_engine::Result<Arc<dyn LocalFs>> {
         let fs = Arc::new(StdFs::new(&self.root, &self.bin));
+        if *self.windows_names.lock().unwrap() {
+            return Ok(windows_names_fs(fs));
+        }
         if let Some(folding) = *self.folding.lock().unwrap() {
             return Ok(Arc::new(FoldedFs {
                 inner: fs,
@@ -147,6 +152,7 @@ impl World {
             device: Mutex::new(DeviceState::unrestricted()),
             slow_opens: Mutex::new(None),
             folding: Mutex::new(None),
+            windows_names: Mutex::new(false),
         });
         let store = SharedStore::new(Store::open_in_memory().unwrap());
         let mut pair = Pair::new(PAIR, "Sync", env.root.to_str().unwrap());
@@ -781,5 +787,71 @@ impl Remote for Hooked {
     }
     async fn untrash(&self, id: &str) -> wasl_drive::Result<()> {
         self.inner.untrash(id).await
+    }
+}
+
+/// `inner` as a Windows folder sees names on any host: a path Windows would refuse (a reserved
+/// device name, `:`, a trailing dot or space) is refused before it reaches the disk, as `check_rel`
+/// does on Windows, and the mapper is told to apply Windows' rules.
+pub fn windows_names_fs(inner: Arc<dyn LocalFs>) -> Arc<dyn LocalFs> {
+    Arc::new(WindowsNamesFs { inner })
+}
+
+struct WindowsNamesFs {
+    inner: Arc<dyn LocalFs>,
+}
+
+fn win(rel: &str) -> std::io::Result<&str> {
+    wasl_fs::check_rel_on(rel, true)
+}
+
+impl LocalFs for WindowsNamesFs {
+    fn name_rules(&self) -> wasl_core::names::NameRules {
+        wasl_core::names::NameRules::drive(true)
+    }
+    fn list(&self, dir: &str) -> std::io::Result<Vec<wasl_fs::FsEntry>> {
+        self.inner.list(win(dir)?)
+    }
+    fn stat(&self, rel: &str) -> std::io::Result<Option<wasl_fs::FsEntry>> {
+        self.inner.stat(win(rel)?)
+    }
+    fn open_read(&self, rel: &str) -> std::io::Result<Box<dyn std::io::Read + Send>> {
+        self.inner.open_read(win(rel)?)
+    }
+    fn readable_path(&self, rel: &str) -> std::io::Result<wasl_fs::ReadablePath> {
+        self.inner.readable_path(win(rel)?)
+    }
+    fn staging_path(&self, rel: &str) -> std::io::Result<PathBuf> {
+        self.inner.staging_path(win(rel)?)
+    }
+    fn install(&self, staged: &Path, rel: &str, mtime_ms: Option<i64>) -> std::io::Result<wasl_fs::FsEntry> {
+        self.inner.install(staged, win(rel)?, mtime_ms)
+    }
+    fn mkdir(&self, rel: &str) -> std::io::Result<()> {
+        self.inner.mkdir(win(rel)?)
+    }
+    fn remove_file(&self, rel: &str) -> std::io::Result<()> {
+        self.inner.remove_file(win(rel)?)
+    }
+    fn remove_dir_if_empty(&self, rel: &str) -> std::io::Result<bool> {
+        self.inner.remove_dir_if_empty(win(rel)?)
+    }
+    fn rename(&self, from: &str, to: &str) -> std::io::Result<()> {
+        self.inner.rename(win(from)?, win(to)?)
+    }
+    fn is_same_file(&self, a: &str, b: &str) -> std::io::Result<bool> {
+        self.inner.is_same_file(win(a)?, win(b)?)
+    }
+    fn bin_copy(&self, rel: &str) -> std::io::Result<Option<String>> {
+        self.inner.bin_copy(win(rel)?)
+    }
+    fn move_to_bin(&self, rel: &str) -> std::io::Result<String> {
+        self.inner.move_to_bin(win(rel)?)
+    }
+    fn restore_from_bin(&self, location: &str, rel: &str) -> std::io::Result<()> {
+        self.inner.restore_from_bin(location, win(rel)?)
+    }
+    fn purge_from_bin(&self, location: &str) -> std::io::Result<()> {
+        self.inner.purge_from_bin(location)
     }
 }

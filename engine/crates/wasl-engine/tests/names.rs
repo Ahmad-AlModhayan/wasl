@@ -349,3 +349,80 @@ async fn a_move_into_a_clashing_folder_waits_with_the_clash() {
     assert!(bin_is_empty(&w));
     assert_eq!(map(&[("Docs/x.txt", "x"), ("docs/a.txt", "a")]), w.drive_files());
 }
+
+/// wasl#18: Drive names a Windows disk refuses arrive under one stable accepted name, are not
+/// retried as failures, and the same files edited here go back to the original Drive names.
+const AWKWARD: [&str; 5] = ["CON", "aux.txt", "report.", "notes ", "a:b.txt"];
+
+fn windows_world() -> World {
+    let w = World::new();
+    *w.env.windows_names.lock().unwrap() = true;
+    w
+}
+
+#[tokio::test]
+async fn drive_names_windows_refuses_arrive_under_a_stable_name_and_are_not_retried() {
+    let w = windows_world();
+    for n in AWKWARD {
+        w.put_drive(n, &format!("content of {n}"));
+    }
+    let first = w.sync().await;
+    assert_eq!(RunStatus::Success, first.status, "{:?}", first.message);
+    let local = w.local_files();
+    assert_eq!(AWKWARD.len(), local.len(), "{local:?}");
+    for (name, body) in &local {
+        assert_eq!(
+            None,
+            wasl_core::names::refusal(name, wasl_core::names::NameRules::drive(true)),
+            "{name}"
+        );
+        assert!(
+            AWKWARD.iter().any(|n| body == &format!("content of {n}")),
+            "{name}: {body}"
+        );
+    }
+    // The next runs have nothing to do and nothing fails.
+    for _ in 0..2 {
+        let again = w.sync().await;
+        assert_eq!(RunStatus::Success, again.status, "{:?}", again.message);
+        assert_eq!(local, w.local_files());
+    }
+    assert_eq!(0, w.drive.trashed_files().len());
+}
+
+#[tokio::test]
+async fn awkward_names_edited_here_upload_back_to_the_original_drive_names() {
+    let w = windows_world();
+    for n in AWKWARD {
+        w.put_drive(n, "v1");
+    }
+    assert_eq!(RunStatus::Success, w.sync().await.status);
+    let names: Vec<String> = w.local_files().into_keys().collect();
+    w.clock.advance(10_000);
+    for n in &names {
+        w.write(n, "edited here");
+    }
+    let o = w.sync().await;
+    assert_eq!(RunStatus::Success, o.status, "{:?}", o.message);
+    let drive = w.drive_files();
+    assert_eq!(AWKWARD.len(), drive.len(), "{drive:?}");
+    for n in AWKWARD {
+        assert_eq!(Some(&"edited here".to_owned()), drive.get(n), "{n}: {drive:?}");
+    }
+}
+
+#[tokio::test]
+async fn the_mapped_name_is_the_same_on_another_device_with_the_same_rules() {
+    let a = windows_world();
+    for n in AWKWARD {
+        a.put_drive(n, "x");
+    }
+    let b = a.another_device(None);
+    *b.env.windows_names.lock().unwrap() = true;
+    assert_eq!(RunStatus::Success, a.sync().await.status);
+    assert_eq!(RunStatus::Success, b.sync().await.status);
+    assert_eq!(
+        a.local_files().into_keys().collect::<Vec<_>>(),
+        b.local_files().into_keys().collect::<Vec<_>>()
+    );
+}

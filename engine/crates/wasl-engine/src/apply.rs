@@ -79,19 +79,19 @@ impl Apply {
 
     /// What the plan was made from: before a file is replaced or removed it is looked at again and
     /// compared with this.
-    pub(crate) fn expecting<'a>(mut self, scanned: impl Iterator<Item = &'a LocalEntry>) -> Apply {
+    pub(crate) fn expecting<'a>(self, scanned: impl Iterator<Item = &'a LocalEntry>) -> Apply {
+        self.expecting_entries(scanned.map(|e| (e.rel.as_str(), e.is_dir, e.size, e.mtime)))
+    }
+
+    /// [`Apply::expecting`] for a plan that holds its own picture of the folder (device pull's
+    /// index): `(path, is_dir, size, mtime)` of each item the plan saw. An item not listed is one
+    /// the plan saw nothing at.
+    pub(crate) fn expecting_entries<'a>(
+        mut self,
+        seen: impl Iterator<Item = (&'a str, bool, u64, i64)>,
+    ) -> Apply {
         self.expected = Some(
-            scanned
-                .map(|e| {
-                    (
-                        name_key(&e.rel),
-                        Scanned {
-                            is_dir: e.is_dir,
-                            size: e.size,
-                            mtime: e.mtime,
-                        },
-                    )
-                })
+            seen.map(|(rel, is_dir, size, mtime)| (name_key(rel), Scanned { is_dir, size, mtime }))
                 .collect(),
         );
         self
@@ -114,6 +114,37 @@ impl Apply {
                 w.is_dir == n.is_dir && (w.is_dir || (w.size == n.size && w.mtime == n.mtime_ms))
             }
         })
+    }
+
+    /// Creates folder `rel` (and missing parents).
+    pub(crate) async fn mkdir(&self, rel: &str) -> Result<()> {
+        let r = rel.to_owned();
+        self.fs(move |fs| fs.mkdir(&r)).await
+    }
+
+    /// Removes folder `rel` when it is empty, unless it changed since the plan. `false`: still
+    /// holds something, or was left alone.
+    pub(crate) async fn remove_empty_dir(&self, rel: &str) -> Result<bool> {
+        if !self.as_planned(rel).await? {
+            return Ok(false);
+        }
+        let r = rel.to_owned();
+        let gone = self.fs(move |fs| fs.remove_dir_if_empty(&r)).await?;
+        kill_point!(self, AfterRename);
+        Ok(gone)
+    }
+
+    /// Renames `from` to `to` in one folder (the same item spelled another way, or a conflict
+    /// copy's new name), unless `from` changed since the plan. `false`: left alone.
+    pub(crate) async fn rename(&self, from: &str, to: &str) -> Result<bool> {
+        if !self.as_planned(from).await? {
+            return Ok(false);
+        }
+        kill_point!(self, BeforeRename);
+        let (f, t) = (from.to_owned(), to.to_owned());
+        self.fs(move |fs| fs.rename(&f, &t)).await?;
+        kill_point!(self, AfterRename);
+        Ok(true)
     }
 
     /// Moves a file the plan wants gone to the bin, unless it changed since the plan. `false`: left

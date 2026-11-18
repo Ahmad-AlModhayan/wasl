@@ -1093,6 +1093,7 @@ impl Devices {
         let (mut taken, mut deferred, mut failures) = (0, 0, Vec::new());
         let (mut synced_with, mut summary) = (0usize, PlanSummary::default());
         let mut clashes: Vec<String> = Vec::new();
+        let mut changed_since_planned: Vec<String> = Vec::new();
         for link in &links {
             match link.shared().await {
                 Ok(shared) if shared.contains(&share) => synced_with += 1,
@@ -1111,6 +1112,7 @@ impl Devices {
                     summary.delete_local += r.deleted as u32;
                     summary.conflicts += r.conflicts as u32;
                     clashes.extend(r.clashes);
+                    changed_since_planned.extend(r.changed_since_planned);
                 }
                 Err(e) => failures.push(format!("{}: {e}", link.peer())),
             }
@@ -1146,6 +1148,17 @@ impl Devices {
                 String::new()
             }
         );
+        if !changed_since_planned.is_empty() {
+            changed_since_planned.sort();
+            changed_since_planned.dedup();
+            // The same typed outcome as the Drive side's run event.
+            summary.warnings.push(format!(
+                "{}: {}. {}",
+                wasl_engine::CHANGED_SINCE_PLANNED,
+                changed_since_planned.join(", "),
+                wasl_engine::CHANGED_SINCE_PLANNED_MESSAGE
+            ));
+        }
         clashes.sort();
         clashes.dedup();
         if !clashes.is_empty() {

@@ -6,11 +6,12 @@ mod common;
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use wasl_core::Route;
-use wasl_engine::{Clock, DeviceService, DeviceSync, PullReport};
+use wasl_engine::fault::{FaultPlan, Point};
+use wasl_engine::{Clock, DeviceService, DeviceSync, MAX_LOCAL_VERSIONS, PullReport};
 use wasl_fs::{LocalFs, StdFs};
 use wasl_net::{DeviceId, DeviceKey, Endpoint, LocalLink, PeerLink, PeerService, ShareId, Trust};
 use wasl_store::{Pair, SharedStore, Store};
@@ -32,6 +33,9 @@ struct Device {
     store: SharedStore,
     sync: DeviceSync,
     service: Arc<DeviceService>,
+    fs: Arc<dyn LocalFs>,
+    pair: Pair,
+    clock: Arc<TestClock>,
     _dir: tempfile::TempDir,
 }
 
@@ -45,7 +49,17 @@ impl Device {
         Device::with_folding(n, Some(common::Folding { android: true }))
     }
 
+    /// A device whose folder refuses names as Windows does (the host must create the awkward names).
+    #[cfg(unix)]
+    fn windows(n: u8) -> Device {
+        Device::build(n, None, true)
+    }
+
     fn with_folding(n: u8, folding: Option<common::Folding>) -> Device {
+        Device::build(n, folding, false)
+    }
+
+    fn build(n: u8, folding: Option<common::Folding>, windows: bool) -> Device {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("folder");
         let bin = dir.path().join("bin");
@@ -63,11 +77,19 @@ impl Device {
         }
         let fs: Arc<dyn LocalFs> = match folding {
             Some(f) => common::folded_fs(&root, &bin, f),
+            None if windows => common::windows_names_fs(Arc::new(StdFs::new(&root, &bin))),
             None => Arc::new(StdFs::new(&root, &bin)),
         };
         let key = DeviceKey::from_seed(&[n; 32]);
         let clock = Arc::new(TestClock(AtomicI64::new(1_800_000_000_000)));
-        let sync = DeviceSync::new(store.clone(), fs.clone(), pair, SHARE, key.id(), clock);
+        let sync = DeviceSync::new(
+            store.clone(),
+            fs.clone(),
+            pair.clone(),
+            SHARE,
+            key.id(),
+            clock.clone(),
+        );
         let open = fs.clone();
         let service = Arc::new(DeviceService::new(
             store.clone(),
@@ -80,8 +102,28 @@ impl Device {
             store,
             sync,
             service,
+            fs,
+            pair,
+            clock,
             _dir: dir,
         }
+    }
+
+    /// The process dies and starts again: a new `DeviceSync` over the same store and folder,
+    /// stopping where `fault` says (none: runs to the end).
+    fn restart(&mut self, fault: Option<Arc<FaultPlan>>) {
+        let mut sync = DeviceSync::new(
+            self.store.clone(),
+            self.fs.clone(),
+            self.pair.clone(),
+            SHARE,
+            self.key.id(),
+            self.clock.clone(),
+        );
+        if let Some(f) = fault {
+            sync = sync.with_fault(f);
+        }
+        self.sync = sync;
     }
 
     fn id(&self) -> DeviceId {
@@ -1139,4 +1181,405 @@ async fn a_pull_counts_only_what_it_changed_here() {
     a.sync.scan().await.unwrap();
     let r = b.pull_from(&a).await;
     assert_eq!((0, 1), (r.received, r.deleted), "{r:?}");
+}
+
+// ---------------------------------------------------------------- the apply layer (wasl#17)
+
+/// A link that runs `hook` once, when the first chunk is asked for: after the pull has planned and
+/// begun to build, before it installs (a person editing the folder meanwhile).
+struct HookLink {
+    inner: LocalLink,
+    hook: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+}
+
+#[async_trait::async_trait]
+impl PeerLink for HookLink {
+    fn peer(&self) -> DeviceId {
+        self.inner.peer()
+    }
+    async fn shared(&self) -> wasl_net::PeerResult<Vec<ShareId>> {
+        self.inner.shared().await
+    }
+    async fn changes_since(
+        &self,
+        p: ShareId,
+        since: u64,
+        limit: usize,
+    ) -> wasl_net::PeerResult<wasl_net::IndexPage> {
+        self.inner.changes_since(p, since, limit).await
+    }
+    async fn chunk_list(
+        &self,
+        p: ShareId,
+        key: &str,
+        b: wasl_chunk::Hash,
+    ) -> wasl_net::PeerResult<wasl_chunk::ChunkList> {
+        self.inner.chunk_list(p, key, b).await
+    }
+    async fn chunk(&self, p: ShareId, h: wasl_chunk::Hash) -> wasl_net::PeerResult<Vec<u8>> {
+        if let Some(hook) = self.hook.lock().unwrap().take() {
+            hook();
+        }
+        self.inner.chunk(p, h).await
+    }
+    async fn notify(&self, p: ShareId, seq: u64) -> wasl_net::PeerResult<()> {
+        self.inner.notify(p, seq).await
+    }
+    async fn pair(&self, r: wasl_net::PairRound) -> wasl_net::PeerResult<wasl_net::PairReply> {
+        self.inner.pair(r).await
+    }
+    async fn group_ops(&self, h: Vec<wasl_net::OpId>) -> wasl_net::PeerResult<Vec<wasl_net::GroupOp>> {
+        self.inner.group_ops(h).await
+    }
+    async fn group_changed(&self) -> wasl_net::PeerResult<()> {
+        self.inner.group_changed().await
+    }
+    async fn offers(&self) -> wasl_net::PeerResult<Vec<wasl_net::Offer>> {
+        self.inner.offers().await
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn device_pull_and_drive_share_one_bin_policy_and_its_version_cap() {
+    // The same file replaced again and again from the device side: only the newest
+    // `MAX_LOCAL_VERSIONS` old copies stay in the bin, as on the Drive side.
+    let (a, b) = (Device::new(1), Device::new(2));
+    a.write("doc.txt", &noise(50_000, 1));
+    a.sync.scan().await.unwrap();
+    b.pull_from(&a).await;
+    let rounds = MAX_LOCAL_VERSIONS as u64 + 3;
+    for n in 0..rounds {
+        a.write("doc.txt", &noise(50_000 + n as usize, 100 + n));
+        a.sync.scan().await.unwrap();
+        let r = b.pull_from(&a).await;
+        assert_eq!(1, r.received, "round {n}: {r:?}");
+    }
+    assert_eq!(a.files(), b.files());
+    let binned = b.store.lock().bin_entries(Some("p")).unwrap();
+    assert_eq!(MAX_LOCAL_VERSIONS as usize, binned.len(), "the cap holds");
+    assert!(
+        binned
+            .iter()
+            .all(|e| e.entry.key == "doc.txt" && e.entry.reason == "OVERWRITTEN")
+    );
+    // What the cap dropped is gone from the bin folder too.
+    let on_disk = std::fs::read_dir(b._dir.path().join("bin")).unwrap().count();
+    assert_eq!(MAX_LOCAL_VERSIONS as usize, on_disk);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_edited_here_after_the_pull_was_planned_is_left_alone_and_reported() {
+    let (a, b) = (Device::new(1), Device::new(2));
+    a.write("doc.txt", &noise(300_000, 1));
+    a.sync.scan().await.unwrap();
+    b.pull_from(&a).await;
+    a.write("doc.txt", &noise(300_000, 2));
+    a.sync.scan().await.unwrap();
+    b.sync.scan().await.unwrap();
+    let root = b.root.clone();
+    let link = HookLink {
+        inner: b.link_to(&a),
+        hook: Mutex::new(Some(Box::new(move || {
+            std::fs::write(root.join("doc.txt"), b"edited while the pull ran").unwrap();
+        }))),
+    };
+    let r = b.sync.pull(&link).await.unwrap();
+    assert_eq!(vec!["doc.txt".to_owned()], r.changed_since_planned);
+    assert_eq!((1, 0), (r.deferred, r.received), "{r:?}");
+    assert_eq!(
+        b"edited while the pull ran".to_vec(),
+        std::fs::read(b.root.join("doc.txt")).unwrap()
+    );
+    assert_eq!(0, b.bin_count());
+    // The next scan records the edit; it is then an ordinary conflict, and nothing is lost.
+    b.pull_from(&a).await;
+    a.pull_from(&b).await;
+    b.pull_from(&a).await;
+    let contents: Vec<Vec<u8>> = b.files().into_values().collect();
+    assert!(contents.contains(&b"edited while the pull ran".to_vec()));
+    assert!(contents.contains(&noise(300_000, 2)));
+}
+
+/// Pulls on B once to count the points of the apply path it passes, then once per point, stopped
+/// there; B restarts and the devices sync again; `check` sees both devices.
+async fn for_each_stop_of_a_pull(
+    make: impl Fn() -> (Device, Device),
+    mut check: impl FnMut(&str, &Device, &Device, &BTreeMap<String, Vec<u8>>),
+) {
+    let (a, mut b) = make();
+    let plan = FaultPlan::counting();
+    b.restart(Some(plan.clone()));
+    b.sync.scan().await.unwrap();
+    b.sync.pull(&b.link_to(&a)).await.unwrap();
+    let points: Vec<Point> = plan.seen();
+    assert!(!points.is_empty(), "a pull passes no point of the apply path");
+    for (i, point) in points.iter().enumerate() {
+        let (a, mut b) = make();
+        let plan = FaultPlan::stop_at(i);
+        b.restart(Some(plan.clone()));
+        b.sync.scan().await.unwrap();
+        let stopped = b.sync.pull(&b.link_to(&a)).await;
+        assert!(stopped.is_err(), "{point:?} (#{i}) did not stop the pull");
+        let at_stop = b.files();
+        // The process starts again; both devices keep syncing.
+        b.restart(None);
+        for _ in 0..2 {
+            b.pull_from(&a).await;
+            a.pull_from(&b).await;
+        }
+        check(&format!("{point:?} (#{i})"), &a, &b, &at_stop);
+    }
+}
+
+/// Two devices that share `doc.txt`; `edit` then changes it on A and A scans.
+fn two_devices_then(edit: impl FnOnce(&Device)) -> (Device, Device) {
+    let (a, b) = (Device::new(1), Device::new(2));
+    a.write("doc.txt", &noise(40_000, 1));
+    a.write("keep.txt", b"untouched");
+    let rt = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| {
+        rt.block_on(async {
+            a.sync.scan().await.unwrap();
+            b.pull_from(&a).await;
+            edit(&a);
+            a.sync.scan().await.unwrap();
+        })
+    });
+    (a, b)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pull_stopped_anywhere_while_replacing_a_file_loses_nothing() {
+    let (old, new) = (noise(40_000, 1), noise(40_001, 2));
+    let make = || two_devices_then(|a| a.write("doc.txt", &noise(40_001, 2)));
+    for_each_stop_of_a_pull(make, |at, a, b, at_stop| {
+        let held = at_stop.get("doc.txt");
+        assert!(
+            held == Some(&old) || held == Some(&new),
+            "{at}: at the stop the path held {:?} bytes",
+            held.map(Vec::len)
+        );
+        // After the restart both devices hold the new content, and the old one is not lost.
+        assert_eq!(Some(&new), b.files().get("doc.txt"), "{at}");
+        assert_eq!(
+            Some(&new),
+            a.files().get("doc.txt"),
+            "{at}: the other device is as it was"
+        );
+        assert_eq!(Some(&b"untouched".to_vec()), b.files().get("keep.txt"), "{at}");
+        let in_bin = std::fs::read_dir(b._dir.path().join("bin"))
+            .map(|rd| {
+                rd.flatten()
+                    .any(|f| std::fs::read(f.path()).is_ok_and(|c| c == old))
+            })
+            .unwrap_or(false);
+        let kept_as_a_file = b.files().values().any(|c| c == &old);
+        assert!(in_bin || kept_as_a_file, "{at}: the old content is gone");
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pull_stopped_anywhere_while_deleting_a_file_loses_nothing() {
+    let old = noise(40_000, 1);
+    let make = || two_devices_then(|a| std::fs::remove_file(a.root.join("doc.txt")).unwrap());
+    for_each_stop_of_a_pull(make, |at, a, b, _| {
+        assert_eq!(None, b.files().get("doc.txt"), "{at}");
+        assert_eq!(None, a.files().get("doc.txt"), "{at}");
+        // Nothing else was touched on either device, and the deleted content is in B's bin.
+        assert_eq!(Some(&b"untouched".to_vec()), b.files().get("keep.txt"), "{at}");
+        assert_eq!(Some(&b"untouched".to_vec()), a.files().get("keep.txt"), "{at}");
+        let kept = std::fs::read_dir(b._dir.path().join("bin"))
+            .unwrap()
+            .flatten()
+            .any(|f| std::fs::read(f.path()).is_ok_and(|c| c == old));
+        assert!(kept, "{at}: the deleted file's content is not in the bin");
+    })
+    .await;
+}
+
+// ---------------------------------------------------------------- folder renamed by case or accents (wasl#19)
+
+/// Two spellings of one folder name: by case, and composed versus decomposed accents.
+const FOLDER_RENAMES: [(&str, &str); 2] = [("Docs", "docs"), ("caf\u{e9}", "cafe\u{301}")];
+
+/// A and B share `old/a.txt` and `old/sub/b.txt`; A then renames the folder to `new` and scans.
+fn folder_renamed_on_a(old: &str, new: &str, b: Device) -> (Device, Device) {
+    let a = Device::new(1);
+    a.write(&format!("{old}/a.txt"), &noise(300_000, 5));
+    a.write(&format!("{old}/sub/b.txt"), &noise(20_000, 6));
+    a.write("other.txt", b"other");
+    let rt = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| {
+        rt.block_on(async {
+            a.sync.scan().await.unwrap();
+            b.pull_from(&a).await;
+            std::fs::rename(a.root.join(old), a.root.join(new)).unwrap();
+            a.sync.scan().await.unwrap();
+        })
+    });
+    (a, b)
+}
+
+fn names_of(d: &Device) -> Vec<String> {
+    d.files().into_keys().collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_renamed_only_by_case_or_accents_follows_to_the_other_device() {
+    for (old, new) in FOLDER_RENAMES {
+        for folding in [false, true] {
+            let b = if folding {
+                Device::folding(2)
+            } else {
+                Device::new(2)
+            };
+            let (a, b) = folder_renamed_on_a(old, new, b);
+            let r = b.pull_from(&a).await;
+            let at = format!("{old} -> {new} (folding: {folding}): {r:?}");
+            assert_eq!(0, r.deferred, "{at}");
+            assert_eq!(
+                (0, 0, 0),
+                (r.received, r.deleted, r.bytes_fetched as usize),
+                "{at}"
+            );
+            assert_eq!(
+                vec![
+                    format!("{new}/a.txt"),
+                    format!("{new}/sub/b.txt"),
+                    "other.txt".to_owned()
+                ],
+                names_of(&b),
+                "{at}"
+            );
+            assert_eq!(0, b.bin_count(), "{at}: nothing is binned");
+            // Not deferred again, and nothing goes back to A because of it.
+            let again = b.pull_from(&a).await;
+            assert_eq!(0, again.deferred, "{at}");
+            let back = a.pull_from(&b).await;
+            assert_eq!((0, 0), (back.received, back.deleted), "{at}: {back:?}");
+            assert_eq!(0, a.bin_count(), "{at}");
+            assert_eq!(a.files(), b.files(), "{at}");
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_deleted_while_its_folder_was_renamed_does_not_come_back() {
+    for (old, new) in FOLDER_RENAMES {
+        let (a, b) = (Device::new(1), Device::new(2));
+        a.write(&format!("{old}/a.txt"), &noise(30_000, 5));
+        a.write(&format!("{old}/c.txt"), &noise(30_000, 6));
+        a.sync.scan().await.unwrap();
+        b.pull_from(&a).await;
+        std::fs::remove_file(a.root.join(old).join("c.txt")).unwrap();
+        std::fs::rename(a.root.join(old), a.root.join(new)).unwrap();
+        a.sync.scan().await.unwrap();
+        for _ in 0..2 {
+            b.pull_from(&a).await;
+            a.pull_from(&b).await;
+        }
+        let at = format!("{old} -> {new}");
+        assert_eq!(vec![format!("{new}/a.txt")], names_of(&b), "{at}");
+        assert_eq!(vec![format!("{new}/a.txt")], names_of(&a), "{at}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_rename_stopped_anywhere_ends_under_one_of_its_names_with_all_its_files() {
+    let (old, new) = FOLDER_RENAMES[0];
+    let make = || folder_renamed_on_a(old, new, Device::new(2));
+    let all = |d: &Device, dir: &str| {
+        let names = names_of(d);
+        names.contains(&format!("{dir}/a.txt")) && names.contains(&format!("{dir}/sub/b.txt"))
+    };
+    let (a, mut b) = make();
+    let plan = FaultPlan::counting();
+    b.restart(Some(plan.clone()));
+    b.sync.scan().await.unwrap();
+    b.sync.pull(&b.link_to(&a)).await.unwrap();
+    let points = plan.seen();
+    assert!(points.contains(&Point::BeforeRename), "{points:?}");
+    for (i, point) in points.iter().enumerate() {
+        let (a, mut b) = make();
+        let plan = FaultPlan::stop_at(i);
+        b.restart(Some(plan.clone()));
+        b.sync.scan().await.unwrap();
+        assert!(b.sync.pull(&b.link_to(&a)).await.is_err(), "{point:?} (#{i})");
+        let at = format!("{point:?} (#{i})");
+        // At the stop the folder is under one of its names, with everything in it.
+        assert!(all(&b, old) || all(&b, new), "{at}: {:?}", names_of(&b));
+        b.restart(None);
+        for _ in 0..3 {
+            b.pull_from(&a).await;
+            a.pull_from(&b).await;
+        }
+        assert!(
+            all(&b, new),
+            "{at}: the next runs finish the rename: {:?}",
+            names_of(&b)
+        );
+        assert_eq!(a.files(), b.files(), "{at}");
+        assert_eq!(noise(300_000, 5), b.files()[&format!("{new}/a.txt")], "{at}");
+    }
+}
+
+// ---------------------------------------------------------------- names the disk refuses (wasl#18)
+
+// Device A is a Linux or macOS folder, which holds names a Windows folder refuses; creating them
+// needs such a disk, so the test runs there. The mapping itself is tested on every OS in wasl-core.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn names_a_windows_disk_refuses_arrive_mapped_and_go_back_under_the_original() {
+    let awkward = ["CON", "aux.txt", "report.", "notes ", "ab:c.txt"];
+    let (a, b) = (Device::new(1), Device::windows(2));
+    for n in awkward {
+        a.write(n, format!("from A: {n}").as_bytes());
+    }
+    a.write("plain.txt", b"plain");
+    a.sync.scan().await.unwrap();
+    let r = b.pull_from(&a).await;
+    assert_eq!(
+        (0, 0, awkward.len() + 1),
+        (r.deferred, r.rejected, r.received),
+        "{r:?}"
+    );
+    let local = b.files();
+    assert_eq!(awkward.len() + 1, local.len(), "{:?}", names_of(&b));
+    for (name, body) in &local {
+        assert_eq!(
+            None,
+            wasl_core::names::refusal(name, wasl_core::names::NameRules::drive(true)),
+            "{name}"
+        );
+        assert!(
+            body == b"plain" || awkward.iter().any(|n| body == format!("from A: {n}").as_bytes()),
+            "{name}"
+        );
+    }
+    // Stable: nothing is fetched or deferred again.
+    let again = b.pull_from(&a).await;
+    assert_eq!(
+        (0, 0, 0),
+        (again.deferred, again.received, again.bytes_fetched as usize)
+    );
+    // Edited here, the files go back to A under their original names, not as new ones.
+    for name in local.keys() {
+        if name != "plain.txt" {
+            b.write(name, b"edited on B");
+        }
+    }
+    b.sync.scan().await.unwrap();
+    let back = a.pull_from(&b).await;
+    assert_eq!(0, back.deferred, "{back:?}");
+    let files = a.files();
+    assert_eq!(awkward.len() + 1, files.len(), "{:?}", names_of(&a));
+    for n in awkward {
+        assert_eq!(
+            Some(&b"edited on B".to_vec()),
+            files.get(n),
+            "{n}: {:?}",
+            names_of(&a)
+        );
+    }
 }

@@ -82,6 +82,7 @@ fn config(mode: SyncMode, conflict_policy: ConflictPolicy, propagate_deletions: 
             first_merge_guard: false,
             ..GuardConfig::default()
         },
+        name_rules: Default::default(),
     }
 }
 

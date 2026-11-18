@@ -2,6 +2,7 @@
 
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use wasl_core::names::{NameRules, is_windows_device_name, looks_like_short_name};
 
 /// One child of a folder.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,6 +80,13 @@ pub trait LocalFs: Send + Sync {
         ))
     }
 
+    /// What this disk refuses in a name, for the one function that maps remote names to local ones
+    /// ([`wasl_core::names::to_local_name_with`]). A plain disk follows the OS it runs on; a back end
+    /// with other limits says so.
+    fn name_rules(&self) -> NameRules {
+        NameRules::drive(cfg!(windows))
+    }
+
     /// Moves the file at `rel` to the recycle bin. Returns an opaque location for restoring it.
     fn move_to_bin(&self, rel: &str) -> io::Result<String>;
 
@@ -145,55 +153,6 @@ pub fn check_rel_on(rel: &str, windows: bool) -> io::Result<&str> {
         }
     }
     Ok(rel)
-}
-
-/// `CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`, `LPT0`-`LPT9` (and the superscript-digit forms), with
-/// or without an extension, in any case.
-/// `REPORT~1.DOC`: a stem of at most 8 characters with `~` and digits at its end, and an extension
-/// of at most 3. On Windows such a name may refer to a different file's short name.
-fn looks_like_short_name(part: &str) -> bool {
-    let (stem, ext) = part.rsplit_once('.').unwrap_or((part, ""));
-    let Some((head, digits)) = stem.rsplit_once('~') else {
-        return false;
-    };
-    !head.is_empty()
-        && !digits.is_empty()
-        && digits.bytes().all(|b| b.is_ascii_digit())
-        && stem.chars().count() <= 8
-        && ext.chars().count() <= 3
-}
-
-fn is_windows_device_name(part: &str) -> bool {
-    let stem = part
-        .split('.')
-        .next()
-        .unwrap_or(part)
-        .trim_end_matches([' ', '.'])
-        .to_ascii_uppercase();
-    match stem.as_str() {
-        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$" => true,
-        _ => {
-            // Split after three characters, not three bytes: names are often not ASCII.
-            let cut = stem.char_indices().nth(3).map_or(stem.len(), |(i, _)| i);
-            let (prefix, digit) = stem.split_at(cut);
-            (prefix == "COM" || prefix == "LPT")
-                && matches!(
-                    digit,
-                    "0" | "1"
-                        | "2"
-                        | "3"
-                        | "4"
-                        | "5"
-                        | "6"
-                        | "7"
-                        | "8"
-                        | "9"
-                        | "\u{b9}"
-                        | "\u{b2}"
-                        | "\u{b3}"
-                )
-        }
-    }
 }
 
 /// Names the engine creates for itself and never syncs.

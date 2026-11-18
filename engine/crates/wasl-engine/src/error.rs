@@ -25,6 +25,10 @@ pub enum EngineError {
     /// A vault pair whose vault is locked on this device.
     #[error("{0}")]
     Locked(String),
+    /// The disk refuses the name an item would get here even after mapping (too long, or a path
+    /// the file system rejects). Reported as [`NAME_REFUSED`], never retried as a transient failure.
+    #[error("{0}")]
+    NameRefused(String),
     #[error("cancelled")]
     Cancelled,
     #[error("{0}")]
@@ -33,9 +37,17 @@ pub enum EngineError {
 
 pub type Result<T, E = EngineError> = std::result::Result<T, E>;
 
+/// Run-report code for an item whose name the disk refuses even after mapping.
+pub const NAME_REFUSED: &str = "NAME_REFUSED";
+
 impl From<std::io::Error> for EngineError {
     fn from(e: std::io::Error) -> Self {
         match e.kind() {
+            std::io::ErrorKind::InvalidInput if e.to_string().starts_with("unsafe path") => {
+                EngineError::NameRefused(format!(
+                    "The disk refuses this name, even after Wasl mapped it. Rename it on Drive ({e})"
+                ))
+            }
             std::io::ErrorKind::PermissionDenied => EngineError::Permission(e.to_string()),
             std::io::ErrorKind::Interrupted => EngineError::Cancelled,
             _ => EngineError::Io(e.to_string()),
@@ -59,7 +71,10 @@ impl EngineError {
                 DriveError::Integrity(_) => ErrorKind::Integrity,
                 DriveError::Unknown(_) => ErrorKind::Other,
             },
-            EngineError::Store(_) | EngineError::Io(_) | EngineError::Vanished(_) => ErrorKind::Io,
+            EngineError::Store(_)
+            | EngineError::Io(_)
+            | EngineError::Vanished(_)
+            | EngineError::NameRefused(_) => ErrorKind::Io,
             EngineError::Permission(_) => ErrorKind::Permission,
             EngineError::NotFound(_) => ErrorKind::NotFound,
             EngineError::Integrity(_) => ErrorKind::Integrity,
