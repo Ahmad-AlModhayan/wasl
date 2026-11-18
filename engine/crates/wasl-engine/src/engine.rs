@@ -2,6 +2,7 @@
 //! `SyncEngine.kt`. Platforms provide file access, the remote, the device state and a clock through
 //! [`Environment`]; every decision is made here (FR-E3).
 
+use crate::apply::Apply;
 use crate::error::{EngineError, Result};
 use crate::executor::Executor;
 use crate::remote::Remote;
@@ -194,6 +195,9 @@ pub struct Engine {
     /// Each pair's file hashes, kept between runs: the sync started from a preview reuses the
     /// preview's hashes instead of reading every file again.
     hash_memos: Mutex<HashMap<String, Arc<HashCache>>>,
+    /// Test seam: stops a run at a named point of the apply path.
+    #[cfg(any(test, feature = "test-support"))]
+    fault: Option<Arc<crate::fault::FaultPlan>>,
 }
 
 /// Everything a plan was built from.
@@ -248,7 +252,21 @@ impl Engine {
             saving: Mutex::new(HashMap::new()),
             previews: Mutex::new(HashMap::new()),
             hash_memos: Mutex::new(HashMap::new()),
+            #[cfg(any(test, feature = "test-support"))]
+            fault: None,
         }
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn fault(&self) -> Option<Arc<crate::fault::FaultPlan>> {
+        self.fault.clone()
+    }
+
+    /// Test seam: runs of this engine stop where `plan` says (docs/testing).
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn with_fault_plan(mut self, plan: Arc<crate::fault::FaultPlan>) -> Engine {
+        self.fault = Some(plan);
+        self
     }
 
     /// Uses these locks instead of its own, so device sync built from the same value never runs
@@ -764,6 +782,15 @@ impl Engine {
             .and_then(|v| v.parse().ok())
             .unwrap_or(self.config.concurrency);
         let device_name = self.device_name()?;
+        let apply = Apply::new(
+            self.store.clone(),
+            prepared.local.clone(),
+            self.clock.clone(),
+            pair,
+        )
+        .expecting(prepared.input.local.values());
+        #[cfg(any(test, feature = "test-support"))]
+        let apply = apply.with_fault(self.fault.clone());
         let exec = Arc::new(Executor {
             pair: pair.clone(),
             run_id: run_id.to_owned(),
@@ -782,6 +809,7 @@ impl Engine {
             fatal: Mutex::new(None),
             first_error: Mutex::new(None),
             incoming: Mutex::new(HashSet::new()),
+            apply,
         });
         exec.execute(&prepared.plan).await;
         active.tracker.update(|p| p.phase = Phase::Finishing);

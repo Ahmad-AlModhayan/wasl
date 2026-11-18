@@ -4121,6 +4121,7 @@ dependencies = [
  "wasl-core",
  "wasl-crypto",
  "wasl-drive",
+ "wasl-engine",
  "wasl-fs",
  "wasl-ignore",
  "wasl-net",
