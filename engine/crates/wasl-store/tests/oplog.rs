@@ -257,7 +257,7 @@ fn a_v10_database_migrates_to_v11_with_its_data_unchanged() {
     };
     let (before, changesets_before) = before;
     let s = Store::open(&path).unwrap();
-    assert_eq!(12, s.schema_version().unwrap());
+    assert_eq!(13, s.schema_version().unwrap());
     assert_eq!(changesets_before, changeset_rows(s.connection()));
     let mut after = dump(s.connection());
     let changesets = after.remove("oplog_changesets").unwrap();
@@ -277,6 +277,8 @@ fn a_v10_database_migrates_to_v11_with_its_data_unchanged() {
     ] {
         assert!(after.remove(t).unwrap().1.is_empty(), "{t}");
     }
+    // Schema v13 adds when each device was last seen: empty after an upgrade.
+    assert!(after.remove("device_seen").unwrap().1.is_empty());
     // agent_changesets gained a column; its rows are compared above.
     let mut before = before;
     before.remove("agent_changesets");

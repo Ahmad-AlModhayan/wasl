@@ -40,8 +40,9 @@ pub use oplog::{
 pub use presets::{PRESET_IDS, is_valid_preset_id};
 pub use run::{ErrorKind, RunStatus};
 pub use status::{
-    Facts, FolderCounts, FolderState, FolderStatus, LastRun, OverallState, OverallStatus, WaitReason,
-    folder_status, overall_status,
+    CANT_REACH_AFTER_MS, DeviceFacts, DevicePresence, DeviceStatus, Facts, FolderCounts, FolderPeer,
+    FolderState, FolderStatus, LastRun, OverallState, OverallStatus, WaitReason, device_status,
+    folder_status, overall_status, with_peers,
 };
 pub use store::{
     AgentEntry, BinEntry, BinSide, Changeset, ChangesetStatus, ConflictRecord, DEFAULT_WATCH_IGNORES,

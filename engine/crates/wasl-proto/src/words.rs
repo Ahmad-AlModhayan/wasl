@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// The languages the catalogue speaks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 pub enum Lang {
     En,
     Ar,
@@ -34,6 +35,7 @@ impl Lang {
 /// the place to act. Never renames, deletes or moves a file for the person.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 pub enum Fix {
     Retry,
     SignInAgain,
@@ -72,6 +74,7 @@ impl Slot {
 /// The typed values a rendered entry was filled with, kept beside the words so an agent never
 /// parses a sentence. Absent values read as a plain stand-in in the words ("this folder").
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct Values {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
@@ -254,7 +257,7 @@ const fn e(
 }
 
 use Fix::*;
-use Slot::{Count, File, Folder};
+use Slot::{Count, Device, File, Folder};
 
 /// Every entry. Keep the keys unique; `docs/STATUS_WORDS.md` is generated from this table.
 pub const ENTRIES: &[Entry] = &[
@@ -393,6 +396,100 @@ pub const ENTRIES: &[Entry] = &[
         None,
         &[Folder],
         "The folder's own conditions hold the next run (Wi-Fi, charging, battery, VPN), or its first sync hasn't come round yet.",
+    ),
+    e(
+        "folder.waiting_device",
+        Forms::single("{folder} will sync when {device} is back online."),
+        Forms::single("ستتم مزامنة {folder} عندما يعود {device} إلى الاتصال."),
+        None,
+        &[Folder, Device],
+        "A folder that syncs only between devices waits for a device that is offline now. {device} is that device's name.",
+    ),
+    e(
+        "folder.cant_reach_device",
+        Forms::single("Wasl can't reach {device}, so {folder} isn't synced there."),
+        Forms::single("لا يستطيع وصل الوصول إلى {device}، لذلك لم تتم مزامنة {folder} هناك."),
+        None,
+        &[Folder, Device],
+        "A folder that syncs only between devices has a device Wasl hasn't reached for a long time (or never). {device} is that device's name.",
+    ),
+    // ---- a device in "my devices"
+    e(
+        "device.online",
+        Forms::single("Online"),
+        Forms::single("متصل"),
+        None,
+        &[Device],
+        "Status of a device in the list of the person's devices: connected now and not syncing.",
+    ),
+    e(
+        "device.syncing",
+        Forms::single("Syncing"),
+        Forms::single("تجري المزامنة"),
+        None,
+        &[Device],
+        "Status of a device in the list of the person's devices: connected now and a folder is syncing with it.",
+    ),
+    e(
+        "device.last_seen_now",
+        Forms::single("Last seen a moment ago"),
+        Forms::single("آخر ظهور قبل لحظات"),
+        None,
+        &[Device],
+        "Status of a device that is offline and was connected less than a minute ago.",
+    ),
+    e(
+        "device.last_seen_minutes",
+        Forms::one_other("Last seen {count} minute ago", "Last seen {count} minutes ago"),
+        Forms::six(
+            "آخر ظهور قبل أقل من دقيقة",
+            "آخر ظهور قبل دقيقة واحدة",
+            "آخر ظهور قبل دقيقتين",
+            "آخر ظهور قبل {count} دقائق",
+            "آخر ظهور قبل {count} دقيقة",
+            "آخر ظهور قبل {count} دقيقة",
+        ),
+        None,
+        &[Device, Count],
+        "Status of a device that is offline: when it was last connected, in minutes (1 to 59). {count} is the number of minutes.",
+    ),
+    e(
+        "device.last_seen_hours",
+        Forms::one_other("Last seen {count} hour ago", "Last seen {count} hours ago"),
+        Forms::six(
+            "آخر ظهور قبل أقل من ساعة",
+            "آخر ظهور قبل ساعة واحدة",
+            "آخر ظهور قبل ساعتين",
+            "آخر ظهور قبل {count} ساعات",
+            "آخر ظهور قبل {count} ساعة",
+            "آخر ظهور قبل {count} ساعة",
+        ),
+        None,
+        &[Device, Count],
+        "Status of a device that is offline: when it was last connected, in hours (1 to 23). {count} is the number of hours.",
+    ),
+    e(
+        "device.last_seen_days",
+        Forms::one_other("Last seen {count} day ago", "Last seen {count} days ago"),
+        Forms::six(
+            "آخر ظهور قبل أقل من يوم",
+            "آخر ظهور قبل يوم واحد",
+            "آخر ظهور قبل يومين",
+            "آخر ظهور قبل {count} أيام",
+            "آخر ظهور قبل {count} يومًا",
+            "آخر ظهور قبل {count} يوم",
+        ),
+        None,
+        &[Device, Count],
+        "Status of a device that is offline: when it was last connected, in days (1 to 30). {count} is the number of days.",
+    ),
+    e(
+        "device.cant_reach",
+        Forms::single("Can't reach"),
+        Forms::single("تعذّر الوصول إليه"),
+        None,
+        &[Device],
+        "Status of a device that was never reached from here, or not for more than 30 days.",
     ),
     e(
         "folder.needs_you",
@@ -832,6 +929,7 @@ pub fn entry(key: &str) -> Option<&'static Entry> {
 
 /// Words, fix and details for one entry in one language: what a screen draws and an agent reads.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct Rendered {
     pub key: String,
     pub text: String,

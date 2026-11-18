@@ -1700,3 +1700,39 @@ async fn next_status(
     .await
     .expect("the status event arrives")
 }
+
+// ---- the same situations through the daemon and through the phone's binding (issue #31)
+
+#[path = "../../wasl-engine/tests/common/status_scenarios.rs"]
+mod scenarios;
+
+/// Each shared situation, seeded into the daemon's database, reads as the expectation says, in
+/// English and in Arabic (the same state and keys, other words). The phone binding's tests run the
+/// same situations against the same expectations.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_shared_status_scenarios_read_as_expected_through_the_daemon() {
+    let root = std::env::temp_dir().join("wasl-status-scenario");
+    let root = root.to_str().unwrap().to_owned();
+    for sc in scenarios::scenarios() {
+        let g = google().await;
+        let d = start_seeded(&g, true, None, None, Some(&|s| (sc.seed)(s, &root))).await;
+        let c = Client::connect(&d.paths).await.unwrap();
+        let en = c.status_in(Lang::En).await.unwrap();
+        let status = en.pairs[0].status.clone().expect("the daemon sends the status");
+        assert_eq!(None, scenarios::mismatch(&status, &sc.expect), "{}", sc.name);
+        let overall = en.overall_status.unwrap();
+        assert_eq!(sc.expect.overall, overall.state, "{}: the whole app", sc.name);
+        let ar = c.status_in(Lang::Ar).await.unwrap().pairs[0]
+            .status
+            .clone()
+            .unwrap();
+        assert_eq!(
+            None,
+            scenarios::mismatch(&ar, &sc.expect),
+            "{} in Arabic: the same keys",
+            sc.name
+        );
+        assert_ne!(status.words.text, ar.words.text, "{}: other words", sc.name);
+        d.handle.abort();
+    }
+}

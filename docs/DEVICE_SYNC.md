@@ -201,6 +201,24 @@ Messages are length-prefixed CBOR. Limits on every length; unknown message types
   self-hosted `AGPL-3.0-only` relay, or an optional Kahf Managed Relay / Blind-Cache endpoint).
 - Reach `lan` never contacts STUN, Drive rendezvous or any internet address (FR-N11).
 
+### 7.1 Where each device stands (`wasl-proto::status`, `wasl-devices::Devices::device_statuses`)
+
+The engine works out each device's state once, and the daemon (`wasl status --json`, the IPC `status`
+reply's `devices`), the phone binding (`WaslDevices.device_statuses`, `WaslEngine.folder_statuses`) and
+the CLI all return it with a stable key, the values and the words in the caller's language.
+
+| State | Key | When |
+|---|---|---|
+| `online` | `device.online` | a link to it is open |
+| `syncing` | `device.syncing` | online, and a folder shared with it is running |
+| `last_seen` | `device.last_seen_now`, `_minutes`, `_hours`, `_days` | no open link; the time is in `values.count` and `last_seen_at` |
+| `cant_reach` | `device.cant_reach` | never reached from here, or not for 30 days |
+
+"Last seen" is kept in `device_seen` when a link opens and closes, every minute while one is open, and
+when it is read. A folder with route `devices` that is up to date, shared with a device that is
+offline, reads `waiting` with `folder.waiting_device` (or `folder.cant_reach_device`), naming the
+device. A folder that also syncs through Drive stays up to date and lists the device in `peers`.
+
 ## 8. Phases
 
 1. **Core model**: version vectors, the N-way comparison with renames, its property tests; the

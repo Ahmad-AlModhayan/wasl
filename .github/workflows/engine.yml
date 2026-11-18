@@ -66,3 +66,13 @@ jobs:
       # Two real wasld processes, paired, syncing and removing (test build, loopback only).
       - run: cargo test -p wasld --features miqyas --test two_daemons
         timeout-minutes: 15
+      # The phone's Kotlin bindings generate from the built library and carry the status types the
+      # app reads (folder and device status, the status callback). No Kotlin compiler is needed.
+      - name: Kotlin bindings carry the status types
+        if: runner.os == 'Linux'
+        run: |
+          cargo build -p wasl-ffi
+          cargo run -p wasl-ffi --features bindgen --bin uniffi-bindgen -- generate --library target/debug/libwasl_mobile.so --language kotlin --no-format --out-dir "$RUNNER_TEMP/kotlin"
+          for name in "interface StatusSink" "data class FolderStatus" "data class DeviceStatus" "enum class DevicePresence" "fun \`watchStatus\`" "fun \`deviceStatuses\`"; do
+            grep -rqF -- "$name" "$RUNNER_TEMP/kotlin" || { echo "missing in the Kotlin bindings: $name"; exit 1; }
+          done

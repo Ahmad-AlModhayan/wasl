@@ -1503,3 +1503,179 @@ async fn a_device_run_dropped_while_it_waits_leaves_nothing_behind() {
         .unwrap();
     assert_ne!(Some("Already syncing with devices".to_string()), r.message);
 }
+
+// ---- where each device stands, and the folder that waits for one (issue #32)
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
+
+/// Sets when `device` was last seen on `node`, whatever it was (a test's way to age a device).
+fn seen_ago(node: &Node, device: &str, ago_ms: i64) {
+    let s = node.daemon.store.lock();
+    s.connection()
+        .execute(
+            &format!(
+                "INSERT INTO device_seen (device_id, last_seen_at) VALUES ('{device}', {at})
+                 ON CONFLICT(device_id) DO UPDATE SET last_seen_at = {at}",
+                at = now_ms() - ago_ms
+            ),
+            [],
+        )
+        .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_shared_with_an_offline_device_says_which_device_it_waits_for() {
+    use wasl_ipc::Request;
+    use wasl_proto::{DevicePresence, FolderState, Lang, WaitReason};
+    const MIN: i64 = 60_000;
+    const DAY: i64 = 24 * 60 * MIN;
+    let (a, _b) = pair_up().await;
+    let r = a.daemon.run("p", Trigger::Manual).await;
+    assert_eq!(RunStatus::Success, r.status, "{:?}", r.message);
+
+    // B is connected: online, and the folder is up to date.
+    let st = a.daemon.status(Lang::En).unwrap();
+    let b = st.devices.iter().find(|d| !d.this_device).unwrap();
+    assert_eq!(
+        (DevicePresence::Online, "device.online", "Online"),
+        (b.state, b.words.key.as_str(), b.words.text.as_str())
+    );
+    let folder = st.pairs[0].status.clone().unwrap();
+    assert_eq!(FolderState::Synced, folder.state);
+    assert_eq!(1, folder.peers.len());
+    assert_eq!(DevicePresence::Online, folder.peers[0].state);
+
+    // A third device joined the group and was never connected.
+    let tablet = node("Tablet");
+    let dt = tablet.daemon.devices.clone().unwrap();
+    let da = a.daemon.devices.clone().unwrap();
+    da.add_member(dt.public_key(), "Tablet", 2).unwrap();
+    let tablet_id = dt.id().to_string();
+    let status_of = |lang| a.daemon.status(lang).unwrap();
+    let tablet_in =
+        |st: &wasl_ipc::DaemonStatus| st.devices.iter().find(|d| d.id == tablet_id).cloned().unwrap();
+
+    // Never seen: can't reach, and the folder says so by name.
+    let st = status_of(Lang::En);
+    assert_eq!(DevicePresence::CantReach, tablet_in(&st).state);
+    let folder = st.pairs[0].status.clone().unwrap();
+    assert_eq!(
+        (
+            FolderState::Waiting,
+            Some(WaitReason::Device),
+            "folder.cant_reach_device"
+        ),
+        (folder.state, folder.wait, folder.words.key.as_str())
+    );
+    assert_eq!(
+        "Wasl can't reach Tablet, so Shared isn't synced there.",
+        folder.words.text
+    );
+
+    // Offline for 5 minutes: last seen, with the time, and the folder waits for it.
+    seen_ago(&a, &tablet_id, 5 * MIN + 1_000);
+    let st = status_of(Lang::En);
+    let t = tablet_in(&st);
+    assert_eq!(
+        (DevicePresence::LastSeen, "device.last_seen_minutes", Some(5)),
+        (t.state, t.words.key.as_str(), t.words.values.count)
+    );
+    assert_eq!("Last seen 5 minutes ago", t.words.text);
+    assert!(t.last_seen_at.is_some());
+    let folder = st.pairs[0].status.clone().unwrap();
+    assert_eq!("folder.waiting_device", folder.words.key);
+    assert_eq!("Shared will sync when Tablet is back online.", folder.words.text);
+    assert_eq!(Some("Tablet"), folder.words.values.device.as_deref());
+    assert_eq!(
+        wasl_proto::OverallState::Waiting,
+        st.overall_status.unwrap().state
+    );
+
+    // The same state, key and values in Arabic.
+    let ar = status_of(Lang::Ar);
+    let t_ar = tablet_in(&ar);
+    assert_eq!(
+        (t.state, &t.words.key, &t.words.values),
+        (t_ar.state, &t_ar.words.key, &t_ar.words.values)
+    );
+    assert_eq!("آخر ظهور قبل 5 دقائق", t_ar.words.text);
+    let folder_ar = ar.pairs[0].status.clone().unwrap();
+    assert_eq!("folder.waiting_device", folder_ar.words.key);
+    assert_eq!(
+        "ستتم مزامنة Shared عندما يعود Tablet إلى الاتصال.",
+        folder_ar.words.text
+    );
+
+    // Offline for 3 days.
+    seen_ago(&a, &tablet_id, 3 * DAY + 1_000);
+    let t = tablet_in(&status_of(Lang::En));
+    assert_eq!(
+        ("device.last_seen_days", Some(3)),
+        (t.words.key.as_str(), t.words.values.count)
+    );
+    assert_eq!("Last seen 3 days ago", t.words.text);
+    assert_eq!("آخر ظهور قبل 3 أيام", tablet_in(&status_of(Lang::Ar)).words.text);
+
+    // Long gone: can't reach again.
+    seen_ago(&a, &tablet_id, 31 * DAY);
+    assert_eq!(DevicePresence::CantReach, tablet_in(&status_of(Lang::En)).state);
+
+    // A folder that also syncs with Drive stays up to date: its Drive copy is current.
+    seen_ago(&a, &tablet_id, 5 * MIN);
+    a.daemon
+        .store
+        .lock()
+        .set_pair_route("p", Route::DriveAndDevices)
+        .unwrap();
+    let folder = status_of(Lang::En).pairs[0].status.clone().unwrap();
+    assert_eq!(FolderState::Synced, folder.state);
+    assert!(
+        folder
+            .peers
+            .iter()
+            .any(|p| p.name == "Tablet" && p.state == DevicePresence::LastSeen)
+    );
+
+    // `--json` and the protocol carry the same: stable keys and the time as a value.
+    let v = serde_json::to_value(status_of(Lang::En)).unwrap();
+    let keys: Vec<&str> = v["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["words"]["key"].as_str().unwrap())
+        .collect();
+    assert!(keys.contains(&"device.last_seen_minutes"), "{keys:?}");
+    let _ = Request::Status { lang: None };
+}
+
+/// A device that goes away is shown as offline at once, not at the next check.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_that_goes_away_is_last_seen_just_now() {
+    use wasl_proto::{DevicePresence, FolderState, Lang};
+    let (a, b) = pair_up().await;
+    let r = a.daemon.run("p", Trigger::Manual).await;
+    assert_eq!(RunStatus::Success, r.status, "{:?}", r.message);
+    b.daemon.devices.as_ref().unwrap().close();
+    eventually("A sees B go", || {
+        a.daemon
+            .status(Lang::En)
+            .map(|st| {
+                st.devices
+                    .iter()
+                    .any(|d| !d.this_device && d.state == DevicePresence::LastSeen)
+            })
+            .unwrap_or(false)
+    })
+    .await;
+    let st = a.daemon.status(Lang::En).unwrap();
+    let b_status = st.devices.iter().find(|d| !d.this_device).unwrap();
+    assert_eq!("Last seen a moment ago", b_status.words.text);
+    let folder = st.pairs[0].status.clone().unwrap();
+    assert_eq!(FolderState::Waiting, folder.state);
+    assert_eq!("Shared will sync when Desktop is back online.", folder.words.text);
+}
