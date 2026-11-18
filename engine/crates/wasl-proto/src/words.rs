@@ -382,10 +382,10 @@ pub const ENTRIES: &[Entry] = &[
     e(
         "error.locked",
         Forms::single(
-            "The encrypted folder {folder} is locked on this device, so it can't sync. Unlock it, then try again.",
+            "Wasl can't sync {folder}: it is encrypted and locked on this device. Unlock it, then try again.",
         ),
         Forms::single(
-            "المجلد المشفّر {folder} مقفل على هذا الجهاز، لذلك لا يمكن مزامنته. افتح قفله ثم حاول مجددًا.",
+            "لا يستطيع وصل مزامنة {folder}: فهو مشفّر ومقفل على هذا الجهاز. افتح قفله ثم حاول مجددًا.",
         ),
         Some(UnlockVault),
         &[Folder],
@@ -873,12 +873,13 @@ pub fn redact_with(raw: &str, roots: &[&str], secrets: &[&str]) -> String {
         Rules {
             credential: re(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+"),
             pair: re(
-                r#"(?i)\b("?(?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|client[_-]?secret|password|passphrase|code|api[_-]?key|private[_-]?key|secret|authorization|cookie|session[_-]?id|account[_-]?id|permission[_-]?id|email(?:[_-]?address)?|display[_-]?name|user(?:[_-]?(?:name|id))?)"?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s&,;}]+)"#,
+                r#"(?i)\b("?(?:[\w-]*(?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|client[_-]?secret|password|passphrase|access[_-]?key(?:[_-]?id)?|api[_-]?key|private[_-]?key|secret(?:[_-]?access[_-]?key)?|authorization|cookie|session[_-]?id|account[_-]?id|permission[_-]?id|email(?:[_-]?address)?|display[_-]?name|user(?:[_-]?(?:name|id))?)|code)"?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s&,;}]+)"#,
             ),
             token: re(r"(?i)(?:ya29\.|1//|eyJ|gho_|ghp_|sk-|GOCSPX-)[A-Za-z0-9._\-/]+"),
             email: re(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"),
             marked: re(&format!("\u{2}R(\\d+)\u{2}({tail})")),
-            windows_path: re(&format!(r#"[A-Za-z]:[\\/]{tail}"#)),
+            // The drive letter must not sit inside a word: `s:/` in `https://` is not a drive.
+            windows_path: re(&format!(r#"(^|[^A-Za-z0-9])([A-Za-z]:[\\/]{tail})"#)),
             unix_path: re(&format!(r#"(^|[\s'"(=])(/[^\s/]{tail})"#)),
         }
     });
@@ -931,7 +932,7 @@ pub fn redact_with(raw: &str, roots: &[&str], secrets: &[&str]) -> String {
         .into_owned();
     text = r
         .windows_path
-        .replace_all(&text, |c: &Captures| format!("…{}", split_punct(&c[0]).1))
+        .replace_all(&text, |c: &Captures| format!("{}…{}", &c[1], split_punct(&c[2]).1))
         .into_owned();
     text = r
         .unix_path
@@ -1573,6 +1574,64 @@ mod tests {
     }
 
     #[test]
+    fn a_url_is_not_read_as_a_windows_path() {
+        // `s:/` in `https://` is not a drive letter: no boundary before it, no path.
+        for raw in [
+            "GET https://www.googleapis.com/drive/v3/files failed: 403",
+            "the redirect to http://localhost:8080/cb failed",
+            "see (https://example.com/a/b?x=1) and ftp://host/dir/file.txt",
+        ] {
+            assert_eq!(redact(raw, None, &[]), raw);
+        }
+        // A real drive path is still cut, at the start, after a space and after a quote.
+        assert_eq!(redact(r"C:\Users\user\x.txt: denied", None, &[]), "…: denied");
+        assert_eq!(redact(r"cannot open C:\Users\user\x.txt: denied", None, &[]), "cannot open …: denied");
+        assert_eq!(redact(r#"open "D:/a/b c/d.txt" failed"#, None, &[]), r#"open "…" failed"#);
+    }
+
+    #[test]
+    fn a_secret_key_with_a_prefix_is_hidden_and_a_code_is_not_a_secret() {
+        for (raw, planted) in [
+            ("oauth_token=opaque-1&x=1", "opaque-1"),
+            ("session_token: opaque-2", "opaque-2"),
+            ("userAccountId=opaque-3", "opaque-3"),
+            ("appSecret=opaque-4", "opaque-4"),
+            ("AWS_SECRET_ACCESS_KEY=opaque-5", "opaque-5"),
+            ("AWS_ACCESS_KEY_ID=opaque-5b", "opaque-5b"),
+            (r#"{"oauth_token":"opaque-6","appSecret":"opaque-7"}"#, "opaque-6"),
+            (r#"{"oauth_token":"opaque-6","appSecret":"opaque-7"}"#, "opaque-7"),
+            ("x-session-id: opaque-8", "opaque-8"),
+            ("userEmail=opaque-9", "opaque-9"),
+        ] {
+            let d = redact(raw, None, &[]);
+            assert!(!d.contains(planted), "{planted} leaked from {raw:?}: {d}");
+            assert!(d.contains("[hidden]"), "{raw:?}: {d}");
+        }
+        // The key stays; only the value goes.
+        assert_eq!(redact("AWS_SECRET_ACCESS_KEY=opaque-5", None, &[]), "AWS_SECRET_ACCESS_KEY=[hidden]");
+        // A prefixed `code` is a status, not a secret.
+        for raw in [
+            "zipCode=94107 errorCode: 404",
+            "error_code=17, statusCode=500",
+            "ZIP_CODE: 94107",
+        ] {
+            assert_eq!(redact(raw, None, &[]), raw);
+        }
+    }
+
+    #[test]
+    fn a_locked_entry_without_a_folder_does_not_double_the_noun() {
+        let r = |lang, values: &Values| render("error.locked", values, lang, None, &[], &mut quiet()).text;
+        let none = Values::default();
+        assert_eq!(r(Lang::En, &none).matches("folder").count(), 1, "{}", r(Lang::En, &none));
+        assert_eq!(r(Lang::Ar, &none).matches("المجلد").count(), 1, "{}", r(Lang::Ar, &none));
+        let named = Values::default().folder("Photos");
+        assert!(r(Lang::En, &named).contains("Photos"));
+        assert!(r(Lang::Ar, &named).contains("Photos"));
+        assert_eq!(r(Lang::En, &named).matches("folder").count(), 0, "{}", r(Lang::En, &named));
+    }
+
+    #[test]
     fn every_folder_root_the_caller_knows_is_shortened() {
         let d = redact_with(
             "a /home/me/Photos/docs/x.txt, b /home/me/Work/z.txt, c /home/me/PhotosOld/q.txt",
@@ -1676,7 +1735,7 @@ mod tests {
                 .unwrap()
                 .en
                 .other
-                .contains("encrypted folder")
+                .contains("encrypted and locked")
         );
     }
 
