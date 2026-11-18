@@ -171,8 +171,10 @@ messages! {
         "wasld لا يعمل. شغّله بالأمر: wasl daemon start";
     Untrusted => "The program answering is not this user's wasld.",
         "البرنامج الذي يجيب ليس wasld الخاص بهذا المستخدم.";
-    WrongProtocol => "wasld speaks protocol {0}; this wasl speaks {1}. Update Wasl.",
-        "wasld يستخدم البروتوكول {0} وهذا الأمر يستخدم {1}. حدّث وصل.";
+    ClientNeedsUpdate => "This wasl is older than the running wasld and can't talk to it. Update Wasl.",
+        "هذا الأمر wasl أقدم من wasld العامل ولا يستطيع التخاطب معه. حدّث وصل.";
+    DaemonNeedsUpdate => "The running wasld is older than this wasl and can't talk to it. Update Wasl and restart it.",
+        "wasld العامل أقدم من هذا الأمر wasl ولا يستطيع التخاطب معه. حدّث وصل وأعد تشغيله.";
     ConnectionLost => "Lost the connection to wasld: {0}", "انقطع الاتصال بـ wasld: {0}";
     NoSuchPair => "No folder pair matches \"{0}\". See: wasl pair list",
         "لا يوجد ربط يطابق \"{0}\". راجع: wasl pair list";
