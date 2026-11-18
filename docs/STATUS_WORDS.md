@@ -84,6 +84,14 @@ falling back to English.
 - Arabic (many): {count} عنصرًا في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.
 - Arabic (other): {count} عنصر في {folder} لم تتم مزامنتها. سيحاول وصل مجددًا في المزامنة التالية.
 
+## `run.partial_some`
+
+- Note: Shown after a run that finished with some items failing when the message doesn't say how many (one failing item, or an older engine). Details has the first cause.
+- Values: folder
+- Fix: `retry`
+- English: Wasl couldn't sync everything in {folder}. It will try again at the next sync.
+- Arabic: تعذّر على وصل مزامنة كل شيء في {folder}. سيحاول مجددًا في المزامنة التالية.
+
 ## `error.auth`
 
 - Note: Shown on a folder or in a notification when Google no longer accepts the saved sign-in.
@@ -121,16 +129,16 @@ falling back to English.
 - Note: A vault folder whose keys this device doesn't hold (locked, or its keys unusable). Not a file held open by another program.
 - Values: folder
 - Fix: `unlock_vault`
-- English: The vault in {folder} is locked on this device, so it can't sync. Unlock it, then try again.
-- Arabic: الخزنة في {folder} مقفلة على هذا الجهاز، لذلك لا يمكن مزامنتها. افتح قفلها ثم حاول مجددًا.
+- English: The encrypted folder {folder} is locked on this device, so it can't sync. Unlock it, then try again.
+- Arabic: المجلد المشفّر {folder} مقفل على هذا الجهاز، لذلك لا يمكن مزامنته. افتح قفله ثم حاول مجددًا.
 
 ## `error.network`
 
-- Note: Shown while the network is down or flaky. A passing failure; only becomes 'needs you' when retries give up.
+- Note: A run ended because Google Drive couldn't be reached. The only promise made is the next sync.
 - Values: none
 - Fix: `retry`
-- English: Wasl can't reach Google Drive right now. It will try again by itself.
-- Arabic: لا يستطيع وصل الوصول إلى Google Drive الآن. سيحاول مجددًا من تلقاء نفسه.
+- English: Wasl can't reach Google Drive right now. It will try again at the next sync.
+- Arabic: لا يستطيع وصل الوصول إلى Google Drive الآن. سيحاول مجددًا في المزامنة التالية.
 
 ## `error.rate_limit`
 
@@ -153,8 +161,8 @@ falling back to English.
 - Note: A local file operation failed for a reason Wasl can't name more exactly.
 - Values: folder
 - Fix: `open_folder`
-- English: Wasl couldn't read or write a file in {folder}. It will be tried again at the next sync.
-- Arabic: تعذّر على وصل قراءة ملف في {folder} أو الكتابة فيه. ستتم محاولته مجددًا في المزامنة التالية.
+- English: Wasl couldn't read or write a file in {folder}. It will try again at the next sync.
+- Arabic: تعذّر على وصل قراءة ملف في {folder} أو الكتابة فيه. سيحاول مجددًا في المزامنة التالية.
 
 ## `error.integrity`
 
@@ -227,6 +235,14 @@ falling back to English.
 - Fix: `open_storage_settings`
 - English: This device's storage is full, so Wasl couldn't save {file} in {folder}.
 - Arabic: مساحة التخزين في هذا الجهاز ممتلئة، لذلك تعذّر على وصل حفظ {file} في {folder}.
+
+## `error.disk_quota`
+
+- Note: A per-user disk quota on THIS device is used up (EDQUOT), though the disk itself may have room. Not error.disk_full (the device is full) and not error.quota (the person's Drive is full).
+- Values: file, folder
+- Fix: none
+- English: The storage limit set for you on this device is reached, so Wasl couldn't save {file} in {folder}. Free some space, or ask whoever set the limit.
+- Arabic: تم بلوغ حدّ التخزين المحدد لك على هذا الجهاز، لذلك تعذّر على وصل حفظ {file} في {folder}. حرّر بعض المساحة أو اطلب من الجهة التي حدّدت الحدّ رفعه.
 
 ## `error.name_refused`
 

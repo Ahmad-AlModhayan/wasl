@@ -26,8 +26,7 @@ pub const AUTH: u8 = 5;
 pub struct Fail {
     pub code: u8,
     pub message: String,
-    /// The raw cause, made safe; printed behind `--details`, and straight away when the words
-    /// alone leave nothing to act on.
+    /// The raw cause, made safe; printed only behind `--details`.
     pub details: Option<String>,
 }
 
@@ -42,13 +41,10 @@ impl Fail {
 
     /// A failure worded by the catalogue.
     pub fn said(code: u8, r: Rendered) -> Fail {
-        let show_now =
-            r.key.starts_with("request.") || matches!(r.key.as_str(), "error.invalid" | "error.unknown");
-        let details = r.details.clone();
         Fail {
             code,
             message: r.text,
-            details: details.filter(|_| show_now || words::details_wanted()),
+            details: r.details.filter(|_| words::details_wanted()),
         }
     }
 }
@@ -98,6 +94,10 @@ fn paths() -> R<Paths> {
 /// Connects to this user's wasld, and follows its language setting unless `WASL_LANG` is set.
 pub(crate) async fn connect() -> R<Client> {
     let c = Client::connect(&paths()?).await?;
+    // The accounts and folders it reports are kept out of every cause shown from here on.
+    if let Ok(st) = c.status().await {
+        words::learn(&st);
+    }
     if !i18n::forced()
         && let Ok(Some(lang)) = c.setting("language").await
     {

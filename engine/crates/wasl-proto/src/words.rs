@@ -338,6 +338,14 @@ pub const ENTRIES: &[Entry] = &[
         &[Folder, Count],
         "Shown after a run that finished with some items failing. {count} is how many items failed; Details has the first cause.",
     ),
+    e(
+        "run.partial_some",
+        Forms::single("Wasl couldn't sync everything in {folder}. It will try again at the next sync."),
+        Forms::single("تعذّر على وصل مزامنة كل شيء في {folder}. سيحاول مجددًا في المزامنة التالية."),
+        Some(Retry),
+        &[Folder],
+        "Shown after a run that finished with some items failing when the message doesn't say how many (one failing item, or an older engine). Details has the first cause.",
+    ),
     // ---- errors a run can end with (one per coarse error kind)
     e(
         "error.auth",
@@ -374,10 +382,10 @@ pub const ENTRIES: &[Entry] = &[
     e(
         "error.locked",
         Forms::single(
-            "The vault in {folder} is locked on this device, so it can't sync. Unlock it, then try again.",
+            "The encrypted folder {folder} is locked on this device, so it can't sync. Unlock it, then try again.",
         ),
         Forms::single(
-            "الخزنة في {folder} مقفلة على هذا الجهاز، لذلك لا يمكن مزامنتها. افتح قفلها ثم حاول مجددًا.",
+            "المجلد المشفّر {folder} مقفل على هذا الجهاز، لذلك لا يمكن مزامنته. افتح قفله ثم حاول مجددًا.",
         ),
         Some(UnlockVault),
         &[Folder],
@@ -385,11 +393,11 @@ pub const ENTRIES: &[Entry] = &[
     ),
     e(
         "error.network",
-        Forms::single("Wasl can't reach Google Drive right now. It will try again by itself."),
-        Forms::single("لا يستطيع وصل الوصول إلى Google Drive الآن. سيحاول مجددًا من تلقاء نفسه."),
+        Forms::single("Wasl can't reach Google Drive right now. It will try again at the next sync."),
+        Forms::single("لا يستطيع وصل الوصول إلى Google Drive الآن. سيحاول مجددًا في المزامنة التالية."),
         Some(Retry),
         &[],
-        "Shown while the network is down or flaky. A passing failure; only becomes 'needs you' when retries give up.",
+        "A run ended because Google Drive couldn't be reached. The only promise made is the next sync.",
     ),
     e(
         "error.rate_limit",
@@ -409,12 +417,8 @@ pub const ENTRIES: &[Entry] = &[
     ),
     e(
         "error.io",
-        Forms::single(
-            "Wasl couldn't read or write a file in {folder}. It will be tried again at the next sync.",
-        ),
-        Forms::single(
-            "تعذّر على وصل قراءة ملف في {folder} أو الكتابة فيه. ستتم محاولته مجددًا في المزامنة التالية.",
-        ),
+        Forms::single("Wasl couldn't read or write a file in {folder}. It will try again at the next sync."),
+        Forms::single("تعذّر على وصل قراءة ملف في {folder} أو الكتابة فيه. سيحاول مجددًا في المزامنة التالية."),
         Some(OpenFolder),
         &[Folder],
         "A local file operation failed for a reason Wasl can't name more exactly.",
@@ -493,6 +497,18 @@ pub const ENTRIES: &[Entry] = &[
         Some(OpenStorageSettings),
         &[File, Folder],
         "The disk or phone storage on THIS device is full (contrast error.quota: the person's Drive is full).",
+    ),
+    e(
+        "error.disk_quota",
+        Forms::single(
+            "The storage limit set for you on this device is reached, so Wasl couldn't save {file} in {folder}. Free some space, or ask whoever set the limit.",
+        ),
+        Forms::single(
+            "تم بلوغ حدّ التخزين المحدد لك على هذا الجهاز، لذلك تعذّر على وصل حفظ {file} في {folder}. حرّر بعض المساحة أو اطلب من الجهة التي حدّدت الحدّ رفعه.",
+        ),
+        None,
+        &[File, Folder],
+        "A per-user disk quota on THIS device is used up (EDQUOT), though the disk itself may have room. Not error.disk_full (the device is full) and not error.quota (the person's Drive is full).",
     ),
     e(
         "error.name_refused",
@@ -624,15 +640,16 @@ impl Platform {
         }
     }
 
-    /// The error numbers for a full disk or quota, and for a name too long or not valid.
-    fn tables(self) -> (&'static [i32], &'static [i32]) {
+    /// The error numbers for a full disk, for a used-up quota, and for a name too long or not valid.
+    fn tables(self) -> (&'static [i32], &'static [i32], &'static [i32]) {
         match self {
-            // ERROR_HANDLE_DISK_FULL, ERROR_DISK_FULL; ERROR_INVALID_NAME, ERROR_FILENAME_EXCED_RANGE.
-            Platform::Windows => (&[39, 112], &[123, 206]),
-            // ENOSPC, EDQUOT; ENAMETOOLONG.
-            Platform::Linux => (&[28, 122], &[36]),
-            // ENOSPC, EDQUOT; ENAMETOOLONG.
-            Platform::Apple => (&[28, 69], &[63]),
+            // ERROR_HANDLE_DISK_FULL, ERROR_DISK_FULL; no per-user quota number; ERROR_INVALID_NAME,
+            // ERROR_FILENAME_EXCED_RANGE.
+            Platform::Windows => (&[39, 112], &[], &[123, 206]),
+            // ENOSPC; EDQUOT; ENAMETOOLONG.
+            Platform::Linux => (&[28], &[122], &[36]),
+            // ENOSPC; EDQUOT; ENAMETOOLONG.
+            Platform::Apple => (&[28], &[69], &[63]),
         }
     }
 }
@@ -651,9 +668,12 @@ pub fn classify_for(platform: Platform, kind: crate::run::ErrorKind, raw: &str) 
     if matches!(kind, K::Io | K::Other)
         && let Some(code) = os_error_code(raw)
     {
-        let (disk_full, name_refused) = platform.tables();
+        let (disk_full, disk_quota, name_refused) = platform.tables();
         if disk_full.contains(&code) {
             return "error.disk_full";
+        }
+        if disk_quota.contains(&code) {
+            return "error.disk_quota";
         }
         if name_refused.contains(&code) {
             return "error.name_refused";
@@ -671,12 +691,13 @@ pub fn partial_message(errors: u64, first: &str) -> String {
     }
 }
 
-/// How many items a partial run's message says did not sync (one when it carries no count).
-pub fn partial_count(message: &str) -> u64 {
+/// How many items a partial run's message says did not sync; None when it carries no count (one
+/// failing item is worded by its cause alone, and an older engine may word it any way), so nothing
+/// claims a number the message doesn't hold.
+pub fn partial_count(message: &str) -> Option<u64> {
     message
         .split_once(" items couldn't sync. First: ")
         .and_then(|(n, _)| n.parse().ok())
-        .unwrap_or(1)
 }
 
 /// The number in a trailing `(os error N)`, as `std::io::Error` prints it.
@@ -762,10 +783,29 @@ pub fn render(
     secrets: &[&str],
     log: &mut dyn FnMut(String),
 ) -> Rendered {
+    render_with(key, values, lang, raw, &[], secrets, log)
+}
+
+/// [`render`] for a caller that knows more than the one folder in `values`: every folder root and
+/// secret it knows are taken out of the cause ([`redact_with`]).
+pub fn render_with(
+    key: &str,
+    values: &Values,
+    lang: Lang,
+    raw: Option<&str>,
+    roots: &[&str],
+    secrets: &[&str],
+    log: &mut dyn FnMut(String),
+) -> Rendered {
+    let redacted = |r: &str| {
+        let mut all: Vec<&str> = values.folder_root().into_iter().collect();
+        all.extend_from_slice(roots);
+        redact_with(r, &all, secrets)
+    };
     let ent = entry(key).unwrap_or_else(|| entry(FALLBACK).expect("the fallback entry exists"));
     if ent.key == FALLBACK || ent.key == REQUEST_FALLBACK {
         let cause = raw
-            .map(|r| redact(r, values.folder_root(), secrets))
+            .map(redacted)
             .map(|c| c.chars().take(200).collect::<String>())
             .filter(|c| !c.is_empty());
         log(match cause {
@@ -779,11 +819,10 @@ pub fn render(
         Lang::En => &ent.en,
         Lang::Ar => &ent.ar,
     };
-    let cat = values.count.map_or(Plural::Other, |n| plural(lang, n));
+    // A count the caller didn't give reads as zero, in the language's own form for none.
+    let cat = plural(lang, values.count.unwrap_or(0));
     let text = fill(forms.pick(cat), values, lang);
-    let details = raw
-        .map(|r| redact(r, values.folder_root(), secrets))
-        .filter(|d| !d.is_empty());
+    let details = raw.map(redacted).filter(|d| !d.is_empty());
     Rendered {
         key: ent.key.to_owned(),
         text,
@@ -807,6 +846,12 @@ impl Values {
 /// and the like) become `[hidden]`. A path inside `folder_root` is cut to `Folder/…/file`; any other
 /// absolute path becomes `…`, spaces in it included. The whole text is scanned, not word by word.
 pub fn redact(raw: &str, folder_root: Option<&str>, secrets: &[&str]) -> String {
+    redact_with(raw, &folder_root.into_iter().collect::<Vec<_>>(), secrets)
+}
+
+/// [`redact`] for a caller that knows several folder roots (every pair's folder): a path inside any of
+/// them is cut to that folder's own name.
+pub fn redact_with(raw: &str, roots: &[&str], secrets: &[&str]) -> String {
     use regex::{Captures, Regex};
     use std::sync::OnceLock;
     struct Rules {
@@ -828,11 +873,11 @@ pub fn redact(raw: &str, folder_root: Option<&str>, secrets: &[&str]) -> String 
         Rules {
             credential: re(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+"),
             pair: re(
-                r#"(?i)\b("?(?:access_token|refresh_token|id_token|token|client_secret|password|passphrase|code|api_key|secret|authorization|account_id|email|user)"?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s&,;}]+)"#,
+                r#"(?i)\b("?(?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|client[_-]?secret|password|passphrase|code|api[_-]?key|private[_-]?key|secret|authorization|cookie|session[_-]?id|account[_-]?id|permission[_-]?id|email(?:[_-]?address)?|display[_-]?name|user(?:[_-]?(?:name|id))?)"?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s&,;}]+)"#,
             ),
             token: re(r"(?i)(?:ya29\.|1//|eyJ|gho_|ghp_|sk-|GOCSPX-)[A-Za-z0-9._\-/]+"),
             email: re(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"),
-            marked: re(&format!("\u{2}ROOT\u{2}({tail})")),
+            marked: re(&format!("\u{2}R(\\d+)\u{2}({tail})")),
             windows_path: re(&format!(r#"[A-Za-z]:[\\/]{tail}"#)),
             unix_path: re(&format!(r#"(^|[\s'"(=])(/[^\s/]{tail})"#)),
         }
@@ -845,28 +890,39 @@ pub fn redact(raw: &str, folder_root: Option<&str>, secrets: &[&str]) -> String 
     text = r.pair.replace_all(&text, "${1}[hidden]").into_owned();
     text = r.token.replace_all(&text, "[hidden]").into_owned();
     text = r.email.replace_all(&text, "[hidden]").into_owned();
-    let root = folder_root
+    // Longest first, so a folder inside another is cut to its own name; each root counts once.
+    let mut roots: Vec<&str> = roots
+        .iter()
         .map(|f| f.trim_end_matches(['/', '\\']))
-        .filter(|f| !f.is_empty());
-    let root_name = root.map(|f| f.rsplit(['/', '\\']).next().unwrap_or(f).to_owned());
-    if let Some(root) = root {
-        let variants: Vec<String> = [root.to_owned(), root.replace('\\', "/"), root.replace('/', "\\")]
+        .filter(|f| !f.is_empty())
+        .collect();
+    roots.sort_by_key(|f| std::cmp::Reverse(f.len()));
+    roots.dedup();
+    let mut names: Vec<&str> = Vec::new();
+    for (i, root) in roots.iter().enumerate() {
+        let variants: Vec<String> = [root.to_string(), root.replace('\\', "/"), root.replace('/', "\\")]
             .iter()
             .map(|v| regex::escape(v))
             .collect();
         // The root counts only as a whole name: `/a/Life` is not the start of `/a/LifeOS2/x`.
         let inside =
             Regex::new(&format!(r"(?:{})([\\/]|[^\w\\/.-]|$)", variants.join("|"))).expect("a built pattern");
-        text = inside.replace_all(&text, "\u{2}ROOT\u{2}$1").into_owned();
+        let mark = format!("\u{2}R{i}\u{2}${{1}}");
+        text = inside.replace_all(&text, mark.as_str()).into_owned();
+        names.push(root.rsplit(['/', '\\']).next().unwrap_or(root));
     }
-    let name = root_name.unwrap_or_else(|| "…".to_owned());
     text = r
         .marked
         .replace_all(&text, |c: &Captures| {
-            let (body, rest) = split_punct(&c[1]);
+            let name = c[1]
+                .parse::<usize>()
+                .ok()
+                .and_then(|i| names.get(i).copied())
+                .unwrap_or("…");
+            let (body, rest) = split_punct(&c[2]);
             let parts: Vec<&str> = body.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
             let short = match parts.as_slice() {
-                [] => name.clone(),
+                [] => name.to_owned(),
                 [one] => format!("{name}/{one}"),
                 [.., last] => format!("{name}/…/{last}"),
             };
@@ -1187,13 +1243,13 @@ mod tests {
                 Linux,
                 K::Io,
                 "Disk quota exceeded (os error 122)",
-                "error.disk_full",
+                "error.disk_quota",
             ),
             (
                 Apple,
                 K::Io,
                 "Disk quota exceeded (os error 69)",
-                "error.disk_full",
+                "error.disk_quota",
             ),
             (Apple, K::Io, "boom (os error 122)", "error.io"),
             (
@@ -1332,9 +1388,10 @@ mod tests {
     #[test]
     fn a_partial_run_says_how_many_items_did_not_sync() {
         assert_eq!(partial_message(1, "Photo a.jpg: failed"), "Photo a.jpg: failed");
-        assert_eq!(partial_count(&partial_message(1, "Photo a.jpg: failed")), 1);
-        assert_eq!(partial_count(&partial_message(7, "Photo a.jpg: failed")), 7);
-        assert_eq!(partial_count("some text with no count"), 1);
+        // One failing item carries no count in its message, so none can be read back.
+        assert_eq!(partial_count(&partial_message(1, "Photo a.jpg: failed")), None);
+        assert_eq!(partial_count(&partial_message(7, "Photo a.jpg: failed")), Some(7));
+        assert_eq!(partial_count("some text with no count"), None);
         let r = |n, lang| {
             render(
                 "run.partial",
@@ -1463,6 +1520,164 @@ mod tests {
             &[],
         );
         assert_eq!(d, "cannot open …: denied");
+    }
+
+    #[test]
+    fn a_secret_key_is_hidden_in_any_spelling() {
+        // Google-style JSON and form bodies: camelCase, snake_case, any case, with or without quotes.
+        let hidden = [
+            r#"{"refreshToken":"1//0gOpaqueRefresh","accessToken":"ya29.A0Opaque","idToken":"abc.def.ghi"}"#,
+            r#"{"access_token": "opaque-1", "refresh_token": "opaque-2", "token_type": "Bearer", "expires_in": 3599}"#,
+            r#"{"clientSecret":"opaque-3","client_secret":"opaque-4","apiKey":"opaque-5","api_key":"opaque-6"}"#,
+            r#"{"accountId":123456789,"account_id":"opaque-7","emailAddress":"someone@example.com"}"#,
+            r#"{"displayName":"JaneDoe","permissionId":"opaque-8","userName":"opaque-9"}"#,
+            "request failed: apiKey=opaque-10&alt=json",
+            "accountId: 123456789 rejected",
+            "REFRESHTOKEN=opaque-11 and Client-Secret: opaque-12",
+            "x-api-key: opaque-13",
+            "Set-Cookie: sessionId=opaque-14; Path=/",
+            "privateKey: opaque-15",
+        ];
+        for raw in hidden {
+            let d = redact(raw, None, &[]);
+            for planted in raw
+                .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '.' || c == '/'))
+                .filter(|w| {
+                    w.starts_with("opaque")
+                        || w.starts_with("ya29")
+                        || w.starts_with("1//")
+                        || *w == "123456789"
+                        || *w == "abc.def.ghi"
+                        || w.starts_with("someone")
+                        || *w == "JaneDoe"
+                })
+            {
+                assert!(!d.contains(planted), "{planted} leaked from {raw:?}: {d}");
+            }
+            assert!(d.contains("[hidden]"), "{raw:?}: {d}");
+        }
+        // What is not a secret stays readable.
+        let d = redact(
+            r#"{"token_type":"Bearer","expires_in":3599,"scope":"drive"}"#,
+            None,
+            &[],
+        );
+        assert!(
+            d.contains("expires_in") && d.contains("3599") && d.contains("drive"),
+            "{d}"
+        );
+        assert_eq!(
+            redact("zipCode: 12345, errorCode: 5", None, &[]),
+            "zipCode: 12345, errorCode: 5"
+        );
+    }
+
+    #[test]
+    fn every_folder_root_the_caller_knows_is_shortened() {
+        let d = redact_with(
+            "a /home/me/Photos/docs/x.txt, b /home/me/Work/z.txt, c /home/me/PhotosOld/q.txt",
+            &["/home/me/Work", "/home/me/Photos"],
+            &[],
+        );
+        assert_eq!(d, "a Photos/…/x.txt, b Work/z.txt, c …");
+        // One root through the older entry point is the same.
+        assert_eq!(
+            redact("/home/me/Work/z.txt", Some("/home/me/Work"), &[]),
+            "Work/z.txt"
+        );
+    }
+
+    #[test]
+    fn a_missing_count_reads_as_a_real_zero() {
+        let r = |lang| {
+            render(
+                "status.folders_need_you",
+                &Values::default(),
+                lang,
+                None,
+                &[],
+                &mut quiet(),
+            )
+            .text
+        };
+        assert_eq!(r(Lang::En), "0 folders need you");
+        // Arabic has its own form for none, not "0" under the form for many.
+        assert_eq!(r(Lang::Ar), "لا مجلدات تحتاج إليك");
+    }
+
+    #[test]
+    fn a_partial_run_with_no_count_claims_no_number() {
+        let ent = entry("run.partial_some").expect("the entry without a number");
+        assert_eq!(ent.slots, &[Slot::Folder]);
+        for t in ent.en.all().chain(ent.ar.all()) {
+            assert!(!t.contains("{count}"), "{t}");
+            assert!(!t.chars().any(|c| c.is_ascii_digit()), "{t}");
+        }
+        let r = render(
+            "run.partial_some",
+            &Values::default().folder("Docs"),
+            Lang::En,
+            Some("boom"),
+            &[],
+            &mut quiet(),
+        );
+        assert_eq!(
+            r.text,
+            "Wasl couldn't sync everything in Docs. It will try again at the next sync."
+        );
+        assert_eq!(r.fix, Some(Fix::Retry));
+    }
+
+    #[test]
+    fn a_catch_all_failure_promises_only_what_the_engine_does() {
+        // The engine retries a failed run at the next sync. Nothing here says it retries "by itself",
+        // right away or in a moment for an error whose cause isn't known.
+        for key in ["error.io", "error.network"] {
+            let ent = entry(key).unwrap();
+            for t in ent.en.all() {
+                assert!(t.contains("next sync"), "{key}: {t}");
+                assert!(!t.contains("by itself") && !t.contains("moment"), "{key}: {t}");
+            }
+            for t in ent.ar.all() {
+                assert!(t.contains("المزامنة التالية"), "{key}: {t}");
+                assert!(!t.contains("من تلقاء نفسه"), "{key}: {t}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_disk_quota_is_not_a_full_device() {
+        let q = entry("error.disk_quota").expect("an entry for a quota on this device");
+        assert_eq!(q.slots, &[File, Folder]);
+        for t in q.en.all() {
+            assert!(t.contains("limit"), "{t}");
+            assert!(!t.contains("is full"), "{t}");
+        }
+        for t in q.ar.all() {
+            assert!(!t.contains("ممتلئة"), "{t}");
+        }
+        // The disk itself being full keeps its own words.
+        assert!(entry("error.disk_full").unwrap().en.other.contains("is full"));
+    }
+
+    #[test]
+    fn a_locked_entry_uses_the_apps_word_not_vault() {
+        for key in ["error.locked", "request.locked"] {
+            let ent = entry(key).unwrap();
+            for t in ent.en.all() {
+                assert!(!t.to_lowercase().contains("vault"), "{key}: {t}");
+            }
+            for t in ent.ar.all() {
+                assert!(!t.contains("الخزنة"), "{key}: {t}");
+            }
+        }
+        assert!(
+            entry("error.locked")
+                .unwrap()
+                .en
+                .other
+                .contains("encrypted folder")
+        );
     }
 
     #[test]

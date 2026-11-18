@@ -551,7 +551,7 @@ async fn a_partial_run_says_how_many_items_failed() {
     assert_eq!(RunStatus::Partial, r.status);
     let message = r.message.unwrap_or_default();
     assert!(message.starts_with("2 items couldn't sync. First: "), "{message}");
-    assert_eq!(2, wasl_proto::words::partial_count(&message));
+    assert_eq!(Some(2), wasl_proto::words::partial_count(&message));
 }
 
 #[tokio::test]
