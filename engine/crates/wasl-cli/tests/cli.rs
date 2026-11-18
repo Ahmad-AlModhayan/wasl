@@ -65,6 +65,7 @@ fn canned_status(id: &str, name: &str, lang: wasl_proto::Lang) -> wasl_proto::Fo
         },
         wait: None,
         blocker: None,
+        retry: None,
         words: say(if first {
             "folder.needs_you"
         } else {
@@ -251,7 +252,20 @@ impl Handler for Fake {
                             pair
                         })
                         .map(|pair| {
-                            let status = with_status.then(|| canned_status(&pair.id, &pair.name, words_lang));
+                            let status = with_status.then(|| {
+                                let mut s = canned_status(&pair.id, &pair.name, words_lang);
+                                // As the daemon does for a passing failure it is retrying.
+                                if pair.status.last_status == Some(RunStatus::Failed)
+                                    && pair.status.last_error_kind.is_some_and(|k| k.transient())
+                                {
+                                    s.retry = Some(wasl_proto::RetryInfo {
+                                        attempt: 1,
+                                        max_tries: wasl_proto::retry::MAX_TRIES,
+                                        next_at: None,
+                                    });
+                                }
+                                s
+                            });
                             PairState {
                                 pair,
                                 running: false,
@@ -387,6 +401,8 @@ impl Handler for Fake {
                     .push(format!("with {id} {all} {}", devices.join(",")));
                 ok(())
             }
+            Request::OpenConflicts { .. } => ok(Vec::<wasl_proto::ConflictRecord>::new()),
+            Request::AgentChangesets { .. } => ok(Vec::<wasl_proto::Changeset>::new()),
             Request::Setting { .. } => ok(None::<String>),
             Request::Vaults => ok(vec![vault_info(false)]),
             Request::UnlockVault { id, passphrase } => {
@@ -1102,6 +1118,37 @@ async fn the_accounts_and_folders_the_daemon_reports_are_hidden_from_a_cause() {
         assert!(!r.stderr.contains("acc1"), "{kind:?}: {}", r.stderr);
         assert!(!r.stderr.contains("/home/me"), "{kind:?}: {}", r.stderr);
     }
+}
+
+/// A failure the engine is still retrying is not a problem; a lasting one is, at once (issue #30).
+#[tokio::test(flavor = "multi_thread")]
+async fn problems_leaves_out_a_failure_the_engine_is_retrying() {
+    let d = start();
+    d.fake
+        .with_status
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let failed_pairs = |r: &str| -> Vec<String> {
+        let v: serde_json::Value = serde_json::from_str(r).unwrap();
+        v["pairs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["problem"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    *d.fake.photos_run.lock().unwrap() = Some((
+        RunStatus::Failed,
+        wasl_proto::ErrorKind::Network,
+        "connection reset".into(),
+    ));
+    let r = wasl(d.dir.path(), "en", &["problems", "--json"]).await;
+    assert_eq!(0, r.code, "{}", r.stderr);
+    assert!(failed_pairs(&r.stdout).is_empty(), "{}", r.stdout);
+
+    *d.fake.photos_run.lock().unwrap() =
+        Some((RunStatus::Failed, wasl_proto::ErrorKind::NotFound, "gone".into()));
+    let r = wasl(d.dir.path(), "en", &["problems", "--json"]).await;
+    assert_eq!(vec!["failed"; 2], failed_pairs(&r.stdout), "{}", r.stdout);
 }
 
 /// A run's cause stays out of the line but shows behind `--details`, redacted; a partial run says how

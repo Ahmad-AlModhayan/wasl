@@ -200,13 +200,49 @@ async fn start_seeded(
     devices: Option<wasl_devices::DeviceConfig>,
     seed: Option<&dyn Fn(&wasl_store::Store)>,
 ) -> Running {
+    let seed = seed.map(|f| move |s: &wasl_store::Store, _: &std::path::Path| f(s));
+    start_timed(
+        g,
+        signed_in,
+        view_backend,
+        devices,
+        seed.as_ref().map(|f| f as &Seed<'_>),
+        test_timing(),
+    )
+    .await
+}
+
+fn test_timing() -> Timing {
+    Timing {
+        tick: Duration::from_millis(100),
+        settle: Duration::from_millis(400),
+        skip_wait: Duration::from_secs(1),
+        bin_purge_every: Duration::from_secs(3600),
+        retry: wasl_proto::RetryPolicy::DEFAULT,
+    }
+}
+
+/// Fills the database before the daemon starts: the store and the sync root.
+type Seed<'a> = dyn Fn(&wasl_store::Store, &std::path::Path) + 'a;
+
+async fn start_timed(
+    g: &Google,
+    signed_in: bool,
+    view_backend: Option<Arc<dyn wasld::views::Backend>>,
+    devices: Option<wasl_devices::DeviceConfig>,
+    seed: Option<&Seed<'_>>,
+    timing: Timing,
+) -> Running {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("Sync");
     std::fs::create_dir_all(&root).unwrap();
     let paths = Paths::at(dir.path().join("data"));
     if let Some(seed) = seed {
         std::fs::create_dir_all(&paths.data).unwrap();
-        seed(&wasl_store::Store::open(paths.data.join("wasl.db")).unwrap());
+        seed(
+            &wasl_store::Store::open(paths.data.join("wasl.db")).unwrap(),
+            &root,
+        );
     }
     let secrets = Arc::new(MemorySecrets::default());
     let vault_keys = Arc::new(MemorySecrets::default());
@@ -236,12 +272,6 @@ async fn start_seeded(
         devices,
         view_backend,
         view_refresh: Duration::from_secs(300),
-    };
-    let timing = Timing {
-        tick: Duration::from_millis(100),
-        settle: Duration::from_millis(400),
-        skip_wait: Duration::from_secs(1),
-        bin_purge_every: Duration::from_secs(3600),
     };
     let p = paths.clone();
     let handle = tokio::spawn(async move { wasld::serve(&p, cfg, timing).await });
@@ -1563,6 +1593,11 @@ async fn no_network_is_waiting_not_failed() {
     assert_eq!(Some(WaitReason::NoNetwork), s.wait);
     assert_eq!("folder.waiting_no_network", s.words.key);
     assert!(s.needs_you.is_empty());
+    let retry = s.retry.expect("the engine says it will try again (#30)");
+    assert_eq!(
+        (1, wasl_proto::retry::MAX_TRIES),
+        (retry.attempt, retry.max_tries)
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1699,4 +1734,157 @@ async fn next_status(
     })
     .await
     .expect("the status event arrives")
+}
+
+// ---------------------------------------------------------------- a passing failure is retried (#30)
+
+/// A retry policy with the real number of tries and pauses a test can wait for.
+const FAST_RETRY: wasl_proto::RetryPolicy = wasl_proto::RetryPolicy {
+    tries: wasl_proto::retry::MAX_TRIES,
+    delays_ms: &[2_500, 2_500, 2_500, 2_500],
+};
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
+
+/// A folder whose last run just failed `failures` times in a row with `kind`.
+fn failed_just_now(
+    kind: wasl_proto::ErrorKind,
+    failures: u32,
+    instant_sync: bool,
+) -> impl Fn(&wasl_store::Store, &std::path::Path) {
+    move |store, root| {
+        let mut p = pair(root);
+        p.instant_sync = instant_sync;
+        p.status.hold_for_preview = false;
+        p.status.last_status = Some(RunStatus::Failed);
+        p.status.last_error_kind = Some(kind);
+        p.status.last_error = Some("the failure".into());
+        p.status.last_run_at = Some(now_ms());
+        p.status.consecutive_failures = failures;
+        store.create_pair(&p).unwrap();
+    }
+}
+
+async fn runs(c: &Client) -> usize {
+    c.runs(Some("p1"), 50).await.unwrap().len()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_daemon_retries_a_passing_failure_on_the_policys_clock_and_it_never_needs_you() {
+    let g = google().await;
+    let seed = failed_just_now(wasl_proto::ErrorKind::Network, 1, false);
+    let timing = Timing {
+        retry: FAST_RETRY,
+        ..test_timing()
+    };
+    let d = start_timed(&g, true, None, None, Some(&seed), timing).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let mut events = c.subscribe_statuses(Lang::En).await.unwrap();
+
+    // Waiting, nothing asked of the person.
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::Waiting, s.state, "{s:?}");
+    assert!(s.needs_you.is_empty());
+    assert_eq!(Some(1), s.retry.map(|r| r.attempt));
+    assert_eq!(0, runs(&c).await);
+    let overall = c.status().await.unwrap().overall_status.unwrap();
+    assert_eq!((OverallState::Waiting, 0), (overall.state, overall.needs_you));
+
+    // Not before the pause is over, though the folder is due on its own interval nowhere near.
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    assert_eq!(0, runs(&c).await, "the pause is kept");
+
+    // Then the engine tries again, Drive answers, and the folder is synced.
+    let synced = next_status(&mut events, |s| s.state == FolderState::Synced).await;
+    assert!(synced.needs_you.is_empty() && synced.retry.is_none());
+    assert_eq!(1, runs(&c).await);
+
+    // At no point did a status ask for the person.
+    while let Ok(e) = events.try_recv() {
+        if let Event::FolderStatus { status, .. } = e {
+            assert!(status.needs_you.is_empty(), "{status:?}");
+            assert_ne!(FolderState::NeedsYou, status.state);
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn nothing_but_the_policy_starts_a_folder_that_is_waiting_to_retry() {
+    let g = google().await;
+    let seed = failed_just_now(wasl_proto::ErrorKind::Server, 2, true);
+    let timing = Timing {
+        retry: FAST_RETRY,
+        ..test_timing()
+    };
+    let d = start_timed(&g, true, None, None, Some(&seed), timing).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    // A change in the folder would run it within a moment on any other day (it syncs on change).
+    std::fs::write(d.root.join("new.txt"), "n").unwrap();
+    tokio::time::sleep(Duration::from_millis(1_000)).await;
+    assert_eq!(0, runs(&c).await, "a change doesn't cut the pause short");
+    assert!(g.uploads.lock().unwrap().is_empty());
+    // After the pause the policy starts the folder, on its own schedule trigger.
+    let started = tokio::time::timeout(Duration::from_secs(15), async {
+        while runs(&c).await == 0 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await;
+    assert!(started.is_ok(), "the retry never started");
+    let first = c.runs(Some("p1"), 50).await.unwrap().pop().unwrap();
+    assert_eq!("schedule", first.trigger);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lasting_failure_is_not_retried_and_needs_you_at_once() {
+    let g = google().await;
+    let seed = failed_just_now(wasl_proto::ErrorKind::NotFound, 1, false);
+    let timing = Timing {
+        retry: FAST_RETRY,
+        ..test_timing()
+    };
+    let d = start_timed(&g, true, None, None, Some(&seed), timing).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::NeedsYou, s.state, "{s:?}");
+    assert_eq!(vec!["error.not_found"], keys(&s));
+    assert!(s.retry.is_none());
+    tokio::time::sleep(Duration::from_millis(2_500)).await;
+    assert_eq!(0, runs(&c).await, "no retry for a failure that lasts");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn once_the_policy_gives_up_the_folder_needs_you_once_and_is_not_retried() {
+    let g = google().await;
+    let seed = failed_just_now(
+        wasl_proto::ErrorKind::Network,
+        wasl_proto::retry::MAX_TRIES,
+        false,
+    );
+    let timing = Timing {
+        retry: FAST_RETRY,
+        ..test_timing()
+    };
+    let d = start_timed(&g, true, None, None, Some(&seed), timing).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::NeedsYou, s.state, "{s:?}");
+    assert_eq!(vec!["error.network"], keys(&s));
+    assert_eq!(Some(wasl_proto::Fix::Retry), s.needs_you[0].fix);
+    assert_eq!(1, c.status().await.unwrap().overall_status.unwrap().needs_you);
+    tokio::time::sleep(Duration::from_millis(2_500)).await;
+    assert_eq!(0, runs(&c).await, "it gave up; its own interval is next");
+
+    // "Try again" works and clears it.
+    assert_eq!(
+        RunStatus::Success,
+        c.sync("p1", Trigger::Manual).await.unwrap().status
+    );
+    let s = folder(&c, "p1").await;
+    assert_eq!((FolderState::Synced, 0), (s.state, s.needs_you.len()));
 }

@@ -906,10 +906,17 @@ impl Engine {
                 st.last_error_kind = None;
                 st.consecutive_failures = 0;
             }
-            RunStatus::Failed | RunStatus::Partial => {
+            RunStatus::Failed => {
                 st.last_error = message.map(str::to_owned);
                 st.last_error_kind = kind.or(Some(ErrorKind::Other));
                 st.consecutive_failures += 1;
+            }
+            // Drive answered and the run finished: it is not a failure in a row (the retry policy
+            // counts only those, `wasl_proto::retry`); the items that failed wait for the next sync.
+            RunStatus::Partial => {
+                st.last_error = message.map(str::to_owned);
+                st.last_error_kind = kind.or(Some(ErrorKind::Other));
+                st.consecutive_failures = 0;
             }
             _ => {}
         }

@@ -13,24 +13,22 @@
 //!    full local disk. A folder held for its first preview is "needs you", not "waiting".
 //! 3. A folder syncing now is **syncing**.
 //! 4. A paused folder is **waiting** because it is paused, whatever its last run said.
-//! 5. The last run says the rest. A run that failed for a reason the person can fix is **needs you**;
-//!    one that couldn't reach Google (or Google was busy) is **waiting** until it has kept failing;
-//!    any other failure is **failed**. A run that moved some files and not others is **partly
-//!    synced**, never "synced" and never "failed".
+//! 5. The last run says the rest. A run that failed for a lasting reason (signed out, the Drive
+//!    folder gone, a full disk) is **needs you** at once. One that couldn't reach Google (or Google
+//!    was busy) is **waiting** while the engine retries it (`retry`), and **needs you** once the
+//!    retry policy gives up; any other failure is **failed**. A run that moved some files and not
+//!    others is **partly synced**, never "synced" and never "failed".
 //! 6. An offline device, or conditions that hold the next run, are **waiting**.
 //! 7. Otherwise the folder is **synced**.
 //!
 //! The whole-app state ([`overall_status`]) is worked out from the folder statuses by the same rules.
 
 use crate::conditions::Blocker;
+use crate::retry::{self, RetryInfo};
 use crate::run::{ErrorKind, RunStatus};
 use crate::store::{Pair, RunRecord, RunStats};
 use crate::words::{self, Lang, Platform, Rendered, Values};
 use serde::{Deserialize, Serialize};
-
-/// A folder keeps failing for a reason that retrying fixes (no network, Google busy) this many runs
-/// in a row before it reads "failed" instead of "waiting".
-pub const RETRIES_BEFORE_FAILED: u32 = 3;
 
 /// How many of a folder's latest runs a status carries.
 pub const LAST_RUNS: usize = 3;
@@ -107,6 +105,10 @@ pub struct FolderStatus {
     /// The condition holding the next run, for a folder waiting on one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub blocker: Option<Blocker>,
+    /// For a folder whose last run failed for a passing reason: which try failed, how many the engine
+    /// makes and when the next one is (`retry`). Absent otherwise; the apps keep no count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry: Option<RetryInfo>,
     /// The headline: one catalogue entry for the state.
     pub words: Rendered,
     /// Each thing that needs the person, most urgent first. A failed folder holds its one failure
@@ -181,6 +183,7 @@ pub fn folder_status_for(
         state: FolderState::Synced,
         wait: None,
         blocker: None,
+        retry: None,
         words: say("folder.synced", &values, None),
         needs_you: Vec::new(),
         counts: FolderCounts {
@@ -310,15 +313,14 @@ pub fn folder_status_for(
     match ran {
         Some(RunStatus::Failed) => {
             let key = failed_key.unwrap_or(words::FALLBACK);
-            let transient = matches!(
-                kind,
-                ErrorKind::Network | ErrorKind::RateLimit | ErrorKind::Server
-            );
+            let transient = kind.transient();
             // A network failure while the device is offline is the offline wait, however many runs
             // it has missed: nothing here is the person's to fix.
             let offline_now = kind == ErrorKind::Network && facts.blocker == Some(Blocker::Offline);
-            if transient && (st.consecutive_failures < RETRIES_BEFORE_FAILED || offline_now) {
+            let retrying = retry::plan(st);
+            if transient && (retrying.is_some() || offline_now) {
                 status.state = FolderState::Waiting;
+                status.retry = retrying;
                 if kind == ErrorKind::Network {
                     status.wait = Some(WaitReason::NoNetwork);
                     status.words = say("folder.waiting_no_network", &values, raw);
@@ -328,8 +330,10 @@ pub fn folder_status_for(
                 }
                 return status;
             }
+            // Wasl has stopped trying (a passing failure that kept failing) or never will (a lasting
+            // one): the person has something to do, and the fix is in the entry.
             let item = say(key, &values, raw);
-            status.state = if FIXABLE.contains(&key) {
+            status.state = if transient || FIXABLE.contains(&key) {
                 FolderState::NeedsYou
             } else {
                 FolderState::Failed
@@ -373,11 +377,13 @@ pub fn folder_status_for(
     status
 }
 
-/// The failures a person can do something about; the rest read "failed".
+/// The lasting failures a person can do something about; the rest read "failed". A passing failure
+/// that the retry policy gave up on needs the person too.
 const FIXABLE: &[&str] = &[
     "error.auth",
     "error.permission",
     "error.quota",
+    "error.not_found",
     "error.locked",
     "error.disk_full",
     "error.disk_quota",
@@ -663,7 +669,7 @@ mod tests {
         let mut p = pair();
         p.status.last_status = Some(RunStatus::Failed);
         p.status.last_error_kind = Some(ErrorKind::Network);
-        p.status.consecutive_failures = RETRIES_BEFORE_FAILED + 5;
+        p.status.consecutive_failures = retry::MAX_TRIES + 5;
         let mut f = facts(&p);
         f.blocker = Some(Blocker::Offline);
         let s = decide(&f);
@@ -674,7 +680,7 @@ mod tests {
         assert!(s.needs_you.is_empty());
         // Online, the same run history is a failure the person is told about.
         let s = decide(&facts(&p));
-        assert_eq!(FolderState::Failed, s.state);
+        assert_eq!(FolderState::NeedsYou, s.state);
     }
 
     #[test]
@@ -690,8 +696,9 @@ mod tests {
     }
 
     #[test]
-    fn a_run_that_couldnt_reach_google_waits_for_the_network_until_it_keeps_failing() {
+    fn a_run_that_couldnt_reach_google_waits_for_the_network_until_the_policy_gives_up() {
         let mut p = pair();
+        p.status.last_run_at = Some(5_000);
         p.status.last_status = Some(RunStatus::Failed);
         p.status.last_error_kind = Some(ErrorKind::Network);
         p.status.last_error = Some("connection refused".into());
@@ -700,11 +707,44 @@ mod tests {
         assert_eq!(FolderState::Waiting, s.state);
         assert_eq!(Some(WaitReason::NoNetwork), s.wait);
         assert_eq!(Some("connection refused"), s.words.details.as_deref());
+        assert!(s.needs_you.is_empty(), "a passing failure is no problem");
+        assert_eq!(
+            Some(RetryInfo {
+                attempt: 1,
+                max_tries: retry::MAX_TRIES,
+                next_at: Some(5_000 + 30_000),
+            }),
+            s.retry
+        );
 
-        p.status.consecutive_failures = RETRIES_BEFORE_FAILED;
+        p.status.consecutive_failures = retry::MAX_TRIES - 1;
+        assert_eq!(FolderState::Waiting, decide(&facts(&p)).state, "one try left");
+
+        p.status.consecutive_failures = retry::MAX_TRIES;
         let s = decide(&facts(&p));
-        assert_eq!(FolderState::Failed, s.state);
+        assert_eq!(FolderState::NeedsYou, s.state, "the policy gave up");
         assert_eq!(vec!["error.network"], keys(&s));
+        assert_eq!(Some(crate::words::Fix::Retry), s.needs_you[0].fix);
+        assert_eq!(None, s.retry);
+    }
+
+    #[test]
+    fn a_lasting_failure_needs_you_at_once_without_a_retry() {
+        for (kind, key) in [
+            (ErrorKind::NotFound, "error.not_found"),
+            (ErrorKind::Permission, "error.permission"),
+            (ErrorKind::Quota, "error.quota"),
+            (ErrorKind::Locked, "error.locked"),
+        ] {
+            let mut p = pair();
+            p.status.last_status = Some(RunStatus::Failed);
+            p.status.last_error_kind = Some(kind);
+            p.status.consecutive_failures = 1;
+            let s = decide(&facts(&p));
+            assert_eq!(FolderState::NeedsYou, s.state, "{kind:?}");
+            assert_eq!(vec![key], keys(&s), "{kind:?}");
+            assert_eq!(None, s.retry, "{kind:?}");
+        }
     }
 
     #[test]
@@ -730,6 +770,12 @@ mod tests {
             (s.state, s.wait)
         );
         assert_eq!("error.rate_limit", s.words.key);
+        assert!(s.needs_you.is_empty());
+        assert_eq!(Some(1), s.retry.map(|r| r.attempt));
+        p.status.consecutive_failures = retry::MAX_TRIES;
+        let s = decide(&facts(&p));
+        assert_eq!(FolderState::NeedsYou, s.state);
+        assert_eq!(vec!["error.rate_limit"], keys(&s));
     }
 
     #[test]
@@ -953,5 +999,25 @@ mod tests {
         let v = serde_json::to_value(&s).unwrap();
         assert_eq!("synced", v["state"]);
         assert_eq!("folder.synced", v["words"]["key"]);
+        assert!(
+            v.get("retry").is_none(),
+            "absent unless the folder is being retried"
+        );
+    }
+
+    #[test]
+    fn a_retried_folder_carries_stable_retry_keys() {
+        let mut p = pair();
+        p.status.last_run_at = Some(5_000);
+        p.status.last_status = Some(RunStatus::Failed);
+        p.status.last_error_kind = Some(ErrorKind::Server);
+        p.status.consecutive_failures = 2;
+        let v = serde_json::to_value(decide(&facts(&p))).unwrap();
+        assert_eq!("waiting", v["state"]);
+        assert_eq!("retrying", v["wait"]);
+        assert_eq!(2, v["retry"]["attempt"]);
+        assert_eq!(retry::MAX_TRIES, v["retry"]["max_tries"]);
+        assert_eq!(5_000 + 120_000, v["retry"]["next_at"]);
+        assert_eq!(0, v["needs_you"].as_array().map_or(0, Vec::len));
     }
 }
