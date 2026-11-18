@@ -144,13 +144,25 @@ async fn connection<H: Handler>(
         let Frame::Request { id, request } = frame else {
             continue;
         };
-        if matches!(*request, Request::Subscribe) {
+        if let Request::Subscribe { status_lang } = *request {
             let mut rx = events.subscribe();
             let w = writer.clone();
             tokio::spawn(async move {
                 loop {
                     match rx.recv().await {
                         Ok(event) => {
+                            // A status change goes only to a client that asked for it, in its
+                            // language: one that doesn't know the event couldn't read it.
+                            let event = match (event, status_lang) {
+                                (Event::FolderStatus { .. }, None) => continue,
+                                (Event::FolderStatus { pair_id, status }, Some(lang)) => {
+                                    Event::FolderStatus {
+                                        pair_id,
+                                        status: Box::new(status.in_lang(lang)),
+                                    }
+                                }
+                                (event, _) => event,
+                            };
                             if w.lock().await.write(&Frame::Event { event }).await.is_err() {
                                 break;
                             }

@@ -13,9 +13,10 @@ use wasl_devices::{DeviceConfig, Devices};
 use wasl_drive::{DriveClient, DriveClientConfig, DriveEndpoints, DriveError};
 use wasl_engine::{Engine, EngineConfig, EngineError, Progress, ProgressListener, SystemClock, Trigger};
 use wasl_ipc::{
-    AcceptConfirmation, Account, DaemonStatus, DriveFolder, ErrorKind, Event, IgnoreExplanation, Overall,
+    AcceptConfirmation, Account, DaemonStatus, DriveFolder, ErrorKind, Event, IgnoreExplanation,
     PROTOCOL_VERSION, PairState, PeerState, RemoteError, Request, ok,
 };
+use wasl_proto::{FolderStatus, Lang, overall_status};
 use wasl_store::{Pair, SharedStore, Store};
 
 pub struct DaemonConfig {
@@ -67,6 +68,8 @@ pub struct Daemon {
     confirming: Arc<Mutex<Option<Pending>>>,
     /// How long each changeset waits before its next confirmation (after a refusal).
     cooldowns: Mutex<Cooldowns>,
+    /// The "no catalogue entry" lines already printed, so one cause is logged once.
+    unnamed_logged: Mutex<std::collections::HashSet<String>>,
 }
 
 /// At most this many progress events per pair and second reach the clients.
@@ -235,6 +238,7 @@ impl Daemon {
             pairs,
             confirming: Arc::new(Mutex::new(None)),
             cooldowns: Mutex::new(Cooldowns::default()),
+            unnamed_logged: Mutex::default(),
         }))
     }
 
@@ -591,13 +595,14 @@ impl Daemon {
             .collect())
     }
 
-    pub fn status(&self) -> Result<DaemonStatus, RemoteError> {
+    pub fn status(&self, lang: Lang) -> Result<DaemonStatus, RemoteError> {
         let pairs = self.pairs()?;
         let devices = self
             .devices
             .as_ref()
             .map(|d| d.device_infos())
             .unwrap_or_default();
+        let folders = self.folder_statuses(lang)?;
         let mut states = Vec::new();
         for pair in pairs {
             let (open_conflicts, folder_bytes, skipped) = {
@@ -617,6 +622,7 @@ impl Daemon {
                 skipped,
                 peers: self.peers(&pair.id, &devices),
                 free_bytes: crate::disk::free_bytes(&pair.local_root),
+                status: folders.iter().find(|f| f.pair_id == pair.id).cloned(),
                 pair,
             });
         }
@@ -628,14 +634,29 @@ impl Daemon {
             .iter()
             .filter(|c| c.status == wasl_store::ChangesetStatus::Held)
             .count() as u32;
+        let overall_status = overall_status(&folders, other_items(&states, &accounts, agent_changes), lang);
         Ok(DaemonStatus {
             version: env!("CARGO_PKG_VERSION").into(),
             protocol: PROTOCOL_VERSION,
-            overall: overall(&states, &accounts, agent_changes),
+            overall: overall_status.state.into(),
+            overall_status: Some(overall_status),
             accounts,
             pairs: states,
             agent_changes,
         })
+    }
+
+    /// Every folder's status in `lang`, decided by the engine. A cause the catalogue can't name is
+    /// logged (once per distinct line) so it can be added.
+    pub fn folder_statuses(&self, lang: Lang) -> Result<Vec<FolderStatus>, RemoteError> {
+        let mut logged = self.unnamed_logged.lock().unwrap_or_else(|p| p.into_inner());
+        self.engine
+            .folder_statuses(lang, &|p| crate::disk::free_bytes(&p.local_root), &mut |line| {
+                if logged.insert(line.clone()) {
+                    eprintln!("{line}");
+                }
+            })
+            .map_err(engine_err)
     }
 
     /// The other devices a pair is shared with (every known member for "All my devices"), by
@@ -773,7 +794,7 @@ impl Daemon {
     pub async fn handle(self: &Arc<Self>, request: Request) -> Result<serde_json::Value, RemoteError> {
         let e = &self.engine;
         match request {
-            Request::Status => ok(self.status()?),
+            Request::Status { lang } => ok(self.status(lang.unwrap_or(Lang::En))?),
             Request::Pairs => ok(self.pairs()?),
             Request::Pair { id } => ok(self.store.lock().get_pair(&id).map_err(store_err)?),
             Request::CreatePair { pair } => {
@@ -1395,7 +1416,7 @@ impl Daemon {
                 ok(())
             }
             // Handled by the IPC server itself.
-            Request::Subscribe => ok(()),
+            Request::Subscribe { .. } => ok(()),
             Request::Shutdown => {
                 e.cancel_all();
                 self.emit(Event::ShuttingDown);
@@ -1426,36 +1447,19 @@ fn merge_outcomes(
     out
 }
 
-pub fn overall(pairs: &[PairState], accounts: &[Account], agent_changes: u32) -> Overall {
-    if pairs.is_empty() {
-        return Overall::Idle;
-    }
-    let needs_you = agent_changes > 0
-        || accounts.iter().any(|a| a.auth_error.is_some())
-        || pairs.iter().any(|p| {
-            p.blocked
-                || p.open_conflicts > 0
-                || p.pair.status.last_status == Some(wasl_core::RunStatus::Failed)
-        });
-    if needs_you {
-        return Overall::NeedsYou;
-    }
-    if pairs.iter().any(|p| p.running) {
-        return Overall::Syncing;
-    }
-    let active: Vec<&PairState> = pairs.iter().filter(|p| p.pair.enabled).collect();
-    if active.iter().all(|p| p.pair.paused) {
-        return Overall::Paused;
-    }
-    let waiting = active.iter().any(|p| {
-        !p.pair.paused
-            && (p.pair.status.hold_for_preview
-                || p.pair.status.last_status == Some(wasl_core::RunStatus::Skipped))
-    });
-    if waiting {
-        return Overall::Waiting;
-    }
-    Overall::UpToDate
+/// What waits for the person outside any folder's own status: agent changes held for a decision, and
+/// an account that must sign in again that no folder uses (a folder using it says so itself).
+pub fn other_items(pairs: &[PairState], accounts: &[Account], agent_changes: u32) -> u32 {
+    let orphans = accounts
+        .iter()
+        .filter(|a| a.auth_error.is_some())
+        .filter(|a| {
+            !pairs
+                .iter()
+                .any(|p| p.pair.account_id.as_deref() == Some(a.id.as_str()))
+        })
+        .count() as u32;
+    agent_changes + orphans
 }
 
 /// The daemon syncs folders by path; a pair it cannot run is refused up front.

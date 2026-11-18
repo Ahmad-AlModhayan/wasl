@@ -3,7 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 use wasl_proto::{
-    BinEntry, ConflictChoice, ConflictUndo, OplogStatus, Pair, Progress, RunOutcome, Trigger, VersionRef,
+    BinEntry, ConflictChoice, ConflictUndo, FolderStatus, Lang, OplogStatus, OverallState, OverallStatus,
+    Pair, Progress, RunOutcome, Trigger, VersionRef,
 };
 pub use wasl_proto::{
     DeviceInfo, DevicesInfo, LinkPath, OfferInfo, OfferStatus, PairSharing, PairingStage, PairingStatus, View,
@@ -66,8 +67,13 @@ impl VersionRange {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Request {
-    /// The daemon at a glance: version, accounts, pairs with their state and live progress.
-    Status,
+    /// The daemon at a glance: version, accounts, pairs with their state and live progress. With a
+    /// `lang` the folder statuses and the overall status carry their words in that language
+    /// (English without one); the keys and values are the same in every language.
+    Status {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lang: Option<Lang>,
+    },
     Pairs,
     Pair {
         id: String,
@@ -456,8 +462,13 @@ pub enum Request {
         key: String,
         value: String,
     },
-    /// From now on this connection also receives events.
-    Subscribe,
+    /// From now on this connection also receives events. With `status_lang` it also receives
+    /// [`Event::FolderStatus`], worded in that language; without it that event is never sent (a
+    /// client that doesn't know it could not read it).
+    Subscribe {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status_lang: Option<Lang>,
+    },
     /// Stops the daemon (after the running syncs are cancelled cleanly).
     Shutdown,
 }
@@ -551,6 +562,10 @@ pub struct PairState {
     /// parent while the folder isn't there). None when it can't be told, and from an older daemon.
     #[serde(default)]
     pub free_bytes: Option<u64>,
+    /// The folder's status, decided once by the engine ([`wasl_proto::status`]): what a screen
+    /// draws and an agent reads. None from an older daemon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<FolderStatus>,
 }
 
 /// Another device a pair syncs with, as the status line names it ("Waiting for …").
@@ -574,9 +589,15 @@ pub struct DaemonStatus {
     /// Agent changesets waiting for a decision (docs/AGENT_CHANGES.md).
     #[serde(default)]
     pub agent_changes: u32,
+    /// The whole app's status, worked out from the folder statuses by the same rules. `overall`
+    /// above is its older form: the same decision, in the states older clients know. None from an
+    /// older daemon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overall_status: Option<OverallStatus>,
 }
 
-/// The tray icon's states (FR-B5).
+/// The tray icon's states (FR-B5). The older form of [`OverallState`], kept so older clients still
+/// read the reply: a state they don't know ("partly synced") reads as the nearest they do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Overall {
@@ -587,6 +608,21 @@ pub enum Overall {
     NeedsYou,
     /// No pairs yet.
     Idle,
+}
+
+impl From<OverallState> for Overall {
+    fn from(s: OverallState) -> Overall {
+        match s {
+            OverallState::Idle => Overall::Idle,
+            OverallState::Synced => Overall::UpToDate,
+            OverallState::Syncing => Overall::Syncing,
+            OverallState::Paused => Overall::Paused,
+            // The files that didn't move are tried again at the next sync: waiting, as far as an
+            // older client can say it.
+            OverallState::Waiting | OverallState::PartlySynced => Overall::Waiting,
+            OverallState::NeedsYou => Overall::NeedsYou,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -869,6 +905,12 @@ pub enum Event {
         message: String,
     },
     ShuttingDown,
+    /// A folder's status changed. Sent only to connections that asked for it
+    /// ([`Request::Subscribe::status_lang`]), with the new status in their language.
+    FolderStatus {
+        pair_id: String,
+        status: Box<FolderStatus>,
+    },
 }
 
 /// One line on the wire.
@@ -883,7 +925,8 @@ pub enum Frame {
 
 #[cfg(test)]
 mod tests {
-    use super::{OPLOG_LIST_MAX, Request};
+    use super::{DaemonStatus, OPLOG_LIST_MAX, Overall, Request};
+    use wasl_proto::OverallState;
 
     #[test]
     fn an_oplog_list_request_without_limit_gets_the_daemon_cap() {
@@ -903,5 +946,102 @@ mod tests {
         );
         let r: Request = serde_json::from_value(serde_json::json!({"op": "oplog_list", "limit": 5})).unwrap();
         assert!(matches!(r, Request::OplogList { limit: 5, .. }), "{r:?}");
+    }
+    // ---- additive compatibility of the status layer (issue #29)
+
+    /// What an older client's reader looked like: only the fields it knew.
+    #[derive(serde::Deserialize)]
+    #[allow(dead_code)]
+    struct OlderStatus {
+        version: String,
+        protocol: u32,
+        pairs: Vec<OlderPairState>,
+        overall: Overall,
+    }
+    #[derive(serde::Deserialize)]
+    #[allow(dead_code)]
+    struct OlderPairState {
+        pair: wasl_proto::Pair,
+        running: bool,
+        open_conflicts: u32,
+        blocked: bool,
+    }
+
+    #[test]
+    fn the_status_requests_older_clients_send_still_parse() {
+        let r: Request = serde_json::from_value(serde_json::json!({"op": "status"})).unwrap();
+        assert!(matches!(r, Request::Status { lang: None }), "{r:?}");
+        let r: Request = serde_json::from_value(serde_json::json!({"op": "subscribe"})).unwrap();
+        assert!(matches!(r, Request::Subscribe { status_lang: None }), "{r:?}");
+        // And the new ones, with no language asked, say nothing more than the old ones did.
+        assert_eq!(
+            serde_json::json!({"op": "status"}),
+            serde_json::to_value(Request::Status { lang: None }).unwrap()
+        );
+        assert_eq!(
+            serde_json::json!({"op": "subscribe"}),
+            serde_json::to_value(Request::Subscribe { status_lang: None }).unwrap()
+        );
+        let r: Request = serde_json::from_value(serde_json::json!({"op": "status", "lang": "ar"})).unwrap();
+        assert!(
+            matches!(
+                r,
+                Request::Status {
+                    lang: Some(wasl_proto::Lang::Ar)
+                }
+            ),
+            "{r:?}"
+        );
+    }
+
+    #[test]
+    fn a_reply_from_an_older_daemon_reads_without_the_new_fields() {
+        let reply = serde_json::json!({
+            "version": "0.9", "protocol": 3, "accounts": [], "pairs": [], "overall": "up_to_date"
+        });
+        let st: DaemonStatus = serde_json::from_value(reply).unwrap();
+        assert!(st.overall_status.is_none());
+        assert_eq!(Overall::UpToDate, st.overall);
+    }
+
+    #[test]
+    fn the_new_reply_reads_as_an_older_client_would() {
+        let mut out = serde_json::json!({
+            "version": "1.0", "protocol": 3, "accounts": [], "pairs": [], "overall": "waiting",
+            "overall_status": {
+                "state": "partly_synced",
+                "words": {"key": "overall.partly_synced", "text": "Partly synced"},
+                "needs_you": 0
+            }
+        });
+        let st: DaemonStatus = serde_json::from_value(out.clone()).unwrap();
+        assert_eq!(OverallState::PartlySynced, st.overall_status.unwrap().state);
+        let old: OlderStatus = serde_json::from_value(out.take()).unwrap();
+        assert_eq!(
+            Overall::Waiting,
+            old.overall,
+            "a state an older client lacks reads as the nearest it knows"
+        );
+    }
+
+    #[test]
+    fn the_older_overall_never_names_a_state_older_clients_lack() {
+        for (state, older) in [
+            (OverallState::Idle, Overall::Idle),
+            (OverallState::Synced, Overall::UpToDate),
+            (OverallState::Syncing, Overall::Syncing),
+            (OverallState::Paused, Overall::Paused),
+            (OverallState::Waiting, Overall::Waiting),
+            (OverallState::PartlySynced, Overall::Waiting),
+            (OverallState::NeedsYou, Overall::NeedsYou),
+        ] {
+            assert_eq!(older, Overall::from(state), "{state:?}");
+            let wire = serde_json::to_value(Overall::from(state)).unwrap();
+            assert!(
+                ["idle", "up_to_date", "syncing", "paused", "waiting", "needs_you"]
+                    .contains(&wire.as_str().unwrap()),
+                "{wire}"
+            );
+        }
     }
 }

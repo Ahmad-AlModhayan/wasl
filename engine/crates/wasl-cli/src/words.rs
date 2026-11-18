@@ -54,7 +54,8 @@ pub fn details_wanted() -> bool {
     DETAILS.load(Ordering::SeqCst)
 }
 
-fn lang() -> Lang {
+/// The CLI's language, in the catalogue's terms.
+pub fn lang() -> Lang {
     match i18n::current() {
         i18n::Lang::En => Lang::En,
         i18n::Lang::Ar => Lang::Ar,

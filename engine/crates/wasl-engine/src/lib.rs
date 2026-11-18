@@ -21,6 +21,7 @@ mod oplog;
 mod pair_lock;
 pub mod plain_guard;
 mod remote;
+mod status;
 mod support;
 mod undo;
 mod vault_remote;
