@@ -220,6 +220,24 @@ impl Apply {
         mtime: Option<i64>,
         reason: &str,
     ) -> Result<Option<FsEntry>> {
+        let r = self.install_staged(&staged, key, rel, mtime, reason).await;
+        // A failed install doesn't leave a full-size staged file behind (a stopped test run does,
+        // as a killed process would).
+        if r.is_err() && !self.killed() {
+            let _ = std::fs::remove_file(&staged);
+        }
+        r
+    }
+
+    async fn install_staged(
+        &self,
+        staged: &std::path::Path,
+        key: &str,
+        rel: &str,
+        mtime: Option<i64>,
+        reason: &str,
+    ) -> Result<Option<FsEntry>> {
+        let staged = staged.to_path_buf();
         kill_point!(self, AfterStage);
         let to_flush = staged.clone();
         tokio::task::spawn_blocking(move || {

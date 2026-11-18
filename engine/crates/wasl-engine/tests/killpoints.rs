@@ -106,6 +106,15 @@ async fn move_mode_keeps_the_downloaded_file_whatever_the_stop() {
             "{at}: {:?}",
             seen.local
         );
+        // Once Drive's bin has the file, the restart must not bring it back. (A stop before that,
+        // with the file installed but not yet recorded, is adopted on the restart and Drive keeps
+        // its copy: a known gap, tracked apart from this change.)
+        let trashed_already = matches!(seen.point, Point::AfterRemoteTrash | Point::AfterRowRemoved);
+        assert!(
+            !trashed_already || !seen.drive.contains_key("a.txt"),
+            "{at}: still live on Drive: {:?}",
+            seen.drive
+        );
     })
     .await;
 }

@@ -785,13 +785,13 @@ impl Executor {
         }
 
         if self.pair.method == SyncMode::DownloadThenDelete {
-            // The row goes first: a stop between the two steps leaves a local file nothing
-            // tracks (the next run finds the same file on both sides and adopts it), never a
-            // tracked file whose Drive side is gone, which the next run reads as a delete.
-            self.store.lock().remove_baseline(&self.pair.id, key)?;
-            self.apply.after_row_removed()?;
+            // Drive's bin first, then the row: a stop between the two leaves a tracked file whose
+            // Drive side is gone, which the planner forgets in this mode (nothing is lost and the
+            // Drive copy is already in its bin).
             self.remote.trash(&remote.id).await?;
             self.apply.after_remote_trash()?;
+            self.store.lock().remove_baseline(&self.pair.id, key)?;
+            self.apply.after_row_removed()?;
             self.event(
                 EventLevel::Info,
                 "DELETE_REMOTE",

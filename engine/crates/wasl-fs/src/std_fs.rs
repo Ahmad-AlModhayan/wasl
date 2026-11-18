@@ -200,7 +200,11 @@ impl LocalFs for StdFs {
         // old one or the whole new one, never a name with nothing behind it.
         flush_file(staged)?;
         // Same folder: an atomic rename, so a crash leaves either the old state or the new file.
-        move_file(staged, &target)?;
+        // A rename only, never the copy fallback of `move_file`: the old file may share its bytes
+        // with the bin copy (a hard link), and a copy would write through to both. The staged file
+        // sits in the target's folder, so there is no other volume to cross. If the rename fails
+        // (a program holds the target open) the error goes up and the next run tries again.
+        fs::rename(staged, &target)?;
         if let Some(parent) = target.parent() {
             flush_dir(parent);
         }
@@ -326,11 +330,13 @@ impl LocalFs for StdFs {
                 // A second name for the same bytes: the install renames a new file over `src`, and
                 // the old content lives on under the bin's name. A copy where links aren't allowed.
                 if fs::hard_link(&src, &target).is_err()
-                    && let Err(e) = fs::copy(&src, &target)
+                    && let Err(e) = fs::copy(&src, &target).and_then(|_| flush_file(&target))
                 {
                     let _ = fs::remove_file(&target);
                     return Err(e);
                 }
+                // The bin's name is on disk before the swap can take the old one away.
+                flush_dir(&self.bin_dir);
                 return Ok(Some(location));
             }
         }
