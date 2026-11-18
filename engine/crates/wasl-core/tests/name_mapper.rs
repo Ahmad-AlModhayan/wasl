@@ -278,6 +278,58 @@ mod windows_rules {
         assert_eq!(None, refusal(&local, WIN));
     }
 
+    /// wasl#41: each trailing dot or space becomes three bytes, so a name that was under the limit
+    /// could come out over it, and a second mapping then cut it again.
+    #[test]
+    fn a_mapped_name_stays_under_the_byte_limit_and_maps_to_itself() {
+        let mut names: Vec<String> = Vec::new();
+        for base in [240, 248, 250, 251, 252, 253, 254, 255] {
+            for tail in 1..6 {
+                names.push(format!("{}{}", "a".repeat(base), ".".repeat(tail)));
+                names.push(format!("{}{}", "a".repeat(base), " ".repeat(tail)));
+                names.push(format!("{}. .{}", "b".repeat(base), " ".repeat(tail)));
+            }
+        }
+        names.push(format!("{}...", "é".repeat(120)));
+        names.push(format!("aux{}", ".".repeat(300)));
+        names.push("ccc~1~2".to_owned());
+        names.push(format!("{}.txt   ", "d".repeat(260)));
+        names.push(format!("{} ", "\u{1F600}".repeat(63)));
+        for n in &names {
+            let local = to_local_name_with(n, WIN);
+            assert!(local.len() <= 255, "{n:?}: {} bytes", local.len());
+            assert_eq!(None, refusal(&local, WIN), "{n:?} -> {local:?}");
+            assert_eq!(
+                local,
+                to_local_name_with(&local, WIN),
+                "{n:?} -> {local:?} maps again to something else"
+            );
+        }
+    }
+
+    #[test]
+    fn a_short_name_look_alike_with_more_than_one_tilde_is_mapped_for_good() {
+        for n in ["ab~1~2", "a~1~2.TXT", "x~~1", "~1~1"] {
+            let local = to_local_name_with(n, WIN);
+            assert_eq!(None, refusal(&local, WIN), "{n:?} -> {local:?}");
+            assert_eq!(local, to_local_name_with(&local, WIN), "{n:?} -> {local:?}");
+            assert!(
+                !wasl_core::names::looks_like_short_name(&local),
+                "{n:?} -> {local:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_length_limit_is_counted_in_bytes_when_mapping_and_when_refusing() {
+        // 150 two-byte characters: 150 UTF-16 units but 300 bytes.
+        let name = "é".repeat(150);
+        assert!(wasl_core::names::needs_mapping(&name));
+        assert_eq!(Some(NameRefusal::TooLong), refusal(&name, WIN));
+        assert_eq!(None, refusal(&to_local_name_with(&name, WIN), WIN));
+        assert_eq!(None, refusal(&"é".repeat(127), WIN));
+    }
+
     #[test]
     fn a_name_the_disk_refuses_after_mapping_is_a_typed_reason() {
         assert_eq!(Some(NameRefusal::TooLong), refusal(&"a".repeat(256), WIN));

@@ -426,3 +426,109 @@ async fn the_mapped_name_is_the_same_on_another_device_with_the_same_rules() {
         b.local_files().into_keys().collect::<Vec<_>>()
     );
 }
+
+// ---------------------------------------------------------------- wasl#41: gaps left after #18
+
+fn run_events(w: &World, run: &str) -> Vec<wasl_store::RunEvent> {
+    w.engine.store().lock().run_events(run).unwrap()
+}
+
+/// Two Drive names that this disk maps to one local name are a clash: reported with the others,
+/// neither synced, and not planned again and again as "changed since planned".
+#[tokio::test]
+async fn drive_names_that_map_to_one_local_name_are_reported_as_a_clash() {
+    let w = windows_world();
+    w.put_drive("aux.txt", "one");
+    w.put_drive("aux\u{ff3f}.txt", "two");
+    w.put_drive("report.", "three");
+    w.put_drive("report\u{ff0e}", "four");
+    w.put_drive("fine.txt", "ok");
+    let notes = w.engine.preview(&w.pair_id).await.unwrap().notes;
+    for (a, b) in [("aux.txt", "aux\u{ff3f}.txt"), ("report.", "report\u{ff0e}")] {
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.contains("same name twice") && n.contains(a) && n.contains(b)),
+            "{a} and {b} are reported: {notes:?}"
+        );
+    }
+    for _ in 0..2 {
+        let o = w.sync().await;
+        assert_eq!(RunStatus::Success, o.status, "{:?}", o.message);
+        let events = run_events(&w, &o.run_id);
+        assert!(
+            events
+                .iter()
+                .all(|e| !matches!(e.action.as_str(), "CHANGED_SINCE_PLANNED" | "ERROR")),
+            "{events:?}"
+        );
+    }
+    assert_eq!(map(&[("fine.txt", "ok")]), w.local_files());
+    assert_eq!(5, w.drive_files().len());
+    assert_eq!(0, w.drive.trashed_files().len());
+    // Renaming one on Drive frees the other.
+    assert!(w.drive.move_path("Sync/aux\u{ff3f}.txt", "Sync/aux2.txt"));
+    let o = w.sync().await;
+    assert_eq!(RunStatus::Success, o.status, "{:?}", o.message);
+    let local = w.local_files();
+    assert_eq!(Some(&"one".to_owned()), local.get("aux\u{ff3f}.txt"), "{local:?}");
+    assert_eq!(Some(&"two".to_owned()), local.get("aux2.txt"), "{local:?}");
+}
+
+/// A file renamed on Drive to a name this disk maps follows under the mapped name, through the same
+/// mapping and apply layer as a download: nothing is fetched again or binned.
+#[tokio::test]
+async fn a_rename_on_drive_is_followed_under_the_name_this_disk_gives_it() {
+    for (windows, to, local_to) in [
+        (true, "aux.txt", "aux\u{ff3f}.txt"),
+        (false, "q:r.txt", "q\u{ff1a}r.txt"),
+    ] {
+        let w = if windows { windows_world() } else { World::new() };
+        w.put_drive("plain.txt", "body");
+        assert_eq!(RunStatus::Success, w.sync().await.status);
+        w.clock.advance(10_000);
+        assert!(w.drive.move_path("Sync/plain.txt", &format!("Sync/{to}")));
+        for _ in 0..2 {
+            let o = w.sync().await;
+            assert_eq!(RunStatus::Success, o.status, "{to}: {:?}", o.message);
+        }
+        assert_eq!(map(&[(local_to, "body")]), w.local_files(), "{to}");
+        assert!(bin_is_empty(&w), "{to}: the old name was binned, not renamed");
+        assert_eq!(0, w.drive.trashed_files().len(), "{to}");
+        let row = w
+            .engine
+            .store()
+            .lock()
+            .baseline_entry(&w.pair_id, to)
+            .unwrap()
+            .unwrap_or_else(|| panic!("{to}: no baseline row under the Drive name"));
+        assert_eq!(local_to, row.local_rel, "{to}");
+        assert!(
+            w.engine
+                .store()
+                .lock()
+                .baseline_entry(&w.pair_id, "plain.txt")
+                .unwrap()
+                .is_none(),
+            "{to}"
+        );
+    }
+}
+
+/// A name the disk refuses after mapping is `NAME_REFUSED` on the item, and the rest syncs.
+#[tokio::test]
+async fn a_name_the_disk_refuses_is_reported_with_its_code() {
+    let w = World::new();
+    *w.env.unmapped_windows_names.lock().unwrap() = true;
+    w.put_drive("REPORT~1.DOC", "x");
+    w.put_drive("fine.txt", "ok");
+    let o = w.sync().await;
+    let events = run_events(&w, &o.run_id);
+    let refused: Vec<_> = events
+        .iter()
+        .filter(|e| e.action == wasl_engine::NAME_REFUSED)
+        .map(|e| e.key.clone())
+        .collect();
+    assert_eq!(vec![Some("REPORT~1.DOC".to_owned())], refused, "{events:?}");
+    assert_eq!(map(&[("fine.txt", "ok")]), w.local_files());
+}

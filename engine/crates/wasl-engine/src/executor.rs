@@ -349,6 +349,19 @@ impl Executor {
             .map_err(|e| EngineError::Other(e.to_string()))??)
     }
 
+    /// [`Executor::fs`] on a path made from a Drive name: a path the disk refuses is a
+    /// [`EngineError::NameRefused`], reported as `NAME_REFUSED`.
+    async fn fs_named<T: Send + 'static>(
+        &self,
+        f: impl FnOnce(&dyn LocalFs) -> std::io::Result<T> + Send + 'static,
+    ) -> Result<T> {
+        let fs = self.local.clone();
+        tokio::task::spawn_blocking(move || f(fs.as_ref()))
+            .await
+            .map_err(|e| EngineError::Other(e.to_string()))?
+            .map_err(EngineError::from_name_io)
+    }
+
     fn remote_id(&self, key: &str) -> Option<String> {
         self.lock(&self.remote_ids).get(key).cloned()
     }
@@ -403,13 +416,10 @@ impl Executor {
     // ------------------------------------------------------------------ handlers
 
     async fn mkdir_local(&self, key: &str, local_rel: &str) -> Result<()> {
+        self.apply.check_name(local_rel)?;
+        self.apply.mkdir(local_rel).await?;
         let rel = local_rel.to_owned();
-        let st = self
-            .fs(move |fs| {
-                fs.mkdir(&rel)?;
-                fs.stat(&rel)
-            })
-            .await?;
+        let st = self.fs_named(move |fs| fs.stat(&rel)).await?;
         let mut e = folder_entry(key, local_rel);
         e.local_mtime = st.map_or(0, |s| s.mtime_ms);
         e.remote_id = self.remote_id(key);
@@ -697,8 +707,9 @@ impl Executor {
     }
 
     async fn download(&self, key: &str, remote: &RemoteEntry, local_rel: &str, reason: &str) -> Result<()> {
+        self.apply.check_name(local_rel)?;
         let rel = local_rel.to_owned();
-        let staging = self.fs(move |fs| fs.staging_path(&rel)).await?;
+        let staging = self.fs_named(move |fs| fs.staging_path(&rel)).await?;
         self.tracker
             .update(|p| p.current_file = Some(local_rel.to_owned()));
         let progress = self.progress_fn(remote.size.unwrap_or(u64::MAX));
@@ -824,8 +835,9 @@ impl Executor {
     }
 
     async fn export(&self, key: &str, remote: &RemoteEntry, local_rel: &str, mime: &str) -> Result<()> {
+        self.apply.check_name(local_rel)?;
         let rel = local_rel.to_owned();
-        let staging = self.fs(move |fs| fs.staging_path(&rel)).await?;
+        let staging = self.fs_named(move |fs| fs.staging_path(&rel)).await?;
         self.tracker
             .update(|p| p.current_file = Some(local_rel.to_owned()));
         let progress = self.progress_fn(u64::MAX);

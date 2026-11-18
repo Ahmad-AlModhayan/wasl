@@ -118,6 +118,7 @@ impl Apply {
 
     /// Creates folder `rel` (and missing parents).
     pub(crate) async fn mkdir(&self, rel: &str) -> Result<()> {
+        self.check_name(rel)?;
         let r = rel.to_owned();
         self.fs(move |fs| fs.mkdir(&r)).await
     }
@@ -137,6 +138,7 @@ impl Apply {
     /// Renames `from` to `to` in one folder (the same item spelled another way, or a conflict
     /// copy's new name), unless `from` changed since the plan. `false`: left alone.
     pub(crate) async fn rename(&self, from: &str, to: &str) -> Result<bool> {
+        self.check_name(to)?;
         if !self.as_planned(from).await? {
             return Ok(false);
         }
@@ -165,11 +167,32 @@ impl Apply {
         self
     }
 
+    /// Every path given to the apply layer is a local name made by the one mapping function, so a
+    /// path the disk still refuses is [`EngineError::NameRefused`], not a plain I/O failure.
     async fn fs<T: Send + 'static>(
         &self,
         f: impl FnOnce(&dyn LocalFs) -> std::io::Result<T> + Send + 'static,
     ) -> Result<T> {
-        Ok(self.fs_raw(f).await??)
+        self.fs_raw(f).await?.map_err(EngineError::from_name_io)
+    }
+
+    /// Whether the disk takes `rel` (already mapped): every part passes [`wasl_core::names::refusal`]
+    /// under the disk's rules. Checked before a file is fetched, so a name that can never be written
+    /// costs no download. The disk's own refusal of a path comes back as the same error.
+    pub(crate) fn check_name(&self, rel: &str) -> Result<()> {
+        let rules = self.local.name_rules();
+        for part in rel.split('/') {
+            if let Some(why) = wasl_core::names::refusal(part, rules) {
+                let why = match why {
+                    wasl_core::names::NameRefusal::TooLong => "it is longer than the disk allows",
+                    wasl_core::names::NameRefusal::Reserved => "the disk reserves it",
+                };
+                return Err(EngineError::NameRefused(format!(
+                    "The disk refuses the name {part:?} even after Wasl mapped it: {why}. Rename it where it came from"
+                )));
+            }
+        }
+        Ok(())
     }
 
     /// Like [`Apply::fs`], but hands back the I/O error itself.
@@ -200,9 +223,12 @@ impl Apply {
         };
         let rel_owned = rel.to_owned();
         let location = self.fs(move |fs| fs.move_to_bin(&rel_owned)).await?;
-        self.index_binned(key, rel, reason, location, st.size).await
+        self.index_binned(key, rel, reason, location, st.size)
+            .await
+            .map(|_| ())
     }
 
+    /// Adds a bin entry for `location` and trims old versions; returns the entry's id.
     async fn index_binned(
         &self,
         key: &str,
@@ -210,10 +236,11 @@ impl Apply {
         reason: &str,
         location: String,
         size: u64,
-    ) -> Result<()> {
+    ) -> Result<String> {
         let now = self.clock.now_ms();
+        let id = new_id(self.clock.as_ref());
         let entry = NewBinEntry {
-            id: new_id(self.clock.as_ref()),
+            id: id.clone(),
             pair_id: self.pair_id.clone(),
             side: BinSide::Local,
             key: key.to_owned(),
@@ -238,7 +265,7 @@ impl Apply {
                 self.store.lock().remove_from_bin(&old.entry.id)?;
             }
         }
-        Ok(())
+        Ok(id)
     }
 
     /// Puts the staged file at `rel`: flushes it, copies the file it replaces to the bin (when
@@ -269,6 +296,7 @@ impl Apply {
         reason: &str,
     ) -> Result<Option<FsEntry>> {
         let staged = staged.to_path_buf();
+        self.check_name(rel)?;
         kill_point!(self, AfterStage);
         let to_flush = staged.clone();
         tokio::task::spawn_blocking(move || {
@@ -285,32 +313,42 @@ impl Apply {
         let old_rel = rel.to_owned();
         let old = self.fs(move |fs| fs.stat(&old_rel)).await?;
         let old_rel = rel.to_owned();
+        // The copy is indexed before the swap, so a stop anywhere leaves no bin file the index
+        // does not know (it would never expire). A stop before the swap leaves an indexed copy of
+        // a file that is still in place: the next run bins the same content again, and the cap on
+        // versions and the retention time clear the extra.
         let copy = match self.fs_raw(move |fs| fs.bin_copy(&old_rel)).await? {
-            Ok(c) => c,
+            Ok(Some(location)) => {
+                let size = old.map_or(0, |o| o.size);
+                let id = self
+                    .index_binned(key, rel, reason, location.clone(), size)
+                    .await?;
+                Some((location, id))
+            }
+            Ok(None) => None,
             Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
                 // This file system (or this kind of item) can't copy to the bin: the old way, the
                 // bin first, then the install.
                 self.bin(key, rel, reason).await?;
                 None
             }
-            Err(e) => return Err(e.into()),
+            Err(e) => return Err(EngineError::from_name_io(e)),
         };
         kill_point!(self, AfterBin);
         let rel_owned = rel.to_owned();
         let installed = match self.fs(move |fs| fs.install(&staged, &rel_owned, mtime)).await {
             Ok(i) => i,
             Err(e) => {
-                if let Some(loc) = copy {
-                    let _ = self.fs(move |fs| fs.purge_from_bin(&loc)).await;
+                // Nothing was replaced: the copy is not a version anyone lost.
+                if let Some((loc, id)) = copy
+                    && self.fs(move |fs| fs.purge_from_bin(&loc)).await.is_ok()
+                {
+                    let _ = self.store.lock().remove_from_bin(&id);
                 }
                 return Err(e);
             }
         };
         kill_point!(self, AfterRename);
-        if let Some(location) = copy {
-            self.index_binned(key, rel, reason, location, old.map_or(0, |o| o.size))
-                .await?;
-        }
         Ok(Some(installed))
     }
 
@@ -347,5 +385,36 @@ impl Apply {
     pub(crate) fn after_remote_trash(&self) -> Result<()> {
         kill_point!(self, AfterRemoteTrash);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::support::SystemClock;
+    use wasl_fs::StdFs;
+    use wasl_store::{Pair, Store};
+
+    fn apply() -> (Apply, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let (root, bin) = (dir.path().join("folder"), dir.path().join("bin"));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&bin).unwrap();
+        let pair = Pair::new("p", "Shared", root.to_str().unwrap());
+        let store = SharedStore::new(Store::open_in_memory().unwrap());
+        let fs: Arc<dyn LocalFs> = Arc::new(StdFs::new(&root, &bin));
+        (Apply::new(store, fs, Arc::new(SystemClock), &pair), dir)
+    }
+
+    #[test]
+    fn a_name_over_the_byte_limit_is_refused_before_anything_is_fetched() {
+        let (apply, _dir) = apply();
+        assert!(apply.check_name("Docs/plain.txt").is_ok());
+        // 150 two-byte letters: 150 characters, 300 bytes.
+        let long = format!("Docs/{}.txt", "\u{e9}".repeat(150));
+        let err = apply.check_name(&long).unwrap_err();
+        assert!(matches!(err, EngineError::NameRefused(_)), "{err}");
+        let fits = format!("Docs/{}.txt", "\u{e9}".repeat(100));
+        assert!(apply.check_name(&fits).is_ok());
     }
 }

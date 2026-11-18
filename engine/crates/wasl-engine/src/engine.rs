@@ -1103,7 +1103,7 @@ impl Engine {
         }
         if !checked.clashes.is_empty() {
             notes.push(format!(
-                "{} name(s) weren't synced: one folder holds the same name twice, differing only in upper and lower case or in how accents are written, which Windows, macOS and phones treat as one name. Rename one of each (on Drive or on this device) and the next sync picks them up. An old folder that only files the pair ignores keep here counts too: move or delete those files. {}",
+                "{} name(s) weren't synced: one folder holds the same name twice, differing only in upper and lower case, in how accents are written, or in characters this device's disk can't hold (Wasl swaps those for look-alikes), which Windows, macOS and phones treat as one name. Rename one of each (on Drive or on this device) and the next sync picks them up. An old folder that only files the pair ignores keep here counts too: move or delete those files. {}",
                 checked.clashes.len(),
                 checked.clashes.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
             ));
@@ -1258,20 +1258,35 @@ impl Engine {
             return Ok(Vec::new());
         }
         let baseline = self.store.lock().load_baseline(&pair.id)?;
+        let name_rules = local.name_rules();
+        let base_input = PlanInput {
+            baseline: baseline.clone(),
+            local_rel_by_key: baseline
+                .iter()
+                .map(|(k, b)| (k.clone(), b.local_rel.clone()))
+                .collect(),
+            ..PlanInput::default()
+        };
+        // A row whose file sits on the device under its own name: the Drive name itself, or the
+        // name this disk gives it (`aux.txt` kept as `aux＿.txt`).
+        let own_name = |b: &wasl_core::BaselineEntry| {
+            b.local_rel == b.key || b.local_rel == mapped_local_rel_with(&b.key, &base_input, name_rules)
+        };
         let listed: std::collections::HashSet<&str> = remote.iter().map(|e| e.key.as_str()).collect();
         let by_id: HashMap<&str, &wasl_core::BaselineEntry> = baseline
             .values()
-            .filter(|b| !b.is_dir && b.local_rel == b.key)
+            .filter(|b| !b.is_dir && own_name(b))
             .filter_map(|b| b.remote_id.as_deref().map(|id| (id, b)))
             .collect();
         // A synced name Drive now spells differently (case, accents) is the same file even under a
         // new id: a device that renamed it uploaded it again (#137).
         let by_name: HashMap<String, &wasl_core::BaselineEntry> = baseline
             .values()
-            .filter(|b| !b.is_dir && b.local_rel == b.key && !listed.contains(b.key.as_str()))
+            .filter(|b| !b.is_dir && own_name(b) && !listed.contains(b.key.as_str()))
             .map(|b| (name_key(&b.key), b))
             .collect();
-        let mut moves: Vec<(wasl_core::BaselineEntry, String)> = Vec::new();
+        // (the row as it was, the new local name, the new Drive key)
+        let mut moves: Vec<(wasl_core::BaselineEntry, String, String)> = Vec::new();
         for e in remote.iter().filter(|e| !e.is_dir) {
             let Some(b) = by_id
                 .get(e.id.as_str())
@@ -1294,81 +1309,124 @@ impl Engine {
                     continue;
                 }
             }
-            if wasl_fs::check_rel(&e.key).is_err() || e.key.split('/').any(wasl_fs::is_internal_name) {
+            // The new place is the name this disk gives the Drive name, like any download's.
+            let to = mapped_local_rel_with(&e.key, &base_input, name_rules);
+            if wasl_fs::check_rel(&to).is_err()
+                || to.split('/').any(wasl_fs::is_internal_name)
+                || to
+                    .split('/')
+                    .any(|part| wasl_core::names::refusal(part, name_rules).is_some())
+            {
                 continue;
             }
-            moves.push((b, e.key.clone()));
+            moves.push((b, to, e.key.clone()));
         }
         if moves.is_empty() {
             return Ok(Vec::new());
         }
-        let fs = local.clone();
         let builder = rules_builder(pair);
-        let done: Vec<(wasl_core::BaselineEntry, String)> = tokio::task::spawn_blocking(move || {
+        let rules_fs = local.clone();
+        let moves: Vec<(wasl_core::BaselineEntry, String, String)> = tokio::task::spawn_blocking(move || {
+            let fs = rules_fs;
             let paths: Vec<&str> = moves
                 .iter()
-                .flat_map(|(b, to)| [b.key.as_str(), to.as_str()])
+                .flat_map(|(b, to, _)| [b.local_rel.as_str(), to.as_str()])
                 .collect();
             let Some(rules) = rules_along(fs.as_ref(), builder, &paths) else {
                 return Vec::new();
             };
-            let done: Vec<(wasl_core::BaselineEntry, String)> = moves
+            moves
                 .into_iter()
-                .filter(|(b, to)| !ignored_or_under(&rules, &b.key) && !ignored_or_under(&rules, to))
-                .filter(|(b, to)| {
-                    // Unchanged here since the last sync, and nothing at the new place.
-                    let clean = matches!(fs.stat(&b.local_rel), Ok(Some(d))
-                        if !d.is_dir && d.size == b.local_size && d.mtime_ms == b.local_mtime);
-                    if !clean || !place_is_free(fs.as_ref(), &b.local_rel, to) {
-                        return false;
-                    }
-                    if let Some((parent, _)) = to.rsplit_once('/')
-                        && fs.mkdir(parent).is_err()
-                    {
-                        return false;
-                    }
-                    fs.rename(&b.local_rel, to).is_ok()
-                })
-                .collect();
-            // A folder Drive respelled (`Docs` → `docs`) is a new folder on a device that keeps
-            // both spellings apart: remove the old one once the renames emptied it.
-            for (b, to) in &done {
-                let (mut from, mut to) = (b.local_rel.as_str(), to.as_str());
-                while let (Some((old, _)), Some((new, _))) = (from.rsplit_once('/'), to.rsplit_once('/')) {
-                    if old == new || !same_name(old, new) || !matches!(fs.remove_dir_if_empty(old), Ok(true))
-                    {
-                        break;
-                    }
-                    (from, to) = (old, new);
-                }
-            }
-            done
+                .filter(|(b, to, _)| !ignored_or_under(&rules, &b.local_rel) && !ignored_or_under(&rules, to))
+                .filter(|(b, to, _)| *to == b.local_rel || place_is_free(fs.as_ref(), &b.local_rel, to))
+                .collect()
         })
         .await
         .map_err(|e| EngineError::Other(e.to_string()))?;
-        let mut notes = Vec::new();
+        // The rename goes through the apply layer like any other change to a local file: its name
+        // is checked, it is skipped when the file changed since the baseline, and its steps are
+        // kill points.
+        let apply = Apply::new(self.store.clone(), local.clone(), self.clock.clone(), pair)
+            .expecting_entries(
+                baseline
+                    .values()
+                    .filter(|b| !b.is_dir)
+                    .map(|b| (b.local_rel.as_str(), false, b.local_size, b.local_mtime)),
+            );
+        #[cfg(any(test, feature = "test-support"))]
+        let apply = apply.with_fault(self.fault.clone());
+        let mut done: Vec<(wasl_core::BaselineEntry, String, String)> = Vec::new();
+        for (b, to, key) in moves {
+            if to != b.local_rel {
+                // Unchanged here since the last sync, and nothing at the new place.
+                if !apply.as_planned(&b.local_rel).await? {
+                    continue;
+                }
+                if let Some((parent, _)) = to.rsplit_once('/')
+                    && let Err(e) = apply.mkdir(parent).await
+                {
+                    if apply.killed() {
+                        return Err(e);
+                    }
+                    continue;
+                }
+                match apply.rename(&b.local_rel, &to).await {
+                    Ok(true) => {}
+                    Ok(false) => continue,
+                    Err(e) if apply.killed() => return Err(e),
+                    Err(_) => continue,
+                }
+            }
+            done.push((b, to, key));
+        }
+        if done.is_empty() {
+            return Ok(Vec::new());
+        }
+        // A folder Drive respelled (`Docs` → `docs`) is a new folder on a device that keeps both
+        // spellings apart: remove the old one once the renames emptied it.
+        {
+            let fs = local.clone();
+            let pairs: Vec<(String, String)> = done
+                .iter()
+                .map(|(b, to, _)| (b.local_rel.clone(), to.clone()))
+                .collect();
+            tokio::task::spawn_blocking(move || {
+                for (from, to) in &pairs {
+                    let (mut from, mut to) = (from.as_str(), to.as_str());
+                    while let (Some((old, _)), Some((new, _))) = (from.rsplit_once('/'), to.rsplit_once('/'))
+                    {
+                        if old == new
+                            || !same_name(old, new)
+                            || !matches!(fs.remove_dir_if_empty(old), Ok(true))
+                        {
+                            break;
+                        }
+                        (from, to) = (old, new);
+                    }
+                }
+            })
+            .await
+            .map_err(|e| EngineError::Other(e.to_string()))?;
+        }
         {
             let mut s = self.store.lock();
-            for (b, to) in &done {
+            for (b, to, key) in &done {
                 let mut moved = b.clone();
-                moved.key = to.clone();
+                moved.key = key.clone();
                 moved.local_rel = to.clone();
                 s.put_baseline(&pair.id, &moved)?;
                 s.remove_baseline(&pair.id, &b.key)?;
             }
         }
-        if !done.is_empty() {
-            notes.push(format!(
-                "Followed {} rename(s) made on Drive: {}",
-                done.len(),
-                done.iter()
-                    .take(5)
-                    .map(|(b, to)| format!("{} → {}", b.key, to))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ));
-        }
-        Ok(notes)
+        Ok(vec![format!(
+            "Followed {} rename(s) made on Drive: {}",
+            done.len(),
+            done.iter()
+                .take(5)
+                .map(|(b, _, key)| format!("{} → {}", b.key, key))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )])
     }
 
     fn planner_config(
