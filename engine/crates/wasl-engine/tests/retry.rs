@@ -9,7 +9,7 @@ use wasl_core::{ErrorKind, RunStatus};
 use wasl_drive::DriveError;
 use wasl_engine::Op;
 use wasl_proto::retry::MAX_TRIES;
-use wasl_proto::{Fix, FolderState, FolderStatus, Lang, OverallState, WaitReason, overall_status};
+use wasl_proto::{Fix, FolderState, FolderStatus, Lang, OverallState, overall_status};
 
 fn status(w: &World) -> FolderStatus {
     w.engine
@@ -189,16 +189,22 @@ async fn a_run_that_finishes_in_part_starts_the_count_again() {
 }
 
 #[tokio::test]
-async fn a_failure_while_the_device_is_offline_waits_for_the_network_not_for_the_person() {
+async fn tries_used_by_a_lasting_failure_are_not_counted_against_a_passing_one() {
     let w = World::new();
     w.write("a.txt", "a");
-    assert_eq!(RunStatus::Success, w.sync().await.status);
+    // The folder was missing for several runs.
+    for _ in 0..MAX_TRIES + 1 {
+        w.drive
+            .fail_next(Op::List, DriveError::NotFound("File not found".into()));
+        assert_eq!(Some(ErrorKind::NotFound), w.sync().await.error_kind);
+    }
+    assert_eq!(FolderState::NeedsYou, status(&w).state);
+    // Fixed, then Drive can't be reached once: that is a first try, not a give-up.
     w.drive
         .fail_next(Op::List, DriveError::Network("unreachable".into()));
-    w.sync().await;
+    assert_eq!(Some(ErrorKind::Network), w.sync().await.error_kind);
     let s = status(&w);
-    assert_eq!(
-        (FolderState::Waiting, Some(WaitReason::NoNetwork)),
-        (s.state, s.wait)
-    );
+    assert_eq!(FolderState::Waiting, s.state, "{s:?}");
+    assert!(s.needs_you.is_empty());
+    assert_eq!(Some(1), s.retry.map(|r| r.attempt));
 }

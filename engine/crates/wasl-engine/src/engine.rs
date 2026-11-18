@@ -897,6 +897,7 @@ impl Engine {
             return;
         };
         let mut st = current.status;
+        let failed_before = st.last_status == Some(RunStatus::Failed);
         st.last_run_at = Some(now);
         st.last_status = Some(status);
         match status {
@@ -907,9 +908,21 @@ impl Engine {
                 st.consecutive_failures = 0;
             }
             RunStatus::Failed => {
+                let new_kind = kind.unwrap_or(ErrorKind::Other);
+                // The count is of failures in a row for the same sort of reason: tries used up by a
+                // lasting failure (a folder that was missing for days) are not tries a passing
+                // failure has used (`wasl_proto::retry`).
+                let same_sort = failed_before
+                    && st
+                        .last_error_kind
+                        .is_some_and(|k| k.transient() == new_kind.transient());
                 st.last_error = message.map(str::to_owned);
-                st.last_error_kind = kind.or(Some(ErrorKind::Other));
-                st.consecutive_failures += 1;
+                st.last_error_kind = Some(new_kind);
+                st.consecutive_failures = if same_sort {
+                    st.consecutive_failures.saturating_add(1)
+                } else {
+                    1
+                };
             }
             // Drive answered and the run finished: it is not a failure in a row (the retry policy
             // counts only those, `wasl_proto::retry`); the items that failed wait for the next sync.

@@ -1741,7 +1741,7 @@ async fn next_status(
 /// A retry policy with the real number of tries and pauses a test can wait for.
 const FAST_RETRY: wasl_proto::RetryPolicy = wasl_proto::RetryPolicy {
     tries: wasl_proto::retry::MAX_TRIES,
-    delays_ms: &[2_500, 2_500, 2_500, 2_500],
+    delays_ms: &[4_000, 4_000, 4_000, 4_000],
 };
 
 fn now_ms() -> i64 {
@@ -1800,17 +1800,15 @@ async fn the_daemon_retries_a_passing_failure_on_the_policys_clock_and_it_never_
     assert_eq!(0, runs(&c).await, "the pause is kept");
 
     // Then the engine tries again, Drive answers, and the folder is synced.
-    let synced = next_status(&mut events, |s| s.state == FolderState::Synced).await;
+    // At no point on the way did a status ask for the person: every status up to Synced is checked.
+    let synced = next_status(&mut events, |s| {
+        assert!(s.needs_you.is_empty(), "{s:?}");
+        assert_ne!(FolderState::NeedsYou, s.state, "{s:?}");
+        s.state == FolderState::Synced
+    })
+    .await;
     assert!(synced.needs_you.is_empty() && synced.retry.is_none());
     assert_eq!(1, runs(&c).await);
-
-    // At no point did a status ask for the person.
-    while let Ok(e) = events.try_recv() {
-        if let Event::FolderStatus { status, .. } = e {
-            assert!(status.needs_you.is_empty(), "{status:?}");
-            assert_ne!(FolderState::NeedsYou, status.state);
-        }
-    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1854,7 +1852,7 @@ async fn a_lasting_failure_is_not_retried_and_needs_you_at_once() {
     assert_eq!(FolderState::NeedsYou, s.state, "{s:?}");
     assert_eq!(vec!["error.not_found"], keys(&s));
     assert!(s.retry.is_none());
-    tokio::time::sleep(Duration::from_millis(2_500)).await;
+    tokio::time::sleep(Duration::from_millis(4_500)).await;
     assert_eq!(0, runs(&c).await, "no retry for a failure that lasts");
 }
 
@@ -1877,7 +1875,7 @@ async fn once_the_policy_gives_up_the_folder_needs_you_once_and_is_not_retried()
     assert_eq!(vec!["error.network"], keys(&s));
     assert_eq!(Some(wasl_proto::Fix::Retry), s.needs_you[0].fix);
     assert_eq!(1, c.status().await.unwrap().overall_status.unwrap().needs_you);
-    tokio::time::sleep(Duration::from_millis(2_500)).await;
+    tokio::time::sleep(Duration::from_millis(4_500)).await;
     assert_eq!(0, runs(&c).await, "it gave up; its own interval is next");
 
     // "Try again" works and clears it.

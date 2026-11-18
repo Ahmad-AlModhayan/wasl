@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use wasl_core::RunStatus;
 use wasl_engine::Trigger;
-use wasl_proto::RetryPolicy;
+use wasl_proto::{ErrorKind, RetryPolicy};
 use wasl_store::Pair;
 
 /// Global interval when a pair says "follow the global setting" (interval 0).
@@ -231,6 +231,7 @@ pub async fn run(daemon: Arc<Daemon>, timing: Timing) {
                     let outcome = d.run(&id, trigger).await;
                     // The run's own record says whether the policy retries it.
                     let retried = outcome.status == RunStatus::Failed
+                        && outcome.error_kind.is_some_and(ErrorKind::transient)
                         && d.store
                             .lock()
                             .get_pair(&id)
