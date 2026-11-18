@@ -203,9 +203,16 @@ async fn a_restart_copy_is_taken_while_the_store_is_being_written() {
     use std::sync::atomic::{AtomicBool, Ordering};
     let n = node("Laptop");
     let store = n.daemon.store.clone();
-    let stop = Arc::new(AtomicBool::new(false));
+    // Stops the writer however the test ends, so a failed assertion leaves no thread spinning.
+    struct Stop(Arc<AtomicBool>);
+    impl Drop for Stop {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
+    let stop = Stop(Arc::new(AtomicBool::new(false)));
     let writer = {
-        let stop = stop.clone();
+        let stop = stop.0.clone();
         std::thread::spawn(move || {
             let mut at = 0;
             while !stop.load(Ordering::Relaxed) {
@@ -220,7 +227,7 @@ async fn a_restart_copy_is_taken_while_the_store_is_being_written() {
         let opened = wasl_store::Store::open(copy.join("wasl.db")).unwrap();
         assert!(opened.get_pair("p").unwrap().is_some(), "copy {i} has the pair");
     }
-    stop.store(true, Ordering::Relaxed);
+    drop(stop);
     writer.join().unwrap();
 }
 
