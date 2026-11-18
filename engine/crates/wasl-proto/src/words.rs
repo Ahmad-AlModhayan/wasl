@@ -670,9 +670,7 @@ pub const ENTRIES: &[Entry] = &[
     e(
         "account.sign_in_unreadable",
         Forms::single("Wasl has no usable sign-in saved for this account on this device. Sign in again."),
-        Forms::single(
-            "ليس لدى وصل تسجيل دخول صالح محفوظ لهذا الحساب على هذا الجهاز. سجّل الدخول مجددًا.",
-        ),
+        Forms::single("ليس لدى وصل تسجيل دخول صالح محفوظ لهذا الحساب على هذا الجهاز. سجّل الدخول مجددًا."),
         Some(SignInAgain),
         &[],
         "A row of the account list, or a problem listed without a folder: no usable sign-in is saved on this device (never saved here, or the keychain no longer gives it up). The account's email is shown beside these words, not inside them.",
