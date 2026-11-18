@@ -38,8 +38,12 @@ proptest.workspace = true
 wiremock.workspace = true
 filetime.workspace = true
 wasl-drive.workspace = true
+# The tests use the fault plan.
+wasl-engine = { path = ".", features = ["test-support"] }
 
 [features]
+# Test seams (a fault plan that stops a run at a named point); never enabled in a release build.
+test-support = []
 ffi = ["dep:uniffi", "wasl-proto/ffi", "wasl-core/ffi", "wasl-store/ffi"]
 
 [lints]

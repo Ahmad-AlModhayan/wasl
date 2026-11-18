@@ -67,7 +67,10 @@ impl Environment for TestEnv {
     }
 }
 
+pub mod kill;
+
 pub struct World {
+    pub config: EngineConfig,
     pub dir: tempfile::TempDir,
     pub drive: Arc<MemoryRemote>,
     pub env: Arc<TestEnv>,
@@ -164,8 +167,9 @@ impl World {
                 }
             })
         };
-        let engine = Engine::new(store, env.clone(), clock.clone(), config, Some(listener));
+        let engine = Engine::new(store, env.clone(), clock.clone(), config.clone(), Some(listener));
         World {
+            config,
             dir,
             drive,
             env,
@@ -174,6 +178,25 @@ impl World {
             pair_id: PAIR.into(),
             most_done,
         }
+    }
+
+    /// The process dies and starts again: a new engine over the same store, folder and Drive,
+    /// stopping where `fault` says (none: runs to the end). Runs a killed process left open are
+    /// closed, as the app does at start-up.
+    pub fn reopen(&mut self, fault: Option<Arc<wasl_engine::fault::FaultPlan>>) {
+        let store = self.engine.store().clone();
+        let mut engine = Engine::new(
+            store,
+            self.env.clone(),
+            self.clock.clone(),
+            self.config.clone(),
+            None,
+        );
+        if let Some(plan) = fault {
+            engine = engine.with_fault_plan(plan);
+        }
+        engine.recover().unwrap();
+        self.engine = engine;
     }
 
     pub fn path(&self, rel: &str) -> PathBuf {
@@ -696,5 +719,67 @@ impl LocalFs for FoldedFs {
     }
     fn purge_from_bin(&self, location: &str) -> std::io::Result<()> {
         self.inner.purge_from_bin(location)
+    }
+}
+
+/// A remote that runs `hook` once, right after its first download: a person editing the device
+/// while the run is under way, after the plan was made.
+pub struct Hooked {
+    pub inner: Arc<MemoryRemote>,
+    pub hook: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+}
+
+impl Hooked {
+    pub fn wrap(hook: impl FnOnce() + Send + 'static) -> Wrap {
+        Box::new(move |m| {
+            Arc::new(Hooked {
+                inner: m,
+                hook: Mutex::new(Some(Box::new(hook))),
+            })
+        })
+    }
+}
+
+#[async_trait]
+impl Remote for Hooked {
+    async fn list_subtree(&self, root_id: &str, drive_id: Option<&str>) -> wasl_drive::Result<Listing> {
+        self.inner.list_subtree(root_id, drive_id).await
+    }
+    async fn download(
+        &self,
+        entry: &RemoteEntry,
+        dest: &Path,
+        progress: ProgressFn<'_>,
+    ) -> wasl_drive::Result<()> {
+        self.inner.download(entry, dest, progress).await?;
+        let hook = self.hook.lock().unwrap().take();
+        if let Some(hook) = hook {
+            hook();
+        }
+        Ok(())
+    }
+    async fn export(
+        &self,
+        entry: &RemoteEntry,
+        mime: &str,
+        dest: &Path,
+        progress: ProgressFn<'_>,
+    ) -> wasl_drive::Result<()> {
+        self.inner.export(entry, mime, dest, progress).await
+    }
+    async fn upload(&self, spec: UploadSpec<'_>, progress: ProgressFn<'_>) -> wasl_drive::Result<RemoteInfo> {
+        self.inner.upload(spec, progress).await
+    }
+    async fn current(&self, id: &str) -> wasl_drive::Result<Option<RemoteInfo>> {
+        self.inner.current(id).await
+    }
+    async fn create_folder(&self, parent_id: &str, name: &str) -> wasl_drive::Result<RemoteInfo> {
+        self.inner.create_folder(parent_id, name).await
+    }
+    async fn trash(&self, id: &str) -> wasl_drive::Result<()> {
+        self.inner.trash(id).await
+    }
+    async fn untrash(&self, id: &str) -> wasl_drive::Result<()> {
+        self.inner.untrash(id).await
     }
 }

@@ -570,3 +570,29 @@ fn two_listed_names_are_never_one_file_for_a_rename() {
     assert!(fs_.rename(nfc, nfd).is_err());
     assert!(root.join(nfc).exists() && root.join(nfd).exists());
 }
+
+#[test]
+fn bin_copy_keeps_the_file_in_place_and_the_old_content_in_the_bin() {
+    let (dir, fs) = setup();
+    let root = dir.path().join("pair");
+    write(&root, "a.txt", "old");
+    let loc = fs.bin_copy("a.txt").unwrap().expect("a copy");
+    assert_eq!("old", read(&fs, "a.txt"), "the file is still where it was");
+    // The install swaps a new file in; the binned copy keeps the old bytes.
+    write(&root, "a.txt.wasl-part", "new");
+    fs.install(&root.join("a.txt.wasl-part"), "a.txt", None).unwrap();
+    assert_eq!("new", read(&fs, "a.txt"));
+    fs.restore_from_bin(&loc, "restored.txt").unwrap();
+    assert_eq!("old", read(&fs, "restored.txt"));
+}
+
+#[test]
+fn bin_copy_of_nothing_is_none_and_of_a_folder_is_unsupported() {
+    let (dir, fs) = setup();
+    write(&dir.path().join("pair"), "d/x.txt", "x");
+    assert_eq!(None, fs.bin_copy("missing.txt").unwrap());
+    assert_eq!(
+        std::io::ErrorKind::Unsupported,
+        fs.bin_copy("d").unwrap_err().kind()
+    );
+}

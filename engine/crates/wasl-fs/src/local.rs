@@ -44,8 +44,9 @@ pub trait LocalFs: Send + Sync {
     /// plain file system this sits next to the target, so installing is an atomic rename.
     fn staging_path(&self, rel: &str) -> io::Result<PathBuf>;
 
-    /// Puts the staged file at `rel`. The caller has already moved any previous file at `rel` to
-    /// the bin. Sets the modification time when given. Returns the installed entry.
+    /// Puts the staged file at `rel` (replacing a file already there in one atomic step), after
+    /// flushing the staged file to disk. Sets the modification time when given. Returns the
+    /// installed entry.
     fn install(&self, staged: &Path, rel: &str, mtime_ms: Option<i64>) -> io::Result<FsEntry>;
 
     /// Creates folder `rel` and any missing parents.
@@ -64,6 +65,18 @@ pub trait LocalFs: Send + Sync {
     /// that folds case. A folder that cannot tell says false.
     fn is_same_file(&self, _a: &str, _b: &str) -> io::Result<bool> {
         Ok(false)
+    }
+
+    /// Puts a copy of the file at `rel` in the recycle bin and leaves the file where it is, so the
+    /// caller can replace it atomically and still keep the old content (a hard link where the
+    /// volume allows, a copy otherwise). `None` when nothing is there. An error of kind
+    /// `Unsupported` means this file system (or this kind of item) can't, and the caller moves the
+    /// old item to the bin with [`LocalFs::move_to_bin`] before installing instead.
+    fn bin_copy(&self, _rel: &str) -> io::Result<Option<String>> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this file system cannot copy to the bin",
+        ))
     }
 
     /// Moves the file at `rel` to the recycle bin. Returns an opaque location for restoring it.

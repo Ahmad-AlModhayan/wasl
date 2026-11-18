@@ -2,6 +2,7 @@
 //! once, so an interrupted run resumes without repeating finished work (FR-B3). Folders first,
 //! then bookkeeping, then transfers in parallel, then deletions deepest first.
 
+use crate::apply::{Apply, BIN_RETENTION_MS, CHANGED_SINCE_PLANNED, CHANGED_SINCE_PLANNED_MESSAGE};
 use crate::error::{EngineError, Result};
 use crate::remote::{Remote, RemoteInfo, UploadSpec};
 use crate::support::{CancelToken, Clock, HashCache, Phase, Tracker, new_id};
@@ -27,10 +28,6 @@ fn child(parent: &str, name: &str) -> String {
     }
 }
 
-/// Local bin retention (FR-F5).
-pub const BIN_RETENTION_MS: i64 = 30 * 24 * 3600 * 1000;
-/// Overwritten versions kept per file in the local bin (FR-F5).
-pub const MAX_LOCAL_VERSIONS: u32 = 5;
 /// The start of a failed action's message, in words a user reads.
 fn failed_to(a: &Action) -> &'static str {
     match a {
@@ -76,6 +73,8 @@ pub(crate) struct Executor {
     /// Local names (under `name_key`) this plan's downloads write. An export moving off one of them
     /// leaves the old file to that download, which bins it as it installs (#139).
     pub incoming: Mutex<HashSet<String>>,
+    /// Every change to a local file goes through here.
+    pub apply: Apply,
 }
 
 impl Executor {
@@ -175,7 +174,7 @@ impl Executor {
     }
 
     fn stopped(&self) -> bool {
-        self.cancel.is_cancelled() || self.lock(&self.fatal).is_some()
+        self.cancel.is_cancelled() || self.apply.killed() || self.lock(&self.fatal).is_some()
     }
 
     fn lock<'a, T>(&self, m: &'a Mutex<T>) -> std::sync::MutexGuard<'a, T> {
@@ -394,44 +393,6 @@ impl Executor {
                 self.tracker.update(|p| p.bytes_done += delta);
             }
         }
-    }
-
-    /// Moves a local file to the bin and indexes it; trims old versions beyond the cap.
-    async fn bin_local(&self, key: &str, rel: &str, reason: &str) -> Result<()> {
-        let rel_owned = rel.to_owned();
-        let Some(st) = self.fs(move |fs| fs.stat(&rel_owned)).await? else {
-            return Ok(());
-        };
-        let rel_owned = rel.to_owned();
-        let location = self.fs(move |fs| fs.move_to_bin(&rel_owned)).await?;
-        let now = self.clock.now_ms();
-        let entry = NewBinEntry {
-            id: new_id(self.clock.as_ref()),
-            pair_id: self.pair.id.clone(),
-            side: BinSide::Local,
-            key: key.to_owned(),
-            reason: reason.to_owned(),
-            location,
-            deleted_at: now,
-            expires_at: now + BIN_RETENTION_MS,
-            size: st.size,
-            account_id: None,
-            remote_file_id: None,
-            display_name: Some(name_of(rel).to_owned()),
-            pair_name: Some(self.pair.name.clone()),
-        };
-        let excess = {
-            let s = self.store.lock();
-            s.add_to_bin(&entry)?;
-            s.excess_local_versions(&self.pair.id, key, MAX_LOCAL_VERSIONS)?
-        };
-        for old in excess {
-            let loc = old.entry.location.clone();
-            if self.fs(move |fs| fs.purge_from_bin(&loc)).await.is_ok() {
-                self.store.lock().remove_from_bin(&old.entry.id)?;
-            }
-        }
-        Ok(())
     }
 
     // ------------------------------------------------------------------ handlers
@@ -677,11 +638,10 @@ impl Executor {
         if self.pair.method == SyncMode::UploadThenDelete {
             // Only the version that was uploaded may go. A file edited during the upload stays, and
             // the next run uploads the new version.
-            let rel = local.rel.clone();
-            let now = self.fs(move |fs| fs.stat(&rel)).await?;
-            if now
-                .as_ref()
-                .is_none_or(|n| n.size != local.size || n.mtime_ms != local.mtime)
+            if !self
+                .apply
+                .remove_uploaded(&local.rel, local.size, local.mtime)
+                .await?
             {
                 self.event(
                     EventLevel::Warn,
@@ -693,8 +653,7 @@ impl Executor {
                 );
                 return Ok(());
             }
-            let rel = local.rel.clone();
-            self.fs(move |fs| fs.remove_file(&rel)).await?;
+            self.apply.before_record()?;
             self.store.lock().remove_baseline(&self.pair.id, key)?;
             self.event(
                 EventLevel::Info,
@@ -777,10 +736,15 @@ impl Executor {
                 )));
             }
         };
-        self.bin_local(key, local_rel, "OVERWRITTEN").await?;
-        let rel = local_rel.to_owned();
         let mtime = self.pair.preserve_mtime.then_some(remote.mtime);
-        let installed = self.fs(move |fs| fs.install(&staging, &rel, mtime)).await?;
+        let Some(installed) = self
+            .apply
+            .install(staging, key, local_rel, mtime, "OVERWRITTEN")
+            .await?
+        else {
+            return self.changed_since_planned(key);
+        };
+        self.apply.before_record()?;
         self.put_baseline(&BaselineEntry {
             key: key.to_owned(),
             local_rel: local_rel.to_owned(),
@@ -821,8 +785,13 @@ impl Executor {
         }
 
         if self.pair.method == SyncMode::DownloadThenDelete {
+            // Drive's bin first, then the row: a stop between the two leaves a tracked file whose
+            // Drive side is gone, which the planner forgets in this mode (nothing is lost and the
+            // Drive copy is already in its bin).
             self.remote.trash(&remote.id).await?;
+            self.apply.after_remote_trash()?;
             self.store.lock().remove_baseline(&self.pair.id, key)?;
+            self.apply.after_row_removed()?;
             self.event(
                 EventLevel::Info,
                 "DELETE_REMOTE",
@@ -832,6 +801,20 @@ impl Executor {
                 0,
             );
         }
+        Ok(())
+    }
+
+    /// A file the plan meant to replace or remove was left alone because it changed since.
+    fn changed_since_planned(&self, key: &str) -> Result<()> {
+        self.lock(&self.stats).skipped += 1;
+        self.event(
+            EventLevel::Warn,
+            CHANGED_SINCE_PLANNED,
+            Some(key),
+            CHANGED_SINCE_PLANNED_MESSAGE,
+            None,
+            0,
+        );
         Ok(())
     }
 
@@ -867,7 +850,7 @@ impl Executor {
                 Some(st)
                     if !held && !st.is_dir && st.size == p.local_size && st.mtime_ms == p.local_mtime =>
                 {
-                    self.bin_local(key, &p.local_rel, "OVERWRITTEN").await?;
+                    self.apply.bin(key, &p.local_rel, "OVERWRITTEN").await?;
                 }
                 Some(_) => self.event(
                     EventLevel::Info,
@@ -883,10 +866,15 @@ impl Executor {
                 None => {}
             }
         }
-        self.bin_local(key, local_rel, "OVERWRITTEN").await?;
-        let rel = local_rel.to_owned();
         let mtime = self.pair.preserve_mtime.then_some(remote.mtime);
-        let installed = self.fs(move |fs| fs.install(&staging, &rel, mtime)).await?;
+        let Some(installed) = self
+            .apply
+            .install(staging, key, local_rel, mtime, "OVERWRITTEN")
+            .await?
+        else {
+            return self.changed_since_planned(key);
+        };
+        self.apply.before_record()?;
         self.put_baseline(&BaselineEntry {
             key: key.to_owned(),
             local_rel: local_rel.to_owned(),
@@ -921,6 +909,9 @@ impl Executor {
     async fn delete_local(&self, key: &str, local_rel: &str, is_dir: bool, reason: &str) -> Result<()> {
         let mut size = 0;
         if is_dir {
+            if !self.apply.as_planned(local_rel).await? {
+                return self.changed_since_planned(key);
+            }
             let rel = local_rel.to_owned();
             let (removed, exists) = self
                 .fs(move |fs| Ok((fs.remove_dir_if_empty(&rel)?, fs.stat(&rel)?.is_some())))
@@ -940,7 +931,10 @@ impl Executor {
         } else {
             let rel = local_rel.to_owned();
             size = self.fs(move |fs| fs.stat(&rel)).await?.map_or(0, |s| s.size);
-            self.bin_local(key, local_rel, "DELETED").await?;
+            if !self.apply.delete(key, local_rel, "DELETED").await? {
+                return self.changed_since_planned(key);
+            }
+            self.apply.before_record()?;
             self.store.lock().remove_baseline(&self.pair.id, key)?;
         }
         self.lock(&self.stats).deleted_local += 1;

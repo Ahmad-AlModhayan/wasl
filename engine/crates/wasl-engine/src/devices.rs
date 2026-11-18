@@ -26,8 +26,8 @@ use wasl_ignore::IgnoreRules;
 use wasl_net::{DeviceId, IndexPage, Offer, PeerError, PeerLink, PeerResult, PeerService, ShareId};
 use wasl_store::{BinSide, NewBinEntry, Pair, SharedStore};
 
+use crate::apply::BIN_RETENTION_MS;
 use crate::error::{EngineError, Result};
-use crate::executor::BIN_RETENTION_MS;
 use crate::support::{Clock, new_id};
 use futures_util::StreamExt;
 

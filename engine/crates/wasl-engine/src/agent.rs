@@ -1,9 +1,9 @@
 //! Agent changes (docs/AGENT_CHANGES.md): an agent's session in a folder of a pair becomes a
 //! changeset whose files stay out of sync until the user accepts it or reverts it.
 
+use crate::apply::BIN_RETENTION_MS;
 use crate::engine::{Engine, rules_builder};
 use crate::error::{EngineError, Result};
-use crate::executor::BIN_RETENTION_MS;
 use crate::support::new_id;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io;
