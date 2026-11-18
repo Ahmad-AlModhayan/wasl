@@ -70,6 +70,114 @@ falling back to English.
 - Arabic (many): {count} مجلدًا يحتاج إليك
 - Arabic (other): {count} مجلد يحتاج إليك
 
+## `overall.partly_synced`
+
+- Note: Short status of the whole app when a folder's last run moved some files and not others. Not 'synced', not 'failed'.
+- Values: none
+- Fix: none
+- English: Partly synced
+- Arabic: تمت المزامنة جزئيًا
+
+## `status.items_need_you`
+
+- Note: Badge or heading on the home screen. {count} is the number of needs-you items across all folders (one folder can hold several).
+- Values: count
+- Fix: none
+- English (one): {count} thing needs you
+- English (other): {count} things need you
+- Arabic (zero): لا شيء يحتاج إليك
+- Arabic (one): شيء واحد يحتاج إليك
+- Arabic (two): شيئان يحتاجان إليك
+- Arabic (few): {count} أشياء تحتاج إليك
+- Arabic (many): {count} شيئًا يحتاج إليك
+- Arabic (other): {count} شيء يحتاج إليك
+
+## `folder.synced`
+
+- Note: A folder whose last run moved everything and which has nothing waiting.
+- Values: folder
+- Fix: none
+- English: {folder} is up to date.
+- Arabic: {folder} محدَّث.
+
+## `folder.syncing`
+
+- Note: A folder is syncing now.
+- Values: folder
+- Fix: none
+- English: Syncing {folder}…
+- Arabic: تجري مزامنة {folder}…
+
+## `folder.off`
+
+- Note: The person turned the folder off; nothing syncs.
+- Values: folder
+- Fix: none
+- English: {folder} is turned off.
+- Arabic: {folder} غير مفعّل.
+
+## `folder.paused`
+
+- Note: The person paused the folder; it syncs again when resumed.
+- Values: folder
+- Fix: none
+- English: {folder} is paused.
+- Arabic: {folder} متوقف مؤقتًا.
+
+## `folder.waiting_no_network`
+
+- Note: The device is offline, or the last run couldn't reach Google Drive. Nothing is lost; the next sync carries on.
+- Values: folder
+- Fix: `retry`
+- English: {folder} will sync when Wasl is back online.
+- Arabic: ستتم مزامنة {folder} عندما يعود وصل إلى الاتصال بالإنترنت.
+
+## `folder.waiting_schedule`
+
+- Note: The folder's own conditions hold the next run (Wi-Fi, charging, battery, VPN), or its first sync hasn't come round yet.
+- Values: folder
+- Fix: none
+- English: {folder} is waiting for the right time to sync.
+- Arabic: {folder} ينتظر الوقت المناسب للمزامنة.
+
+## `folder.needs_you`
+
+- Note: Heading of a folder that has needs-you items; each item has its own entry.
+- Values: folder
+- Fix: none
+- English: {folder} needs you.
+- Arabic: {folder} يحتاج إليك.
+
+## `folder.first_preview`
+
+- Note: A new folder waits for the person to start it from the first preview. Nothing moves until then.
+- Values: folder
+- Fix: `review`
+- English: Look over what Wasl will do in {folder}, then start syncing.
+- Arabic: راجع ما سيفعله وصل في {folder} ثم ابدأ المزامنة.
+
+## `folder.needs_approval`
+
+- Note: A safety guard (many deletions, for example) stopped the run and waits for the person's yes.
+- Values: folder
+- Fix: `review`
+- English: Wasl stopped {folder} to check with you before a large change.
+- Arabic: أوقف وصل {folder} ليسألك قبل إجراء تغيير كبير.
+
+## `folder.conflicts`
+
+- Note: Open conflicts wait for the person. {count} is the number of files.
+- Values: folder, count
+- Fix: `review`
+- English (one): {count} file in {folder} was changed in two places and needs your choice.
+- English (other): {count} files in {folder} were changed in two places and need your choice.
+- Arabic (zero): لا ملفات في {folder} تحتاج إلى اختيارك.
+- Arabic (one): ملف واحد في {folder} تغيّر في مكانين ويحتاج إلى اختيارك.
+- Arabic (two): ملفان في {folder} تغيّرا في مكانين ويحتاجان إلى اختيارك.
+- Arabic (few): {count} ملفات في {folder} تغيّرت في مكانين وتحتاج إلى اختيارك.
+- Arabic (many): {count} ملفًا في {folder} تغيّرت في مكانين وتحتاج إلى اختيارك.
+- Arabic (other): {count} ملف في {folder} تغيّرت في مكانين وتحتاج إلى اختيارك.
+
 ## `run.partial`
 
 - Note: Shown after a run that finished with some items failing. {count} is how many items failed; Details has the first cause.

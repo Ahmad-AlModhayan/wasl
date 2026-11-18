@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::{Mutex, mpsc, oneshot};
 use wasl_proto::{
     BinEntry, Changeset, ChangesetDetails, ConflictChoice, ConflictDetails, ConflictRecord, ConflictUndo,
-    DeletionReview, FileVersions, JournalReport, OplogFilter, OplogPage, Pair, Preview, RestoreResult,
+    DeletionReview, FileVersions, JournalReport, Lang, OplogFilter, OplogPage, Pair, Preview, RestoreResult,
     RevertReport, RunEvent, RunOutcome, RunRecord, Trigger, VersionRef, Watch,
 };
 
@@ -163,7 +163,22 @@ impl Client {
 
     /// Starts the event stream; call once per connection.
     pub async fn subscribe(&self) -> Result<mpsc::UnboundedReceiver<Event>, ClientError> {
-        self.call::<()>(Request::Subscribe).await?;
+        self.subscribe_with(None).await
+    }
+
+    /// [`Client::subscribe`], also receiving [`Event::FolderStatus`] with the words in `lang`.
+    pub async fn subscribe_statuses(
+        &self,
+        lang: Lang,
+    ) -> Result<mpsc::UnboundedReceiver<Event>, ClientError> {
+        self.subscribe_with(Some(lang)).await
+    }
+
+    async fn subscribe_with(
+        &self,
+        status_lang: Option<Lang>,
+    ) -> Result<mpsc::UnboundedReceiver<Event>, ClientError> {
+        self.call::<()>(Request::Subscribe { status_lang }).await?;
         self.events
             .lock()
             .await
@@ -174,7 +189,11 @@ impl Client {
     // ---------------------------------------------------------------- typed calls
 
     pub async fn status(&self) -> Result<DaemonStatus, ClientError> {
-        self.call(Request::Status).await
+        self.call(Request::Status { lang: None }).await
+    }
+    /// [`Client::status`] with the folder statuses and the overall status worded in `lang`.
+    pub async fn status_in(&self, lang: Lang) -> Result<DaemonStatus, ClientError> {
+        self.call(Request::Status { lang: Some(lang) }).await
     }
     pub async fn pairs(&self) -> Result<Vec<Pair>, ClientError> {
         self.call(Request::Pairs).await

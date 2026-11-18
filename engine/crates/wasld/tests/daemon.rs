@@ -8,6 +8,7 @@ use wasl_core::conditions::Conditions;
 use wasl_drive::DriveEndpoints;
 use wasl_engine::Trigger;
 use wasl_ipc::{Client, ErrorKind, Event, Overall, Paths};
+use wasl_proto::{FolderState, FolderStatus, Lang, OverallState, WaitReason};
 use wasl_store::{ChangesetExt, Pair, StorageMode};
 use wasld::daemon::DaemonConfig;
 use wasld::oauth::OAuthConfig;
@@ -992,7 +993,8 @@ async fn a_new_pair_waits_for_its_preview_before_anything_moves() {
     assert!(g.uploads.lock().unwrap().is_empty());
     let st = c.status().await.unwrap();
     assert!(st.pairs[0].pair.status.hold_for_preview);
-    assert_eq!(Overall::Waiting, st.overall);
+    // A folder waiting for its first preview is something only the person can move on: needs you.
+    assert_eq!(Overall::NeedsYou, st.overall);
 
     // A manual sync is refused the same way; the preview's start runs it.
     let manual = c.sync("p1", Trigger::Manual).await.unwrap();
@@ -1376,4 +1378,325 @@ async fn a_held_changeset_survives_deleting_and_recreating_its_pair() {
     // Once the person settles the changeset, the pair can be removed.
     c.agent_revert(&held.id).await.unwrap();
     c.delete_pair("p1").await.unwrap();
+}
+
+// ---------------------------------------------------------------- one status per folder (#29)
+
+async fn folder(c: &Client, id: &str) -> FolderStatus {
+    let st = c.status().await.unwrap();
+    st.pairs
+        .into_iter()
+        .find(|p| p.pair.id == id)
+        .and_then(|p| p.status)
+        .expect("the daemon sends each folder's status")
+}
+
+fn keys(s: &FolderStatus) -> Vec<&str> {
+    s.needs_you.iter().map(|r| r.key.as_str()).collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_waiting_for_its_first_preview_needs_you() {
+    let g = google().await;
+    let d = start(&g, true).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let mut p = pair(&d.root);
+    p.status.hold_for_preview = true;
+    c.create_pair(p).await.unwrap();
+
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::NeedsYou, s.state, "{s:?}");
+    assert_eq!(vec!["folder.first_preview"], keys(&s));
+    assert_eq!(Some(wasl_proto::Fix::Review), s.needs_you[0].fix);
+    let st = c.status().await.unwrap();
+    let overall = st.overall_status.unwrap();
+    assert_eq!(OverallState::NeedsYou, overall.state);
+    assert_eq!(1, overall.needs_you);
+    assert_eq!(Overall::NeedsYou, st.overall, "the older field says the same");
+
+    // Starting from the preview moves it on: synced, nothing asked of the person.
+    assert_eq!(
+        RunStatus::Success,
+        c.sync("p1", Trigger::Preview).await.unwrap().status
+    );
+    let s = folder(&c, "p1").await;
+    assert_eq!(
+        (FolderState::Synced, "folder.synced"),
+        (s.state, s.words.key.as_str())
+    );
+    assert!(s.needs_you.is_empty());
+    assert_eq!(1, s.last_runs.len());
+    assert_eq!(RunStatus::Success, s.last_runs[0].status);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_partial_run_is_partly_synced_never_synced_or_failed() {
+    let g = google().await;
+    // Drive answers an upload of a file called bad-... with content that isn't the file's: that file
+    // fails its check and the rest of the run goes on.
+    Mock::given(method("POST"))
+        .and(path("/upload/drive/v3/files"))
+        .and(wiremock::matchers::body_string_contains("\"name\":\"bad"))
+        .respond_with(json(
+            r#"{"id":"X","name":"bad.txt","mimeType":"text/plain","parents":["A"],"size":"1","md5Checksum":"00000000000000000000000000000000","version":"1"}"#
+                .into(),
+        ))
+        .with_priority(1)
+        .mount(&g.server)
+        .await;
+    let d = start(&g, true).await;
+    std::fs::write(d.root.join("bad.txt"), "refused").unwrap();
+    std::fs::write(d.root.join("good.txt"), "fine").unwrap();
+    let c = Client::connect(&d.paths).await.unwrap();
+    c.create_pair(pair(&d.root)).await.unwrap();
+    let run = c.sync("p1", Trigger::Preview).await.unwrap();
+    assert_eq!(RunStatus::Partial, run.status, "{:?}", run.message);
+
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::PartlySynced, s.state, "{s:?}");
+    assert_eq!(1, s.counts.not_moved);
+    assert!(s.words.key.starts_with("run.partial"), "{}", s.words.key);
+    assert!(s.needs_you.is_empty());
+    let st = c.status().await.unwrap();
+    let overall = st.overall_status.unwrap();
+    assert_eq!(OverallState::PartlySynced, overall.state);
+    assert_eq!("Partly synced", overall.words.text);
+    assert_ne!(Overall::UpToDate, st.overall, "never 'synced'");
+    assert_eq!(RunStatus::Partial, s.last_runs[0].status);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_full_local_disk_needs_you_with_the_storage_fix() {
+    let g = google().await;
+    // The full-disk error is what the system says; the platform's own number makes it "disk full".
+    let os_error = if cfg!(windows) { 112 } else { 28 };
+    let d = start_seeded(
+        &g,
+        true,
+        None,
+        None,
+        Some(&|store| {
+            let mut p = pair(std::path::Path::new("/seeded"));
+            p.status.last_status = Some(RunStatus::Failed);
+            p.status.last_error_kind = Some(wasl_proto::ErrorKind::Io);
+            p.status.last_error = Some(format!("write failed (os error {os_error})"));
+            p.status.last_run_at = Some(1);
+            p.status.consecutive_failures = 1;
+            store.create_pair(&p).unwrap();
+        }),
+    )
+    .await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::NeedsYou, s.state, "{s:?}");
+    assert_eq!(vec!["error.disk_full"], keys(&s));
+    assert_eq!(Some(wasl_proto::Fix::OpenStorageSettings), s.needs_you[0].fix);
+    assert_eq!(1, c.status().await.unwrap().overall_status.unwrap().needs_you);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_signed_out_account_needs_you_to_sign_in_again() {
+    let g = google().await;
+    // The account's sign-in was refused earlier (its row says so), and the keychain has no token.
+    let d = start_seeded(
+        &g,
+        false,
+        None,
+        None,
+        Some(&|store| {
+            store.set_account_email(ME, ME).unwrap();
+            store
+                .set_account_auth_error(ME, Some("Sign in to this Google account again."))
+                .unwrap();
+            let mut p = pair(std::path::Path::new("/seeded"));
+            p.status.hold_for_preview = false;
+            store.create_pair(&p).unwrap();
+        }),
+    )
+    .await;
+    let c = Client::connect(&d.paths).await.unwrap();
+
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::NeedsYou, s.state, "{s:?}");
+    assert_eq!(vec!["error.auth"], keys(&s), "one item, not one per cause");
+    assert_eq!(Some(wasl_proto::Fix::SignInAgain), s.needs_you[0].fix);
+    let st = c.status().await.unwrap();
+    assert_eq!(Overall::NeedsYou, st.overall);
+    assert_eq!(
+        1,
+        st.overall_status.unwrap().needs_you,
+        "the account's item is the folder's, counted once"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_paused_folder_is_waiting_because_paused() {
+    let g = google().await;
+    let d = start(&g, true).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    c.create_pair(pair(&d.root)).await.unwrap();
+    c.sync("p1", Trigger::Preview).await.unwrap();
+    c.set_paused("p1", true, None).await.unwrap();
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::Waiting, s.state, "{s:?}");
+    assert_eq!(Some(WaitReason::Paused), s.wait);
+    assert_eq!("folder.paused", s.words.key);
+    assert_eq!(Overall::Paused, c.status().await.unwrap().overall);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn no_network_is_waiting_not_failed() {
+    let g = google().await;
+    let d = start(&g, true).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    c.create_pair(pair(&d.root)).await.unwrap();
+    assert_eq!(
+        RunStatus::Success,
+        c.sync("p1", Trigger::Preview).await.unwrap().status
+    );
+    drop(g); // Google can't be reached any more
+    let run = c.sync("p1", Trigger::Manual).await.unwrap();
+    assert_eq!(RunStatus::Failed, run.status, "{:?}", run.message);
+
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::Waiting, s.state, "{s:?}");
+    assert_eq!(Some(WaitReason::NoNetwork), s.wait);
+    assert_eq!("folder.waiting_no_network", s.words.key);
+    assert!(s.needs_you.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn conditions_that_hold_the_next_run_are_waiting_for_the_schedule() {
+    let g = google().await;
+    let d = start(&g, true).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let mut p = pair(&d.root);
+    p.conditions.require_vpn = true; // this computer has none up
+    c.create_pair(p).await.unwrap();
+    c.sync("p1", Trigger::Preview).await.unwrap();
+    let s = folder(&c, "p1").await;
+    assert_eq!(
+        (FolderState::Waiting, Some(WaitReason::Schedule)),
+        (s.state, s.wait),
+        "{s:?}"
+    );
+    assert_eq!(Some(wasl_proto::Blocker::WaitingForVpn), s.blocker);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_needs_you_count_is_the_number_of_needs_you_items_across_folders() {
+    let g = google().await;
+    let d = start(&g, true).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let other = d.root.parent().unwrap().join("Other");
+    std::fs::create_dir_all(&other).unwrap();
+    for (id, root) in [("p1", d.root.clone()), ("p2", other)] {
+        let mut p = pair(&root);
+        p.id = id.into();
+        p.name = id.into();
+        p.status.hold_for_preview = true;
+        c.create_pair(p).await.unwrap();
+    }
+    let st = c.status().await.unwrap();
+    let items: usize = st
+        .pairs
+        .iter()
+        .map(|p| p.status.as_ref().unwrap().needs_you.len())
+        .sum();
+    let overall = st.overall_status.unwrap();
+    assert_eq!(2, items);
+    assert_eq!(
+        items as u32, overall.needs_you,
+        "the count is the number of items"
+    );
+    assert_eq!(OverallState::NeedsYou, overall.state);
+    assert_eq!("2 things need you", overall.needs_you_words.unwrap().text);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_status_request_takes_a_language() {
+    let g = google().await;
+    let d = start(&g, true).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let mut p = pair(&d.root);
+    p.status.hold_for_preview = true;
+    c.create_pair(p).await.unwrap();
+
+    let en = c.status_in(Lang::En).await.unwrap();
+    let ar = c.status_in(Lang::Ar).await.unwrap();
+    let (en_f, ar_f) = (
+        en.pairs[0].status.clone().unwrap(),
+        ar.pairs[0].status.clone().unwrap(),
+    );
+    assert_eq!(keys(&en_f), keys(&ar_f), "the same keys");
+    assert_eq!(
+        en_f.needs_you[0].values, ar_f.needs_you[0].values,
+        "the same values"
+    );
+    assert_eq!(en_f.needs_you[0].fix, ar_f.needs_you[0].fix);
+    assert_eq!(
+        "Look over what Wasl will do in Sync, then start syncing.",
+        en_f.needs_you[0].text
+    );
+    assert_eq!(
+        "راجع ما سيفعله وصل في Sync ثم ابدأ المزامنة.",
+        ar_f.needs_you[0].text
+    );
+    assert_eq!("Needs you", en.overall_status.as_ref().unwrap().words.text);
+    assert_eq!("يحتاج إليك", ar.overall_status.as_ref().unwrap().words.text);
+    // No language asked: English.
+    assert_eq!(en_f, folder(&c, "p1").await);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_status_change_sends_an_event_with_the_new_status() {
+    let g = google().await;
+    let d = start(&g, true).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let mut events = c.subscribe_statuses(Lang::Ar).await.unwrap();
+    let plain = Client::connect(&d.paths).await.unwrap();
+    let mut plain_events = plain.subscribe().await.unwrap();
+
+    let mut p = pair(&d.root);
+    p.status.hold_for_preview = true;
+    c.create_pair(p).await.unwrap();
+    let first = next_status(&mut events, |s| s.state == FolderState::NeedsYou).await;
+    assert_eq!(vec!["folder.first_preview"], keys(&first));
+    assert!(
+        first.words.text.contains("يحتاج"),
+        "worded in Arabic: {}",
+        first.words.text
+    );
+
+    c.sync("p1", Trigger::Preview).await.unwrap();
+    let synced = next_status(&mut events, |s| s.state == FolderState::Synced).await;
+    assert_eq!("folder.synced", synced.words.key);
+
+    // A client that didn't ask never gets the event, and still gets the others.
+    let mut saw_changed = false;
+    while let Ok(Some(e)) = tokio::time::timeout(Duration::from_millis(300), plain_events.recv()).await {
+        assert!(!matches!(e, Event::FolderStatus { .. }), "{e:?}");
+        saw_changed |= matches!(e, Event::Changed);
+    }
+    assert!(saw_changed);
+}
+
+async fn next_status(
+    events: &mut tokio::sync::mpsc::UnboundedReceiver<Event>,
+    want: impl Fn(&FolderStatus) -> bool,
+) -> FolderStatus {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            match events.recv().await {
+                Some(Event::FolderStatus { pair_id, status }) if want(&status) => {
+                    assert_eq!("p1", pair_id);
+                    return *status;
+                }
+                Some(_) => continue,
+                None => panic!("events ended"),
+            }
+        }
+    })
+    .await
+    .expect("the status event arrives")
 }

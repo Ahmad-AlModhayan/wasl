@@ -4340,6 +4340,7 @@ dependencies = [
  "wasl-ipc",
  "wasl-net",
  "wasl-pairs",
+ "wasl-proto",
  "wasl-store",
  "wasl-vfs",
  "wasl-vfs-fuse",

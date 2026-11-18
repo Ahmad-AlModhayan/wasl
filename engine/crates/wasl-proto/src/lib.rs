@@ -12,6 +12,7 @@ pub mod model;
 pub mod oplog;
 pub mod presets;
 pub mod run;
+pub mod status;
 pub mod store;
 pub mod words;
 
@@ -38,6 +39,10 @@ pub use oplog::{
 };
 pub use presets::{PRESET_IDS, is_valid_preset_id};
 pub use run::{ErrorKind, RunStatus};
+pub use status::{
+    Facts, FolderCounts, FolderState, FolderStatus, LastRun, OverallState, OverallStatus, WaitReason,
+    folder_status, overall_status,
+};
 pub use store::{
     AgentEntry, BinEntry, BinSide, Changeset, ChangesetStatus, ConflictRecord, DEFAULT_WATCH_IGNORES,
     EarlierVersion, EntryKind, EventLevel, JournalEntry, ManifestRow, NewBinEntry, NextMeta, Pair,

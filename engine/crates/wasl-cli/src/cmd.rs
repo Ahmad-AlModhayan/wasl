@@ -344,7 +344,40 @@ fn progress_text(p: &Progress) -> String {
     s
 }
 
-/// One word or phrase for where a pair is, with its tone.
+fn overall_tone(state: wasl_proto::OverallState) -> Tone {
+    use wasl_proto::OverallState as O;
+    match state {
+        O::Synced => Tone::Good,
+        O::Syncing => Tone::Busy,
+        O::Idle | O::Paused | O::Waiting => Tone::Quiet,
+        O::PartlySynced | O::NeedsYou => Tone::Bad,
+    }
+}
+
+/// A folder's line from the status the daemon decided: what needs the person when something does,
+/// else the state's words; the live progress while it runs. Nothing here decides a state.
+fn folder_line(ps: &PairState, fs: &wasl_proto::FolderStatus) -> (String, Tone) {
+    use wasl_proto::FolderState as F;
+    let tone = match fs.state {
+        F::Synced => Tone::Good,
+        F::Syncing => Tone::Busy,
+        F::Waiting | F::Off => Tone::Quiet,
+        F::PartlySynced | F::NeedsYou | F::Failed => Tone::Bad,
+    };
+    if fs.state == F::Syncing
+        && let Some(pr) = &ps.progress
+    {
+        return (progress_text(pr), tone);
+    }
+    if fs.needs_you.is_empty() {
+        return (fs.words.text.clone(), tone);
+    }
+    let items: Vec<&str> = fs.needs_you.iter().map(|r| r.text.as_str()).collect();
+    (items.join("; "), tone)
+}
+
+/// One word or phrase for where a pair is, with its tone. Only for a daemon that sends no folder
+/// status (an older one).
 fn pair_state(ps: &PairState, accounts: &[Account]) -> (String, Tone) {
     let p = &ps.pair;
     if ps.running {
@@ -406,11 +439,16 @@ fn summary_changes(s: &PlanSummary) -> String {
 
 async fn status(json: bool) -> R<u8> {
     let c = connect().await?;
-    let st: DaemonStatus = c.status().await?;
+    // The daemon words each folder's status in the language this command speaks, so `--json` and the
+    // table below carry the same sentences.
+    let st: DaemonStatus = c.status_in(words::lang()).await?;
     if json {
         return print_json(&st);
     }
-    let (overall, tone) = overall_label(st.overall);
+    let (overall, tone) = match &st.overall_status {
+        Some(o) => (o.words.text.clone(), overall_tone(o.state)),
+        None => overall_label(st.overall),
+    };
     println!("{}", paint(&t!(StatusHeader, st.version, overall), tone));
     for a in st.accounts.iter().filter(|a| a.auth_error.is_some()) {
         println!("{}", paint(&t!(AccountNeedsSignIn, a.email), Tone::Bad));
@@ -422,7 +460,10 @@ async fn status(json: bool) -> R<u8> {
     println!();
     let mut rows = vec![vec![t!(ColName), t!(ColFolders), t!(ColState), t!(ColLastSync)]];
     for ps in &st.pairs {
-        let (state, tone) = pair_state(ps, &st.accounts);
+        let (state, tone) = match &ps.status {
+            Some(fs) => folder_line(ps, fs),
+            None => pair_state(ps, &st.accounts),
+        };
         rows.push(vec![
             ps.pair.name.clone(),
             folders(&ps.pair),

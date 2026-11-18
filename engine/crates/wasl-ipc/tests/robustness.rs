@@ -58,7 +58,7 @@ fn frames() -> Vec<String> {
         cache_limit: Some(1 << 30),
     };
     let requests = [
-        Request::Status,
+        Request::Status { lang: None },
         Request::Pair { id: "p-1".into() },
         Request::Setting {
             key: "bandwidth".into(),
@@ -77,7 +77,7 @@ fn frames() -> Vec<String> {
             passphrase: Passphrase::new("correct horse"),
         },
         Request::AddView { view },
-        Request::Subscribe,
+        Request::Subscribe { status_lang: None },
     ];
     let mut out: Vec<String> = requests
         .into_iter()

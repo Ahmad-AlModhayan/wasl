@@ -43,6 +43,42 @@ struct Fake {
     request_error: Mutex<Option<ErrorKind>>,
     /// When set, the failing device list says this instead of "boom".
     request_message: Mutex<Option<String>>,
+    /// When set, Status carries the engine's folder statuses (as the real daemon does).
+    with_status: std::sync::atomic::AtomicBool,
+    /// The language each Status request asked for.
+    status_langs: Mutex<Vec<Option<wasl_proto::Lang>>>,
+}
+
+/// The statuses the daemon would send: Photos waits for its first preview, the rest are synced.
+fn canned_status(id: &str, name: &str, lang: wasl_proto::Lang) -> wasl_proto::FolderStatus {
+    use wasl_proto::{FolderCounts, FolderState, FolderStatus, Values, words::render};
+    let v = Values::default().folder(name);
+    let say = |key: &str| render(key, &v, lang, None, &[], &mut |_| {});
+    let first = id == PHOTOS;
+    FolderStatus {
+        pair_id: id.into(),
+        name: name.into(),
+        state: if first {
+            FolderState::NeedsYou
+        } else {
+            FolderState::Synced
+        },
+        wait: None,
+        blocker: None,
+        words: say(if first {
+            "folder.needs_you"
+        } else {
+            "folder.synced"
+        }),
+        needs_you: if first {
+            vec![say("folder.first_preview")]
+        } else {
+            Vec::new()
+        },
+        counts: FolderCounts::default(),
+        last_synced_at: None,
+        last_runs: Vec::new(),
+    }
 }
 
 const DEV: &str = "WASL-0123-4567-89AB-CDEF-GHJK-MNPQ-RSTV";
@@ -188,7 +224,10 @@ fn progress(pair_id: &str) -> Progress {
 impl Handler for Fake {
     async fn handle(&self, request: Request) -> Result<serde_json::Value, RemoteError> {
         match request {
-            Request::Status => {
+            Request::Status { lang } => {
+                self.status_langs.lock().unwrap().push(lang);
+                let with_status = self.with_status.load(std::sync::atomic::Ordering::SeqCst);
+                let words_lang = lang.unwrap_or(wasl_proto::Lang::En);
                 let accounts = if self.accounts_empty.load(std::sync::atomic::Ordering::SeqCst) {
                     Vec::new()
                 } else {
@@ -211,19 +250,36 @@ impl Handler for Fake {
                             }
                             pair
                         })
-                        .map(|pair| PairState {
-                            pair,
-                            running: false,
-                            progress: None,
-                            open_conflicts: 0,
-                            blocked: false,
-                            folder_bytes: None,
-                            skipped: None,
-                            peers: Vec::new(),
-                            free_bytes: None,
+                        .map(|pair| {
+                            let status = with_status.then(|| canned_status(&pair.id, &pair.name, words_lang));
+                            PairState {
+                                pair,
+                                running: false,
+                                progress: None,
+                                open_conflicts: 0,
+                                blocked: false,
+                                folder_bytes: None,
+                                skipped: None,
+                                peers: Vec::new(),
+                                free_bytes: None,
+                                status,
+                            }
                         })
                         .collect(),
                     overall: Overall::UpToDate,
+                    overall_status: with_status.then(|| wasl_proto::OverallStatus {
+                        state: wasl_proto::OverallState::NeedsYou,
+                        words: wasl_proto::words::render(
+                            "overall.needs_you",
+                            &wasl_proto::Values::default(),
+                            words_lang,
+                            None,
+                            &[],
+                            &mut |_| {},
+                        ),
+                        needs_you: 1,
+                        needs_you_words: None,
+                    }),
                 })
             }
             Request::Pairs => ok(pairs()),
@@ -598,6 +654,58 @@ async fn status_json_is_machine_readable() {
     assert_eq!("up_to_date", v["overall"]);
     assert_eq!(5, v["pairs"].as_array().unwrap().len());
     assert_eq!("Photos", v["pairs"][0]["pair"]["name"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn status_draws_what_the_daemon_decided_in_the_clis_language() {
+    let d = start();
+    d.fake
+        .with_status
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let r = wasl(d.dir.path(), "en", &["status"]).await;
+    assert_eq!(0, r.code, "{}", r.stderr);
+    assert!(r.stdout.contains("Wasl (wasld test): Needs you"), "{}", r.stdout);
+    let photos = r.stdout.lines().find(|l| l.starts_with("Photos")).unwrap();
+    assert!(
+        photos.contains("Look over what Wasl will do in Photos"),
+        "{photos}"
+    );
+    let work = r.stdout.lines().find(|l| l.starts_with("Work")).unwrap();
+    assert!(work.contains("Work is up to date."), "{work}");
+    assert_eq!(
+        Some(&Some(wasl_proto::Lang::En)),
+        d.fake.status_langs.lock().unwrap().last(),
+        "the CLI asks for its own language"
+    );
+
+    let r = wasl(d.dir.path(), "ar", &["status"]).await;
+    assert_eq!(0, r.code, "{}", r.stderr);
+    assert_eq!(
+        Some(&Some(wasl_proto::Lang::Ar)),
+        d.fake.status_langs.lock().unwrap().last()
+    );
+    assert!(r.stdout.contains("يحتاج إليك"), "{}", r.stdout);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn status_json_gives_an_agent_exactly_what_the_daemon_decided() {
+    let d = start();
+    d.fake
+        .with_status
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let r = wasl(d.dir.path(), "en", &["status", "--json"]).await;
+    assert_eq!(0, r.code, "{}", r.stderr);
+    let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    assert_eq!("needs_you", v["overall_status"]["state"]);
+    assert_eq!(1, v["overall_status"]["needs_you"]);
+    let photos = &v["pairs"][0]["status"];
+    assert_eq!("needs_you", photos["state"]);
+    assert_eq!("folder.first_preview", photos["needs_you"][0]["key"]);
+    assert_eq!("review", photos["needs_you"][0]["fix"]);
+    assert_eq!("synced", v["pairs"][1]["status"]["state"]);
+    // The same value the daemon sent, not a CLI reading of it.
+    let sent = canned_status(PHOTOS, "Photos", wasl_proto::Lang::En);
+    assert_eq!(serde_json::to_value(&sent).unwrap(), *photos);
 }
 
 #[tokio::test(flavor = "multi_thread")]

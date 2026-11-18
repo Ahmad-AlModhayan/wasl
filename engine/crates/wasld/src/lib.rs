@@ -11,6 +11,7 @@ pub mod miqyas;
 pub mod oauth;
 pub mod provider;
 pub mod schedule;
+pub mod status;
 pub mod tokens;
 pub mod vault;
 pub mod vaults;
@@ -27,6 +28,7 @@ pub async fn serve(paths: &Paths, cfg: DaemonConfig, timing: schedule::Timing) -
     let server = Server::bind(paths, Arc::new(Ipc(daemon.clone())), env!("CARGO_PKG_VERSION"))
         .map_err(|e| format!("Cannot open the local socket: {e}"))?;
     daemon.attach_events(server.events());
+    let statusing = tokio::spawn(status::run(daemon.clone(), server.events()));
     let serving = tokio::spawn(server.serve());
     let scheduling = tokio::spawn(schedule::run(daemon.clone(), timing));
     // Read-only views: mounted now, refreshed on their schedule.
@@ -92,6 +94,7 @@ pub async fn serve(paths: &Paths, cfg: DaemonConfig, timing: schedule::Timing) -
     // Let the last answers and the ShuttingDown event reach the clients.
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     scheduling.abort();
+    statusing.abort();
     viewing.abort();
     journaling.abort();
     // Views disconnect; their folders stay set up for the next start.
