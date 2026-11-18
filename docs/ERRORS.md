@@ -21,7 +21,7 @@ problem has a fix in plain words.
 
 One **error catalogue** in the engine. Every error Wasl shows (pair status, run history,
 notifications, Problems, the desktop window, the CLI) comes from a catalogue entry, which says
-three things. (The command line is catalogue-worded in `status`, `sync`, `problems`, `history`, `account list` and request failures. Its `--json` output carries, beside each daemon field, the entry's `key`, `values` and `fix` for an agent to read; the raw cause stays out of every line and, redacted, shows only as Details behind `--details`.)
+three things. (The command line is catalogue-worded in `status`, `sync`, `problems`, `history`, `account list` and request failures. Its `--json` output carries, beside each daemon field, the entry's `key`, `values` and `fix` for an agent to read; the raw cause stays out of every line a person reads and, redacted, shows there only as Details behind `--details`; in `--json` the redacted raw text stays in its old field for compatibility and an agent reads the entry beside it.)
 
 1. **What happened**, naming the file or pair.
 2. **What Wasl did** ("Skipped it; the rest of LifeOS synced").
@@ -126,6 +126,8 @@ absent when the folder isn't being retried). `wasl problems` leaves out a folder
 
 ### Failures people hit (issues #33 and #44)
 
+No command or screen lists a run's per-file events yet, so the words for the two run events (`FILE_GONE`, `NAME_REFUSED`) are ready in the catalogue (`render_event`) and reach a screen once one does.
+
 Each failure below has its own entry in both languages, says what happened and what to do, names only the
 file or the folder, and arrives typed (a marker or a stored value, never a guess from the message text):
 
@@ -133,4 +135,4 @@ file or the folder, and arrives typed (a marker or a stored value, never a guess
 - a full disk or quota (`error.disk_full`, `error.disk_quota`, `error.quota`);
 - the synced folder itself gone from this device: `ErrorKind::FolderMissing` (`error.folder_missing`), which needs the person at once and is never retried;
 - a name the disk refuses: run event `NAME_REFUSED` (`error.name_refused`);
-- why a sign-in is needed: `SignInCause` on the account, `Ended` (Google no longer accepts it, `error.auth`, `account.sign_in_ended`) or `Unreadable` (the saved sign-in can't be read on this device, `error.sign_in_unreadable`, `account.sign_in_unreadable`). An older daemon sends no cause and that reads as `Ended`.
+- why a sign-in is needed: `SignInCause` on the account, `Ended` (Google no longer accepts it, `error.auth`, `account.sign_in_ended`) or `Unreadable` (no usable sign-in is saved on this device: never saved here, or the keychain no longer gives it up, `error.sign_in_unreadable`, `account.sign_in_unreadable`). An older daemon sends no cause and that reads as `Ended`.

@@ -370,11 +370,11 @@ falling back to English.
 
 ## `error.sign_in_unreadable`
 
-- Note: The sign-in saved on this device (in the system's keychain) is missing or can't be read. Contrast error.auth: Google no longer accepts a sign-in Wasl can read.
+- Note: No usable sign-in is saved on this device: it was never saved here, or the system's keychain no longer gives it up. Contrast error.auth: Google no longer accepts a sign-in Wasl can read.
 - Values: folder
 - Fix: `sign_in_again`
-- English: Wasl can't read the Google sign-in it saved on this device, so {folder} can't sync. Sign in again.
-- Arabic: لا يستطيع وصل قراءة تسجيل الدخول إلى Google المحفوظ على هذا الجهاز، لذلك لا يمكن مزامنة {folder}. سجّل الدخول مجددًا.
+- English: Wasl has no usable Google sign-in saved on this device, so {folder} can't sync. Sign in again.
+- Arabic: ليس لدى وصل تسجيل دخول صالح إلى Google محفوظ على هذا الجهاز، لذلك لا يمكن مزامنة {folder}. سجّل الدخول مجددًا.
 
 ## `account.sign_in_ended`
 
@@ -386,11 +386,11 @@ falling back to English.
 
 ## `account.sign_in_unreadable`
 
-- Note: A row of the account list, or a problem listed without a folder: the sign-in saved on this device is missing or can't be read. The account's email is shown beside these words, not inside them.
+- Note: A row of the account list, or a problem listed without a folder: no usable sign-in is saved on this device (never saved here, or the keychain no longer gives it up). The account's email is shown beside these words, not inside them.
 - Values: none
 - Fix: `sign_in_again`
-- English: Wasl can't read the sign-in it saved for this account on this device. Sign in again.
-- Arabic: لا يستطيع وصل قراءة تسجيل الدخول المحفوظ لهذا الحساب على هذا الجهاز. سجّل الدخول مجددًا.
+- English: Wasl has no usable sign-in saved for this account on this device. Sign in again.
+- Arabic: ليس لدى وصل تسجيل دخول صالح محفوظ لهذا الحساب على هذا الجهاز. سجّل الدخول مجددًا.
 
 ## `error.invalid`
 

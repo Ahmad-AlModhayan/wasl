@@ -650,14 +650,14 @@ pub const ENTRIES: &[Entry] = &[
     e(
         "error.sign_in_unreadable",
         Forms::single(
-            "Wasl can't read the Google sign-in it saved on this device, so {folder} can't sync. Sign in again.",
+            "Wasl has no usable Google sign-in saved on this device, so {folder} can't sync. Sign in again.",
         ),
         Forms::single(
-            "لا يستطيع وصل قراءة تسجيل الدخول إلى Google المحفوظ على هذا الجهاز، لذلك لا يمكن مزامنة {folder}. سجّل الدخول مجددًا.",
+            "ليس لدى وصل تسجيل دخول صالح إلى Google محفوظ على هذا الجهاز، لذلك لا يمكن مزامنة {folder}. سجّل الدخول مجددًا.",
         ),
         Some(SignInAgain),
         &[Folder],
-        "The sign-in saved on this device (in the system's keychain) is missing or can't be read. Contrast error.auth: Google no longer accepts a sign-in Wasl can read.",
+        "No usable sign-in is saved on this device: it was never saved here, or the system's keychain no longer gives it up. Contrast error.auth: Google no longer accepts a sign-in Wasl can read.",
     ),
     e(
         "account.sign_in_ended",
@@ -669,13 +669,13 @@ pub const ENTRIES: &[Entry] = &[
     ),
     e(
         "account.sign_in_unreadable",
-        Forms::single("Wasl can't read the sign-in it saved for this account on this device. Sign in again."),
+        Forms::single("Wasl has no usable sign-in saved for this account on this device. Sign in again."),
         Forms::single(
-            "لا يستطيع وصل قراءة تسجيل الدخول المحفوظ لهذا الحساب على هذا الجهاز. سجّل الدخول مجددًا.",
+            "ليس لدى وصل تسجيل دخول صالح محفوظ لهذا الحساب على هذا الجهاز. سجّل الدخول مجددًا.",
         ),
         Some(SignInAgain),
         &[],
-        "A row of the account list, or a problem listed without a folder: the sign-in saved on this device is missing or can't be read. The account's email is shown beside these words, not inside them.",
+        "A row of the account list, or a problem listed without a folder: no usable sign-in is saved on this device (never saved here, or the keychain no longer gives it up). The account's email is shown beside these words, not inside them.",
     ),
     e(
         "error.invalid",
