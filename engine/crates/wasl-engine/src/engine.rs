@@ -14,7 +14,7 @@ use std::time::Duration;
 use wasl_core::conditions::{Blocker, DeviceState, blocker};
 use wasl_core::guards::GuardConfig;
 use wasl_core::identity::{adopt_drive_identity, name_key, same_name, same_name_or_under};
-use wasl_core::planner::{SIZE_LIMIT_SKIP, mapped_local_rel, over_size_limit};
+use wasl_core::planner::{SIZE_LIMIT_SKIP, mapped_local_rel_with, over_size_limit};
 use wasl_core::{
     ErrorKind, LocalEntry, PlanInput, PlanSummary, Planner, PlannerConfig, RemoteEntry, RunStatus, SyncPlan,
 };
@@ -998,6 +998,7 @@ impl Engine {
                     .await?,
             );
         }
+        let name_rules = local.name_rules();
         let baseline = self.store.lock().load_baseline(&pair.id)?;
         let mut local_rel_by_key: BTreeMap<String, String> = baseline
             .iter()
@@ -1019,7 +1020,7 @@ impl Engine {
         };
         let mut key_by_mapped_rel: HashMap<String, String> = HashMap::new();
         for k in remote_by_key.keys() {
-            let rel = mapped_local_rel(k, &base_input);
+            let rel = mapped_local_rel_with(k, &base_input, name_rules);
             if &rel != k {
                 key_by_mapped_rel.insert(rel, k.clone());
             }
@@ -1077,7 +1078,7 @@ impl Engine {
         };
         for k in input.remote.keys().cloned().collect::<Vec<_>>() {
             if !input.local_rel_by_key.contains_key(&k) {
-                let rel = mapped_local_rel(&k, &input);
+                let rel = mapped_local_rel_with(&k, &input, name_rules);
                 input.local_rel_by_key.insert(k, rel);
             }
         }
@@ -1125,7 +1126,7 @@ impl Engine {
 
         let scanned = started.elapsed();
         tracker.update(|p| p.phase = Phase::Planning);
-        let cfg = self.planner_config(pair, approve)?;
+        let cfg = self.planner_config(pair, approve, name_rules)?;
         let hashes = self.hash_memo(&pair.id);
         let plan = {
             let fs = local.clone();
@@ -1373,7 +1374,12 @@ impl Engine {
         Ok(notes)
     }
 
-    fn planner_config(&self, pair: &Pair, approve: bool) -> Result<PlannerConfig> {
+    fn planner_config(
+        &self,
+        pair: &Pair,
+        approve: bool,
+        name_rules: wasl_core::names::NameRules,
+    ) -> Result<PlannerConfig> {
         let s = self.store.lock();
         let num = |key: &str, default: u32| -> Result<u32> {
             Ok(s.setting(key)?.and_then(|v| v.parse().ok()).unwrap_or(default))
@@ -1392,6 +1398,7 @@ impl Engine {
                 first_merge_guard: true,
                 approved_once: approve,
             },
+            name_rules,
         })
     }
 

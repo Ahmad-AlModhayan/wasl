@@ -21,6 +21,7 @@ fn cfg(mode: SyncMode) -> PlannerConfig {
             first_merge_guard: false,
             ..GuardConfig::default()
         },
+        name_rules: Default::default(),
     }
 }
 

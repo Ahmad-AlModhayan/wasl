@@ -12,7 +12,7 @@ use crate::model::{
     Action, BaselineEntry, ConflictPolicy, DocsFormat, LocalEntry, PlanInput, PlanSummary, RemoteEntry,
     SyncMode, SyncPlan,
 };
-use crate::names::to_local_name;
+use crate::names::{NameRules, to_local_name_with};
 use crate::paths::{depth, name_of, parent_of};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -38,6 +38,8 @@ pub struct PlannerConfig {
     pub docs_export: bool,
     pub docs_format: DocsFormat,
     pub guards: GuardConfig,
+    /// What the pair's disk refuses in a name: Drive names are mapped under these rules.
+    pub name_rules: NameRules,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -119,6 +121,11 @@ impl Planner {
 
 /// Maps every path segment of `key` to a local name, reusing already-mapped parents when known.
 pub fn mapped_local_rel(key: &str, input: &PlanInput) -> String {
+    mapped_local_rel_with(key, input, NameRules::PORTABLE)
+}
+
+/// [`mapped_local_rel`] under the rules of the disk the names land on.
+pub fn mapped_local_rel_with(key: &str, input: &PlanInput, rules: NameRules) -> String {
     let parent = parent_of(key);
     let parent_local = if parent.is_empty() {
         String::new()
@@ -128,9 +135,9 @@ pub fn mapped_local_rel(key: &str, input: &PlanInput) -> String {
             .get(parent)
             .or_else(|| input.baseline.get(parent).map(|b| &b.local_rel))
             .cloned()
-            .unwrap_or_else(|| mapped_local_rel(parent, input))
+            .unwrap_or_else(|| mapped_local_rel_with(parent, input, rules))
     };
-    join(&parent_local, &to_local_name(name_of(key)))
+    join(&parent_local, &to_local_name_with(name_of(key), rules))
 }
 
 /// Export mirror path: derived from the Drive name, so switching formats yields `notes.pdf`, not
@@ -139,10 +146,11 @@ pub fn export_local_rel(
     parent_local_rel: &str,
     remote_name: &str,
     target: crate::docs::ExportTarget,
+    rules: NameRules,
 ) -> String {
     join(
         parent_local_rel,
-        &export_local_name(&to_local_name(remote_name), target),
+        &export_local_name(&to_local_name_with(remote_name, rules), target),
     )
 }
 
@@ -155,10 +163,11 @@ pub fn export_distinct_local_rel(
     google_mime: &str,
     target: crate::docs::ExportTarget,
     n: u32,
+    rules: NameRules,
 ) -> String {
     join(
         parent_local_rel,
-        &export_distinct_name(&to_local_name(remote_name), google_mime, target, n),
+        &export_distinct_name(&to_local_name_with(remote_name, rules), google_mime, target, n),
     )
 }
 
@@ -264,18 +273,23 @@ impl<'a> Ctx<'a> {
         if let Some(b) = base
             && b.export_mime.is_some()
             && parent_of(&b.local_rel) == parent
-            && is_export_distinct_name(name_of(&b.local_rel), &to_local_name(name), google_mime, target)
+            && is_export_distinct_name(
+                name_of(&b.local_rel),
+                &to_local_name_with(name, self.cfg.name_rules),
+                google_mime,
+                target,
+            )
             && !self.claimed_by_other(key, &b.local_rel)
         {
             return b.local_rel.clone();
         }
-        let plain = export_local_rel(parent, name, target);
+        let plain = export_local_rel(parent, name, target, self.cfg.name_rules);
         if !self.claimed_by_other(key, &plain) {
             return plain;
         }
         let mut n = 1;
         loop {
-            let rel = export_distinct_local_rel(parent, name, google_mime, target, n);
+            let rel = export_distinct_local_rel(parent, name, google_mime, target, n, self.cfg.name_rules);
             if !self.claimed_by_other(key, &rel) {
                 return rel;
             }
@@ -527,7 +541,7 @@ impl<'a> Ctx<'a> {
             .get(key)
             .or(base.map(|b| &b.local_rel))
             .cloned()
-            .unwrap_or_else(|| mapped_local_rel(key, input));
+            .unwrap_or_else(|| mapped_local_rel_with(key, input, self.cfg.name_rules));
 
         if l.is_some_and(|l| l.is_dir) || r.is_some_and(|r| r.is_dir) || base.is_some_and(|b| b.is_dir) {
             return self.plan_dir(key, base, l, r, &local_rel);

@@ -194,3 +194,94 @@ fn conflict_name_device_and_stamp_cannot_add_path_components() {
     assert!(!out.contains('/'), "{out}");
     assert_eq!("a (conflicted copy from ..／Pixel／x, 2026／10／19).txt", out);
 }
+
+// ---------------------------------------------------------------- Windows' rules (wasl#18)
+
+mod windows_rules {
+    use wasl_core::names::{NameRefusal, NameRules, refusal, to_local_name_with};
+
+    const WIN: NameRules = NameRules::drive(true);
+    const NAMES: &[&str] = &[
+        "CON",
+        "con",
+        "aux.txt",
+        "Nul.tar.gz",
+        "COM1",
+        "lpt9.log",
+        "COM\u{b9}",
+        "con .txt",
+        "report.",
+        "notes ",
+        "dots...",
+        "a:b.txt",
+        "REPORT~1.DOC",
+        "x\u{1}y",
+        "plain.txt",
+    ];
+
+    #[test]
+    fn a_name_windows_refuses_is_mapped_to_one_it_accepts() {
+        for n in NAMES {
+            let local = to_local_name_with(n, WIN);
+            assert_eq!(None, refusal(&local, WIN), "{n:?} -> {local:?}");
+            assert!(
+                !local.ends_with('.') && !local.ends_with(' ') && !local.contains(':'),
+                "{n:?} -> {local:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_listed_names_map_to_stable_names() {
+        assert_eq!("CON＿", to_local_name_with("CON", WIN));
+        assert_eq!("aux＿.txt", to_local_name_with("aux.txt", WIN));
+        assert_eq!("report．", to_local_name_with("report.", WIN));
+        assert_eq!("notes␣", to_local_name_with("notes ", WIN));
+        assert_eq!("a：b.txt", to_local_name_with("a:b.txt", WIN));
+        assert_eq!("REPORT～1.DOC", to_local_name_with("REPORT~1.DOC", WIN));
+    }
+
+    #[test]
+    fn a_name_that_is_fine_stays_as_it_is() {
+        for n in ["plain.txt", "console.txt", "auxiliary", "com10", "é.txt", "a.b.c"] {
+            assert_eq!(n, to_local_name_with(n, WIN), "{n}");
+        }
+    }
+
+    #[test]
+    fn the_mapping_is_the_same_every_time_and_without_windows_rules_only_the_portable_one() {
+        for n in NAMES {
+            assert_eq!(to_local_name_with(n, WIN), to_local_name_with(n, WIN));
+        }
+        assert_eq!("aux.txt", to_local_name_with("aux.txt", NameRules::drive(false)));
+        assert_eq!("a：b", to_local_name_with("a:b", NameRules::drive(false)));
+    }
+
+    #[test]
+    fn names_from_another_device_are_left_alone_unless_this_disk_is_windows() {
+        let linux = NameRules::device(false);
+        for n in ["a:b.txt", "aux.txt", "report.", "a*b", "x\u{1}y"] {
+            assert_eq!(n, to_local_name_with(n, linux), "{n}");
+        }
+        assert_eq!("a：b.txt", to_local_name_with("a:b.txt", NameRules::device(true)));
+        assert_eq!(
+            "aux＿.txt",
+            to_local_name_with("aux.txt", NameRules::device(true))
+        );
+    }
+
+    #[test]
+    fn a_long_name_is_cut_and_the_rest_of_the_rules_still_apply() {
+        let long = format!("{}.", "a".repeat(400));
+        let local = to_local_name_with(&long, WIN);
+        assert!(local.len() <= 255, "{}", local.len());
+        assert_eq!(None, refusal(&local, WIN));
+    }
+
+    #[test]
+    fn a_name_the_disk_refuses_after_mapping_is_a_typed_reason() {
+        assert_eq!(Some(NameRefusal::TooLong), refusal(&"a".repeat(256), WIN));
+        assert_eq!(Some(NameRefusal::Reserved), refusal("aux.txt", WIN));
+        assert_eq!(None, refusal("aux.txt", NameRules::drive(false)));
+    }
+}

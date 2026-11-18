@@ -64,6 +64,7 @@ fn plans_100k_keys_within_budget() {
         docs_export: true,
         docs_format: DocsFormat::Office,
         guards: GuardConfig::default(),
+        name_rules: Default::default(),
     });
     let start = Instant::now();
     let plan = planner.plan_with(&input, |_| "h2".into());

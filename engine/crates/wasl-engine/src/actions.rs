@@ -10,7 +10,7 @@ use crate::support::{CancelToken, Tracker, new_id};
 use std::sync::{Arc, Mutex};
 use wasl_core::names::conflict_name;
 use wasl_core::paths::{name_of, parent_of};
-use wasl_core::planner::mapped_local_rel;
+use wasl_core::planner::mapped_local_rel_with;
 use wasl_core::{Action, PlanInput, PlanSummary, RunStatus, SyncPlan};
 use wasl_fs::LocalFs;
 use wasl_store::{BinEntry, BinSide, NewBinEntry, Pair, RunStats};
@@ -44,12 +44,13 @@ impl Engine {
         let base = self.store.lock().load_baseline(&pair.id)?;
         Ok(match base.get(key) {
             Some(b) => b.local_rel.clone(),
-            None => mapped_local_rel(
+            None => mapped_local_rel_with(
                 key,
                 &PlanInput {
                     baseline: base,
                     ..PlanInput::default()
                 },
+                self.env.local_fs(pair)?.name_rules(),
             ),
         })
     }
