@@ -44,6 +44,9 @@ pub struct TestEnv {
     pub folding: Mutex<Option<Folding>>,
     /// Set to make the folder refuse names as Windows does, on any host (see [`WindowsNamesFs`]).
     pub windows_names: Mutex<bool>,
+    /// Set to make the folder refuse names as Windows does but say nothing of it to the mapper, so
+    /// a name reaches the disk unmapped and is refused there (see [`refusing_windows_names_fs`]).
+    pub unmapped_windows_names: Mutex<bool>,
 }
 
 impl Environment for TestEnv {
@@ -51,6 +54,9 @@ impl Environment for TestEnv {
         let fs = Arc::new(StdFs::new(&self.root, &self.bin));
         if *self.windows_names.lock().unwrap() {
             return Ok(windows_names_fs(fs));
+        }
+        if *self.unmapped_windows_names.lock().unwrap() {
+            return Ok(refusing_windows_names_fs(fs));
         }
         if let Some(folding) = *self.folding.lock().unwrap() {
             return Ok(Arc::new(FoldedFs {
@@ -153,6 +159,7 @@ impl World {
             slow_opens: Mutex::new(None),
             folding: Mutex::new(None),
             windows_names: Mutex::new(false),
+            unmapped_windows_names: Mutex::new(false),
         });
         let store = SharedStore::new(Store::open_in_memory().unwrap());
         let mut pair = Pair::new(PAIR, "Sync", env.root.to_str().unwrap());
@@ -794,11 +801,25 @@ impl Remote for Hooked {
 /// device name, `:`, a trailing dot or space) is refused before it reaches the disk, as `check_rel`
 /// does on Windows, and the mapper is told to apply Windows' rules.
 pub fn windows_names_fs(inner: Arc<dyn LocalFs>) -> Arc<dyn LocalFs> {
-    Arc::new(WindowsNamesFs { inner })
+    Arc::new(WindowsNamesFs {
+        inner,
+        says_windows: true,
+    })
+}
+
+/// Like [`windows_names_fs`], but the mapper is told the portable rules only: a name Windows
+/// refuses (`REPORT~1.DOC`) is not mapped and the disk refuses it (a disk whose rules are not the
+/// ones it enforces).
+pub fn refusing_windows_names_fs(inner: Arc<dyn LocalFs>) -> Arc<dyn LocalFs> {
+    Arc::new(WindowsNamesFs {
+        inner,
+        says_windows: false,
+    })
 }
 
 struct WindowsNamesFs {
     inner: Arc<dyn LocalFs>,
+    says_windows: bool,
 }
 
 fn win(rel: &str) -> std::io::Result<&str> {
@@ -807,7 +828,7 @@ fn win(rel: &str) -> std::io::Result<&str> {
 
 impl LocalFs for WindowsNamesFs {
     fn name_rules(&self) -> wasl_core::names::NameRules {
-        wasl_core::names::NameRules::drive(true)
+        wasl_core::names::NameRules::drive(self.says_windows)
     }
     fn list(&self, dir: &str) -> std::io::Result<Vec<wasl_fs::FsEntry>> {
         self.inner.list(win(dir)?)

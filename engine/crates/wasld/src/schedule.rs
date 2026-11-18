@@ -12,6 +12,10 @@
 //! path in the folder (a rescan, an overflow, a watcher error) always counts, and so does a flood
 //! of more than `MAX_PATHS` paths.
 //!
+//! A watcher sees only what happens after it starts, so a pair whose watcher has just started
+//! (a new or resumed pair, a daemon that just started) and is not running runs once after the
+//! settle time, as if a change that named no path had been seen (issue #38).
+//!
 //! A run that is skipped (its conditions, device sync off), fails, is blocked or is cancelled takes
 //! nothing, and the pair waits `Timing::skip_wait` before it tries again. A partial run takes what
 //! was seen before it and also waits, so its failed items are not retried on every tick.
@@ -175,6 +179,11 @@ pub async fn run(daemon: Arc<Daemon>, timing: Timing) {
             }
             if let Some(w) = watch(id, &p.local_root, changed.clone()) {
                 watchers.insert((*id).to_owned(), w);
+                // A run in flight scanned after the pair became active, and a change it missed is
+                // followed up like any change while it runs; only a pair at rest has a gap.
+                if !daemon.engine.is_running(id) {
+                    catch_up(&changed, id, Instant::now());
+                }
             }
         }
 
@@ -284,6 +293,15 @@ fn settled(
         return false;
     }
     true
+}
+
+/// A watcher only sees what happens after it starts, and the pair's last run scanned before that:
+/// a file saved in between would wait for the interval (issue #38). So a new watcher on a pair at
+/// rest notes one change that names no path, and the pair runs once after the settle time to catch
+/// up. This also covers a daemon that was not running, and a pair that was paused or had instant
+/// sync off.
+fn catch_up(changed: &Mutex<HashMap<String, Seen>>, id: &str, now: Instant) {
+    lock(changed).entry(id.to_owned()).or_default().note(None, now);
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -441,6 +459,17 @@ mod tests {
         s.drop_synced(&[("downloaded.txt".to_owned(), t)]);
         assert!(!s.is_empty(), "a rescan still runs the pair");
         assert_eq!(Some(t), s.latest());
+    }
+
+    #[test]
+    fn a_new_watcher_leaves_one_change_that_names_no_path_for_the_pair_to_catch_up_on() {
+        let changed = Mutex::new(HashMap::new());
+        let t = Instant::now();
+        catch_up(&changed, "p", t);
+        let ch = lock(&changed);
+        let seen = &ch["p"];
+        assert_eq!(Some(t), seen.unnamed, "settled() runs the pair for it");
+        assert!(seen.paths.is_empty());
     }
 
     #[test]

@@ -126,34 +126,49 @@ pub fn to_local_name_with(remote_name: &str, rules: NameRules) -> String {
     if out.is_empty() {
         out.push_str("＿unnamed");
     }
-    // Keep under the byte limit while preserving the extension when possible (with room for the
-    // up to three bytes Windows' rules add).
-    let limit = if rules.windows {
-        MAX_NAME_BYTES - '＿'.len_utf8()
-    } else {
-        MAX_NAME_BYTES
-    };
-    if rules.reserved_chars && out.len() > limit {
-        let ext = out.rsplit_once('.').map_or("", |(_, ext)| ext);
-        let ext_part = if !ext.is_empty() && utf16_len(ext) < 16 {
-            format!(".{ext}")
-        } else {
-            String::new()
-        };
-        let mut base = out.strip_suffix(ext_part.as_str()).unwrap_or(&out).to_owned();
-        while base.len() + ext_part.len() > limit && base.pop().is_some() {}
-        out = base + &ext_part;
+    if !rules.reserved_chars {
+        return if rules.windows { windows_safe(out) } else { out };
     }
+    // Windows' rules first, on the whole name: a trailing dot or space becomes three bytes, so
+    // the length is judged after them, not before.
     if rules.windows {
         out = windows_safe(out);
     }
-    out
+    // Then keep under the byte limit, preserving the extension when possible. A cut can leave a
+    // trailing dot or space (or a short-name look-alike), so the rules run again on the cut and
+    // the cut is made shorter until the result fits. A result that fits is its own mapping:
+    // `needs_mapping_with` says no to it.
+    let mut limit = MAX_NAME_BYTES;
+    loop {
+        let cut = cut_to(&out, limit);
+        let done = if rules.windows { windows_safe(cut) } else { cut };
+        if done.len() <= MAX_NAME_BYTES || limit < 16 {
+            return done;
+        }
+        limit = limit.saturating_sub(done.len() - MAX_NAME_BYTES);
+    }
+}
+
+/// `name` cut to at most `limit` bytes, keeping a short extension when there is one.
+fn cut_to(name: &str, limit: usize) -> String {
+    if name.len() <= limit {
+        return name.to_owned();
+    }
+    let ext = name.rsplit_once('.').map_or("", |(_, ext)| ext);
+    let ext_part = if !ext.is_empty() && utf16_len(ext) < 16 {
+        format!(".{ext}")
+    } else {
+        String::new()
+    };
+    let mut base = name.strip_suffix(ext_part.as_str()).unwrap_or(name).to_owned();
+    while base.len() + ext_part.len() > limit && base.pop().is_some() {}
+    base + &ext_part
 }
 
 /// What a name still is once mapped, when the disk will refuse it anyway.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NameRefusal {
-    /// A component longer than the disk's limit (255 UTF-16 units).
+    /// A component longer than the disk's limit (255 bytes).
     TooLong,
     /// A component Windows still refuses.
     Reserved,
@@ -161,7 +176,8 @@ pub enum NameRefusal {
 
 /// `None` when `name` (already mapped) is one the disk accepts under `rules`.
 pub fn refusal(name: &str, rules: NameRules) -> Option<NameRefusal> {
-    if utf16_len(name) > MAX_NAME_BYTES {
+    // Bytes, as in `needs_mapping_with`: a name that fits in bytes fits in UTF-16 units too.
+    if name.len() > MAX_NAME_BYTES {
         return Some(NameRefusal::TooLong);
     }
     (rules.windows && windows_refuses(name)).then_some(NameRefusal::Reserved)
@@ -184,8 +200,14 @@ fn windows_safe(name: String) -> String {
         let at = out.find('.').unwrap_or(out.len());
         out.insert(at, '＿');
     }
-    if looks_like_short_name(&out) {
-        out = out.replacen('~', "～", 1);
+    // The `~` that makes it a short name is the last one in the stem; more than one `~` would
+    // leave a name that still looks like one after the first is replaced.
+    while looks_like_short_name(&out) {
+        let stem_end = out.rfind('.').unwrap_or(out.len());
+        match out[..stem_end].rfind('~') {
+            Some(at) => out.replace_range(at..at + 1, "～"),
+            None => break,
+        }
     }
     let kept = out.trim_end_matches(['.', ' ']).len();
     if kept < out.len() {

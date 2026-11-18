@@ -131,6 +131,26 @@ async fn sequential_readers_get_read_ahead() {
     assert_eq!(n + BLOCK, fake.fetched());
 }
 
+/// wasl#42: a seek, then a read the system hands over in pieces (Windows asks for the pages of one
+/// block one after another under load). Four reads in order inside one block are not a reader that
+/// has read blocks in order, so nothing is fetched ahead.
+#[tokio::test]
+async fn small_reads_in_order_inside_one_block_do_not_trigger_read_ahead() {
+    let (h, fake, _c, _d) = setup(1 << 30, Fake::default());
+    let f = file(20 << 30, "v1");
+    let at = 15 << 30;
+    let piece = BLOCK / 4;
+    for i in 0..4 {
+        let got = h.read(&f, at + i * piece, piece).await.unwrap();
+        assert_eq!(expected(&f, at + i * piece, piece), got);
+    }
+    assert_eq!(vec![(at, BLOCK)], fake.calls(), "one block, in one request");
+    // Going on in order into the next blocks is a sequential reader: the read-ahead starts there.
+    h.read(&f, at + BLOCK, BLOCK).await.unwrap();
+    h.read(&f, at + 2 * BLOCK, BLOCK).await.unwrap();
+    assert_eq!(7 * BLOCK, fake.fetched(), "blocks 0..=2 and four ahead");
+}
+
 #[tokio::test]
 async fn the_cache_keeps_to_its_budget_and_never_evicts_pins() {
     let (h, fake, cache, _d) = setup(3 * BLOCK, Fake::default());

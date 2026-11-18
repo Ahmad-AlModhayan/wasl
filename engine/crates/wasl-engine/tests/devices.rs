@@ -27,6 +27,13 @@ impl Clock for TestClock {
     }
 }
 
+/// How a test device's folder treats names.
+enum Disk {
+    Plain,
+    Windows,
+    Refusing,
+}
+
 struct Device {
     key: DeviceKey,
     root: PathBuf,
@@ -50,16 +57,21 @@ impl Device {
     }
 
     /// A device whose folder refuses names as Windows does (the host must create the awkward names).
-    #[cfg(unix)]
     fn windows(n: u8) -> Device {
-        Device::build(n, None, true)
+        Device::build(n, None, Disk::Windows)
+    }
+
+    /// A device whose disk enforces Windows' rules but tells Wasl it takes any name, so a name
+    /// the mapper leaves alone is refused by the disk (what a mapper that missed a rule would see).
+    fn refusing(n: u8) -> Device {
+        Device::build(n, None, Disk::Refusing)
     }
 
     fn with_folding(n: u8, folding: Option<common::Folding>) -> Device {
-        Device::build(n, folding, false)
+        Device::build(n, folding, Disk::Plain)
     }
 
-    fn build(n: u8, folding: Option<common::Folding>, windows: bool) -> Device {
+    fn build(n: u8, folding: Option<common::Folding>, disk: Disk) -> Device {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("folder");
         let bin = dir.path().join("bin");
@@ -77,8 +89,11 @@ impl Device {
         }
         let fs: Arc<dyn LocalFs> = match folding {
             Some(f) => common::folded_fs(&root, &bin, f),
-            None if windows => common::windows_names_fs(Arc::new(StdFs::new(&root, &bin))),
-            None => Arc::new(StdFs::new(&root, &bin)),
+            None => match disk {
+                Disk::Windows => common::windows_names_fs(Arc::new(StdFs::new(&root, &bin))),
+                Disk::Refusing => common::refusing_windows_names_fs(Arc::new(StdFs::new(&root, &bin))),
+                Disk::Plain => Arc::new(StdFs::new(&root, &bin)),
+            },
         };
         let key = DeviceKey::from_seed(&[n; 32]);
         let clock = Arc::new(TestClock(AtomicI64::new(1_800_000_000_000)));
@@ -1485,42 +1500,73 @@ async fn a_file_deleted_while_its_folder_was_renamed_does_not_come_back() {
     }
 }
 
+/// Every folder under `d`'s folder, by relative path.
+fn dirs(d: &Device) -> Vec<String> {
+    fn walk_dirs(root: &Path, dir: &Path, out: &mut Vec<String>) {
+        for e in std::fs::read_dir(dir).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                out.push(p.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/"));
+                walk_dirs(root, &p, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk_dirs(&d.root, &d.root, &mut out);
+    out.sort();
+    out
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_folder_rename_stopped_anywhere_ends_under_one_of_its_names_with_all_its_files() {
-    let (old, new) = FOLDER_RENAMES[0];
-    let make = || folder_renamed_on_a(old, new, Device::new(2));
-    let all = |d: &Device, dir: &str| {
-        let names = names_of(d);
-        names.contains(&format!("{dir}/a.txt")) && names.contains(&format!("{dir}/sub/b.txt"))
-    };
-    let (a, mut b) = make();
-    let plan = FaultPlan::counting();
-    b.restart(Some(plan.clone()));
-    b.sync.scan().await.unwrap();
-    b.sync.pull(&b.link_to(&a)).await.unwrap();
-    let points = plan.seen();
-    assert!(points.contains(&Point::BeforeRename), "{points:?}");
-    for (i, point) in points.iter().enumerate() {
+    for (old, new) in FOLDER_RENAMES {
+        let make = || folder_renamed_on_a(old, new, Device::new(2));
+        let all = |d: &Device, dir: &str| {
+            let names = names_of(d);
+            names.contains(&format!("{dir}/a.txt")) && names.contains(&format!("{dir}/sub/b.txt"))
+        };
+        // The folders, not only the files: exactly the folder and its subfolder, under one name.
+        let tree = |dir: &str| vec![dir.to_owned(), format!("{dir}/sub")];
         let (a, mut b) = make();
-        let plan = FaultPlan::stop_at(i);
+        let plan = FaultPlan::counting();
         b.restart(Some(plan.clone()));
         b.sync.scan().await.unwrap();
-        assert!(b.sync.pull(&b.link_to(&a)).await.is_err(), "{point:?} (#{i})");
-        let at = format!("{point:?} (#{i})");
-        // At the stop the folder is under one of its names, with everything in it.
-        assert!(all(&b, old) || all(&b, new), "{at}: {:?}", names_of(&b));
-        b.restart(None);
-        for _ in 0..3 {
-            b.pull_from(&a).await;
-            a.pull_from(&b).await;
-        }
+        b.sync.pull(&b.link_to(&a)).await.unwrap();
+        let points = plan.seen();
         assert!(
-            all(&b, new),
-            "{at}: the next runs finish the rename: {:?}",
-            names_of(&b)
+            points.contains(&Point::BeforeRename),
+            "{old} -> {new}: {points:?}"
         );
-        assert_eq!(a.files(), b.files(), "{at}");
-        assert_eq!(noise(300_000, 5), b.files()[&format!("{new}/a.txt")], "{at}");
+        // The rename is the only change to a file or folder here, so it is stopped before and after.
+        assert!(points.contains(&Point::AfterRename), "{old} -> {new}: {points:?}");
+        for (i, point) in points.iter().enumerate() {
+            let (a, mut b) = make();
+            let plan = FaultPlan::stop_at(i);
+            b.restart(Some(plan.clone()));
+            b.sync.scan().await.unwrap();
+            let at = format!("{old} -> {new}, {point:?} (#{i})");
+            assert!(b.sync.pull(&b.link_to(&a)).await.is_err(), "{at}");
+            // At the stop the folder is under one of its names, with everything in it, and no
+            // second folder or leftover half exists.
+            assert!(all(&b, old) || all(&b, new), "{at}: {:?}", names_of(&b));
+            let d = dirs(&b);
+            assert!(d == tree(old) || d == tree(new), "{at}: folders {d:?}");
+            assert_eq!(a.files().len(), b.files().len(), "{at}: no file lost or doubled");
+            b.restart(None);
+            for _ in 0..3 {
+                b.pull_from(&a).await;
+                a.pull_from(&b).await;
+            }
+            assert!(
+                all(&b, new),
+                "{at}: the next runs finish the rename: {:?}",
+                names_of(&b)
+            );
+            assert_eq!(tree(new), dirs(&b), "{at}: the folders after the restart");
+            assert_eq!(a.files(), b.files(), "{at}");
+            assert_eq!(noise(300_000, 5), b.files()[&format!("{new}/a.txt")], "{at}");
+            assert_eq!(0, b.bin_count() + a.bin_count(), "{at}: a rename bins nothing");
+        }
     }
 }
 
@@ -1582,4 +1628,218 @@ async fn names_a_windows_disk_refuses_arrive_mapped_and_go_back_under_the_origin
             names_of(&a)
         );
     }
+}
+
+// ---------------------------------------------------------------- names and the apply layer (wasl#41)
+
+/// A link to a peer that spells one key another way: `from` as the peer holds it is told to this
+/// device as `to` (a name its own disk could not have made), and asked for again as `from`.
+struct TamperLink {
+    inner: LocalLink,
+    from: &'static str,
+    to: &'static str,
+}
+
+#[async_trait::async_trait]
+impl PeerLink for TamperLink {
+    fn peer(&self) -> DeviceId {
+        self.inner.peer()
+    }
+    async fn shared(&self) -> wasl_net::PeerResult<Vec<ShareId>> {
+        self.inner.shared().await
+    }
+    async fn changes_since(
+        &self,
+        p: ShareId,
+        since: u64,
+        limit: usize,
+    ) -> wasl_net::PeerResult<wasl_net::IndexPage> {
+        let mut page = self.inner.changes_since(p, since, limit).await?;
+        for (k, _) in &mut page.entries {
+            if k == self.from {
+                *k = self.to.to_owned();
+            }
+        }
+        Ok(page)
+    }
+    async fn chunk_list(
+        &self,
+        p: ShareId,
+        key: &str,
+        b: wasl_chunk::Hash,
+    ) -> wasl_net::PeerResult<wasl_chunk::ChunkList> {
+        let key = if key == self.to { self.from } else { key };
+        self.inner.chunk_list(p, key, b).await
+    }
+    async fn chunk(&self, p: ShareId, h: wasl_chunk::Hash) -> wasl_net::PeerResult<Vec<u8>> {
+        self.inner.chunk(p, h).await
+    }
+    async fn notify(&self, p: ShareId, seq: u64) -> wasl_net::PeerResult<()> {
+        self.inner.notify(p, seq).await
+    }
+    async fn pair(&self, r: wasl_net::PairRound) -> wasl_net::PeerResult<wasl_net::PairReply> {
+        self.inner.pair(r).await
+    }
+    async fn group_ops(&self, h: Vec<wasl_net::OpId>) -> wasl_net::PeerResult<Vec<wasl_net::GroupOp>> {
+        self.inner.group_ops(h).await
+    }
+    async fn group_changed(&self) -> wasl_net::PeerResult<()> {
+        self.inner.group_changed().await
+    }
+    async fn offers(&self) -> wasl_net::PeerResult<Vec<wasl_net::Offer>> {
+        self.inner.offers().await
+    }
+}
+
+/// The name a Windows disk gives `key` on this device's side of a pull.
+fn windows_name(key: &str) -> String {
+    key.split('/')
+        .map(|p| wasl_core::names::to_local_name_with(p, wasl_core::names::NameRules::device(true)))
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// `b` pulls from `a` through a link that tells one of `a`'s keys under another spelling. Names a
+/// Windows host refuses cannot be made in `a`'s own folder there, so the peer's key is what the
+/// test changes, on every OS alike.
+async fn pull_tampered(b: &Device, a: &Device, from: &'static str, to: &'static str) -> PullReport {
+    b.sync.scan().await.unwrap();
+    let link = TamperLink {
+        inner: b.link_to(a),
+        from,
+        to,
+    };
+    b.sync.pull(&link).await.unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_peer_key_with_a_drive_like_prefix_skips_only_that_file() {
+    // The key reaches this device from a peer whose disk holds `a:b.txt`; ours may not.
+    for windows in [false, true] {
+        let a = Device::new(1);
+        a.write("plain.txt", b"plain");
+        a.write("a_b.txt", b"colon");
+        a.sync.scan().await.unwrap();
+        let b = if windows {
+            Device::windows(2)
+        } else {
+            Device::new(2)
+        };
+        b.sync.scan().await.unwrap();
+        let link = TamperLink {
+            inner: b.link_to(&a),
+            from: "a_b.txt",
+            to: "a:b.txt",
+        };
+        let r = b
+            .sync
+            .pull(&link)
+            .await
+            .unwrap_or_else(|e| panic!("windows: {windows}: one odd name must not fail the pull: {e}"));
+        let at = format!("windows: {windows}: {r:?}");
+        assert_eq!(0, r.deferred, "{at}");
+        assert_eq!(Some(&b"plain".to_vec()), b.files().get("plain.txt"), "{at}");
+        // A Windows disk (and a Windows host's own folder) holds it under a look-alike name; any
+        // other disk has no way to and refuses it.
+        if windows || cfg!(windows) {
+            assert!(r.refused.is_empty(), "{at}");
+            assert_eq!(
+                Some(&b"colon".to_vec()),
+                b.files().get(&windows_name("a:b.txt")),
+                "{at}: {:?}",
+                names_of(&b)
+            );
+        } else {
+            assert_eq!(vec!["a:b.txt".to_owned()], r.refused, "{at}");
+            assert_eq!(1, r.rejected, "{at}");
+            assert_eq!(vec!["plain.txt".to_owned()], names_of(&b), "{at}");
+        }
+        // Skipped for good: the next pull does not read it again.
+        let again = b.sync.pull(&link).await.unwrap();
+        assert_eq!(
+            (0, 0, 0),
+            (again.deferred, again.received, again.rejected),
+            "{at}: {again:?}"
+        );
+        assert!(again.refused.is_empty(), "{at}: {again:?}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn names_a_windows_disk_maps_to_one_name_are_a_clash_until_one_is_renamed() {
+    // `REPORT~1.DOC` looks like a short name, so a Windows disk keeps it as `REPORT～1.DOC`,
+    // which the peer holds as a different file.
+    let (a, b) = (Device::new(1), Device::windows(2));
+    a.write("REPORT_1.DOC", b"tilde");
+    a.write("REPORT\u{ff5e}1.DOC", b"wide tilde");
+    a.write("plain.txt", b"plain");
+    a.sync.scan().await.unwrap();
+    let r = pull_tampered(&b, &a, "REPORT_1.DOC", "REPORT~1.DOC").await;
+    assert_eq!(
+        vec!["REPORT~1.DOC".to_owned(), "REPORT\u{ff5e}1.DOC".to_owned()],
+        r.clashes,
+        "{r:?}"
+    );
+    assert_eq!(2, r.deferred, "{r:?}");
+    assert_eq!(
+        vec!["plain.txt".to_owned()],
+        names_of(&b),
+        "neither of the pair is written: {r:?}"
+    );
+    // The clash is read again until one is renamed on the peer.
+    let still = pull_tampered(&b, &a, "REPORT_1.DOC", "REPORT~1.DOC").await;
+    assert_eq!(2, still.deferred, "{still:?}");
+    std::fs::rename(a.root.join("REPORT\u{ff5e}1.DOC"), a.root.join("report2.doc")).unwrap();
+    a.sync.scan().await.unwrap();
+    let r = pull_tampered(&b, &a, "REPORT_1.DOC", "REPORT~1.DOC").await;
+    assert_eq!((0, 0), (r.deferred, r.clashes.len()), "{r:?}");
+    assert_eq!(3, b.files().len(), "{:?}", names_of(&b));
+    assert_eq!(
+        Some(&b"tilde".to_vec()),
+        b.files().get(&windows_name("REPORT~1.DOC"))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_new_file_under_the_look_alike_of_a_deleted_name_is_not_the_deleted_one() {
+    let (a, b) = (Device::new(1), Device::windows(2));
+    a.write("REPORT_1.DOC", b"old");
+    a.sync.scan().await.unwrap();
+    pull_tampered(&b, &a, "REPORT_1.DOC", "REPORT~1.DOC").await;
+    assert_eq!(1, b.files().len(), "{:?}", names_of(&b));
+    std::fs::remove_file(a.root.join("REPORT_1.DOC")).unwrap();
+    a.sync.scan().await.unwrap();
+    pull_tampered(&b, &a, "REPORT_1.DOC", "REPORT~1.DOC").await;
+    assert!(b.files().is_empty(), "{:?}", names_of(&b));
+    // Made on B under the name its disk used to give the deleted file: a new file, found under
+    // its own name, not the deleted one's key coming back to life.
+    let own = windows_name("REPORT~1.DOC");
+    b.write(&own, b"new");
+    b.sync.scan().await.unwrap();
+    let page = a.link_to(&b).changes_since(SHARE, 0, 100).await.unwrap();
+    let state: BTreeMap<&str, bool> = page
+        .entries
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.deleted))
+        .collect();
+    assert_eq!(Some(&false), state.get(own.as_str()), "{state:?}");
+    assert_eq!(
+        Some(&true),
+        state.get("REPORT~1.DOC"),
+        "the deleted key stays deleted: {state:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_name_the_disk_refuses_is_skipped_and_named_and_not_tried_again() {
+    let (a, b) = (Device::new(1), Device::refusing(2));
+    a.write("REPORT_1.DOC", b"refused");
+    a.write("fine.txt", b"fine");
+    a.sync.scan().await.unwrap();
+    let r = pull_tampered(&b, &a, "REPORT_1.DOC", "REPORT~1.DOC").await;
+    assert_eq!(vec!["REPORT~1.DOC".to_owned()], r.refused, "{r:?}");
+    assert_eq!((0, 1), (r.deferred, r.received), "{r:?}");
+    assert_eq!(vec!["fine.txt".to_owned()], names_of(&b));
+    let again = pull_tampered(&b, &a, "REPORT_1.DOC", "REPORT~1.DOC").await;
+    assert_eq!((0, 0), (again.deferred, again.received), "{again:?}");
 }

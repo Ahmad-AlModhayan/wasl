@@ -43,11 +43,6 @@ pub const NAME_REFUSED: &str = "NAME_REFUSED";
 impl From<std::io::Error> for EngineError {
     fn from(e: std::io::Error) -> Self {
         match e.kind() {
-            std::io::ErrorKind::InvalidInput if e.to_string().starts_with("unsafe path") => {
-                EngineError::NameRefused(format!(
-                    "The disk refuses this name, even after Wasl mapped it. Rename it on Drive ({e})"
-                ))
-            }
             std::io::ErrorKind::PermissionDenied => EngineError::Permission(e.to_string()),
             std::io::ErrorKind::Interrupted => EngineError::Cancelled,
             _ => EngineError::Io(e.to_string()),
@@ -56,6 +51,22 @@ impl From<std::io::Error> for EngineError {
 }
 
 impl EngineError {
+    /// An I/O error from the disk on a path made from a name that came from elsewhere (a Drive
+    /// name, a peer's name), after the one mapping function ran. The disk's own refusal of the
+    /// path (the typed [`wasl_fs::UnsafePath`]) is [`EngineError::NameRefused`]; anything else is
+    /// the plain conversion. The apply layer, the executor and device pull call this for the
+    /// names they made: an invalid path from anywhere else (an agent's scope, say) is not a name
+    /// the user can fix on Drive.
+    pub(crate) fn from_name_io(e: std::io::Error) -> EngineError {
+        if wasl_fs::is_unsafe_path(&e) {
+            EngineError::NameRefused(format!(
+                "The disk refuses this name, even after Wasl mapped it. Rename it where it came from ({e})"
+            ))
+        } else {
+            e.into()
+        }
+    }
+
     pub fn kind(&self) -> ErrorKind {
         match self {
             EngineError::Drive(d) => match d {
@@ -118,5 +129,37 @@ impl EngineError {
             self.kind(),
             ErrorKind::Auth | ErrorKind::Permission | ErrorKind::Quota
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn refused() -> std::io::Error {
+        wasl_fs::check_rel_on("a:b", true).unwrap_err()
+    }
+
+    #[test]
+    fn a_path_check_failure_is_not_a_refused_name_unless_a_name_site_says_so() {
+        assert!(matches!(EngineError::from(refused()), EngineError::Io(_)));
+        assert!(matches!(
+            EngineError::from_name_io(refused()),
+            EngineError::NameRefused(_)
+        ));
+    }
+
+    #[test]
+    fn only_the_typed_refusal_counts_not_the_words() {
+        let lookalike = std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "unsafe path \"x\": looks like one",
+        );
+        assert!(matches!(EngineError::from_name_io(lookalike), EngineError::Io(_)));
+        let other = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert!(matches!(
+            EngineError::from_name_io(other),
+            EngineError::Permission(_)
+        ));
     }
 }

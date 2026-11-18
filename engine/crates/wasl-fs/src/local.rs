@@ -97,6 +97,33 @@ pub trait LocalFs: Send + Sync {
     fn purge_from_bin(&self, location: &str) -> io::Result<()>;
 }
 
+/// Why [`check_rel`] refused a path. Carried inside the `InvalidInput` error it returns, so a caller
+/// that must tell "this name is refused" from any other invalid input asks [`is_unsafe_path`]
+/// instead of reading the message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnsafePath {
+    pub rel: String,
+    pub why: &'static str,
+}
+
+impl std::fmt::Display for UnsafePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "unsafe path {:?}: {}", self.rel, self.why)
+    }
+}
+
+impl std::error::Error for UnsafePath {}
+
+/// True when `e` is the refusal [`check_rel`] gives (or one a [`LocalFs`] passes on from it).
+pub fn is_unsafe_path(e: &io::Error) -> bool {
+    e.get_ref().is_some_and(|inner| inner.is::<UnsafePath>())
+}
+
+/// The reason [`check_rel`] gave, when `e` is its refusal.
+pub fn unsafe_path_why(e: &io::Error) -> Option<&'static str> {
+    e.get_ref()?.downcast_ref::<UnsafePath>().map(|u| u.why)
+}
+
 /// Checks a pair-relative path: `/`-separated, no empty, `.` or `..` components, no backslash,
 /// no NUL, not absolute. Every [`LocalFs`] method applies it, so a hostile Drive name or a corrupt
 /// baseline row can never reach outside the pair folder.
@@ -109,10 +136,13 @@ pub fn check_rel(rel: &str) -> io::Result<&str> {
 /// contain `:` (alternate data streams) or end in `.` or a space (Windows drops them, so two names
 /// would point at one file).
 pub fn check_rel_on(rel: &str, windows: bool) -> io::Result<&str> {
-    let bad = |why: &str| {
+    let bad = |why: &'static str| {
         Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("unsafe path {rel:?}: {why}"),
+            UnsafePath {
+                rel: rel.to_owned(),
+                why,
+            },
         ))
     };
     if rel.is_empty() {
