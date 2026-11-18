@@ -25,7 +25,7 @@ fn lang() -> Lang {
 
 /// The entry `key` in the current language, with its values, fix and Details.
 pub fn say(key: &str, values: &Values, raw: Option<&str>) -> Rendered {
-    words::render(key, values, lang(), raw, &mut |line| eprintln!("{line}"))
+    words::render(key, values, lang(), raw, &[], &mut |line| eprintln!("{line}"))
 }
 
 /// The words of an entry that takes no values (a status label).

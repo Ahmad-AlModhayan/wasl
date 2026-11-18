@@ -80,11 +80,11 @@ falling back to English.
 
 ## `error.permission`
 
-- Note: A file or folder refused Wasl access. {file} is one file name; {folder} is the synced folder.
-- Values: file, folder
+- Note: The folder or the account refused Wasl access; the run stops (a fatal error). {folder} is the synced folder.
+- Values: folder
 - Fix: `open_folder`
-- English: Wasl isn't allowed to change {file} in {folder}. Skipped it; the rest synced.
-- Arabic: لا يملك وصل إذن تعديل {file} في {folder}. تم تخطيه ومزامنة الباقي.
+- English: Wasl isn't allowed to use {folder} any more, so it stopped syncing there. Nothing was changed.
+- Arabic: لم يعد وصل مسموحًا له باستخدام {folder}، لذلك توقفت المزامنة هناك. لم يتغير شيء.
 
 ## `error.quota`
 
@@ -96,11 +96,11 @@ falling back to English.
 
 ## `error.not_found`
 
-- Note: A file or folder Wasl was going to use isn't there.
-- Values: file, folder
+- Note: Something the run needed (a Drive folder, an upload) is gone. Not one vanished file: that is error.file_gone.
+- Values: folder
 - Fix: `retry`
-- English: {file} isn't there any more. Skipped it; the rest of {folder} synced.
-- Arabic: {file} لم يعد موجودًا. تم تخطيه ومزامنة بقية {folder}.
+- English: Wasl couldn't find something it needed for {folder}. Nothing was changed.
+- Arabic: تعذّر على وصل العثور على شيء يحتاجه لـ {folder}. لم يتغير شيء.
 
 ## `error.locked`
 
@@ -139,8 +139,8 @@ falling back to English.
 - Note: A local file operation failed for a reason Wasl can't name more exactly.
 - Values: folder
 - Fix: `open_folder`
-- English: Wasl couldn't read or write a file in {folder}. Skipped it; the rest synced.
-- Arabic: تعذّر على وصل قراءة ملف في {folder} أو الكتابة فيه. تم تخطيه ومزامنة الباقي.
+- English: Wasl couldn't read or write a file in {folder}. It will be tried again at the next sync.
+- Arabic: تعذّر على وصل قراءة ملف في {folder} أو الكتابة فيه. ستتم محاولته مجددًا في المزامنة التالية.
 
 ## `error.integrity`
 
@@ -190,14 +190,6 @@ falling back to English.
 - English: This device's storage is full, so Wasl couldn't save {file} in {folder}. Nothing was lost.
 - Arabic: مساحة التخزين في هذا الجهاز ممتلئة، لذلك تعذّر على وصل حفظ {file} في {folder}. لم يضع شيء.
 
-## `error.folder_missing`
-
-- Note: The synced folder itself is gone or moved (contrast error.file_gone: one file inside it).
-- Values: folder
-- Fix: `open_folder`
-- English: The folder {folder} isn't on this device, so Wasl didn't sync it.
-- Arabic: المجلد {folder} غير موجود على هذا الجهاز، لذلك لم يزامنه وصل.
-
 ## `error.name_refused`
 
 - Note: The file name is too long, has a character or a reserved name that one side refuses. Wasl never renames it.
@@ -205,14 +197,6 @@ falling back to English.
 - Fix: `open_to_rename`
 - English: Drive or this device won't accept the name of {file}. Skipped it; the rest of {folder} synced.
 - Arabic: لا يقبل Drive أو هذا الجهاز اسم {file}. تم تخطيه ومزامنة بقية {folder}.
-
-## `error.sign_in_unreadable`
-
-- Note: The sign-in stored on this device is damaged or can't be opened (contrast error.auth: Google ended the session).
-- Values: folder
-- Fix: `sign_in_again`
-- English: Wasl couldn't read your saved Google sign-in, so {folder} can't sync. Nothing was changed.
-- Arabic: تعذّر على وصل قراءة تسجيل دخولك المحفوظ إلى Google، لذلك لا يمكن مزامنة {folder}. لم يتغير شيء.
 
 ## `error.invalid`
 

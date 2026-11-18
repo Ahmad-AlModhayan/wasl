@@ -327,11 +327,13 @@ pub const ENTRIES: &[Entry] = &[
     ),
     e(
         "error.permission",
-        Forms::single("Wasl isn't allowed to change {file} in {folder}. Skipped it; the rest synced."),
-        Forms::single("لا يملك وصل إذن تعديل {file} في {folder}. تم تخطيه ومزامنة الباقي."),
+        Forms::single(
+            "Wasl isn't allowed to use {folder} any more, so it stopped syncing there. Nothing was changed.",
+        ),
+        Forms::single("لم يعد وصل مسموحًا له باستخدام {folder}، لذلك توقفت المزامنة هناك. لم يتغير شيء."),
         Some(OpenFolder),
-        &[File, Folder],
-        "A file or folder refused Wasl access. {file} is one file name; {folder} is the synced folder.",
+        &[Folder],
+        "The folder or the account refused Wasl access; the run stops (a fatal error). {folder} is the synced folder.",
     ),
     e(
         "error.quota",
@@ -343,11 +345,11 @@ pub const ENTRIES: &[Entry] = &[
     ),
     e(
         "error.not_found",
-        Forms::single("{file} isn't there any more. Skipped it; the rest of {folder} synced."),
-        Forms::single("{file} لم يعد موجودًا. تم تخطيه ومزامنة بقية {folder}."),
+        Forms::single("Wasl couldn't find something it needed for {folder}. Nothing was changed."),
+        Forms::single("تعذّر على وصل العثور على شيء يحتاجه لـ {folder}. لم يتغير شيء."),
         Some(Retry),
-        &[File, Folder],
-        "A file or folder Wasl was going to use isn't there.",
+        &[Folder],
+        "Something the run needed (a Drive folder, an upload) is gone. Not one vanished file: that is error.file_gone.",
     ),
     e(
         "error.locked",
@@ -387,8 +389,12 @@ pub const ENTRIES: &[Entry] = &[
     ),
     e(
         "error.io",
-        Forms::single("Wasl couldn't read or write a file in {folder}. Skipped it; the rest synced."),
-        Forms::single("تعذّر على وصل قراءة ملف في {folder} أو الكتابة فيه. تم تخطيه ومزامنة الباقي."),
+        Forms::single(
+            "Wasl couldn't read or write a file in {folder}. It will be tried again at the next sync.",
+        ),
+        Forms::single(
+            "تعذّر على وصل قراءة ملف في {folder} أو الكتابة فيه. ستتم محاولته مجددًا في المزامنة التالية.",
+        ),
         Some(OpenFolder),
         &[Folder],
         "A local file operation failed for a reason Wasl can't name more exactly.",
@@ -449,14 +455,6 @@ pub const ENTRIES: &[Entry] = &[
         "The disk or phone storage on THIS device is full (contrast error.quota: the person's Drive is full).",
     ),
     e(
-        "error.folder_missing",
-        Forms::single("The folder {folder} isn't on this device, so Wasl didn't sync it."),
-        Forms::single("المجلد {folder} غير موجود على هذا الجهاز، لذلك لم يزامنه وصل."),
-        Some(OpenFolder),
-        &[Folder],
-        "The synced folder itself is gone or moved (contrast error.file_gone: one file inside it).",
-    ),
-    e(
         "error.name_refused",
         Forms::single(
             "Drive or this device won't accept the name of {file}. Skipped it; the rest of {folder} synced.",
@@ -465,18 +463,6 @@ pub const ENTRIES: &[Entry] = &[
         Some(OpenToRename),
         &[File, Folder],
         "The file name is too long, has a character or a reserved name that one side refuses. Wasl never renames it.",
-    ),
-    e(
-        "error.sign_in_unreadable",
-        Forms::single(
-            "Wasl couldn't read your saved Google sign-in, so {folder} can't sync. Nothing was changed.",
-        ),
-        Forms::single(
-            "تعذّر على وصل قراءة تسجيل دخولك المحفوظ إلى Google، لذلك لا يمكن مزامنة {folder}. لم يتغير شيء.",
-        ),
-        Some(SignInAgain),
-        &[Folder],
-        "The sign-in stored on this device is damaged or can't be opened (contrast error.auth: Google ended the session).",
     ),
     e(
         "error.invalid",
@@ -565,54 +551,26 @@ pub fn key_for_kind(kind: crate::run::ErrorKind) -> &'static str {
     }
 }
 
-/// The most specific entry for a failure: the coarse `kind` and the raw cause it came with. The raw
-/// text is only read here, to tell cases apart; it never reaches the words (only Details, redacted).
+/// The most specific entry for a failure that came as a coarse `kind` and its raw cause, for callers
+/// that hold nothing more typed (the CLI and apps read the daemon's reply). It only trusts the numbers
+/// the operating system itself puts in an I/O message (`(os error 28)`), never words, so a file called
+/// "Disk full notes.txt" can't change the answer.
 pub fn classify(kind: crate::run::ErrorKind, raw: &str) -> &'static str {
     use crate::run::ErrorKind as K;
-    let r = raw.to_ascii_lowercase();
-    let has = |needles: &[&str]| needles.iter().any(|n| r.contains(n));
-    let disk = has(&[
-        "no space left",
-        "disk full",
-        "not enough space",
-        "os error 28",
-        "os error 112",
-        "enospc",
-        "storage is full",
-    ]);
-    let name = has(&[
-        "name too long",
-        "filename too long",
-        "invalid name",
-        "illegal character",
-        "reserved name",
-        "os error 123",
-        "os error 206",
-        "enametoolong",
-    ]);
-    match kind {
-        K::Auth
-            if has(&[
-                "unreadable",
-                "keyring",
-                "decrypt",
-                "damaged",
-                "internal_failure",
-                "could not be read",
-            ]) =>
-        {
-            "error.sign_in_unreadable"
-        }
-        K::NotFound if has(&["folder", "directory", "root"]) && !has(&["file"]) => "error.folder_missing",
-        K::NotFound => "error.file_gone",
-        K::Quota if disk => "error.disk_full",
-        K::Io | K::Other | K::Permission if disk => "error.disk_full",
-        K::Io | K::Other | K::Permission | K::Server if name => "error.name_refused",
-        K::Io if has(&["folder is missing", "directory not found", "no such directory"]) => {
-            "error.folder_missing"
-        }
+    let code = os_error_code(raw);
+    match (kind, code) {
+        (K::Io | K::Quota | K::Other, Some(28 | 112 | 39 | 122)) => "error.disk_full",
+        (K::Io | K::Other | K::Permission, Some(36 | 63 | 123 | 206)) => "error.name_refused",
         _ => key_for_kind(kind),
     }
+}
+
+/// The number in a trailing `(os error N)`, as `std::io::Error` prints it.
+pub fn os_error_code(raw: &str) -> Option<i32> {
+    let i = raw.rfind("(os error ")?;
+    let rest = &raw[i + "(os error ".len()..];
+    let end = rest.find(')')?;
+    rest[..end].parse().ok()
 }
 
 /// The entry with this key.
@@ -687,24 +645,23 @@ pub fn render(
     values: &Values,
     lang: Lang,
     raw: Option<&str>,
+    secrets: &[&str],
     log: &mut dyn FnMut(String),
 ) -> Rendered {
-    let found = entry(key);
-    if found.is_none() {
+    let ent = entry(key).unwrap_or_else(|| entry(FALLBACK).expect("the fallback entry exists"));
+    if ent.key == FALLBACK {
         log(format!(
-            "wasl: no catalogue entry for error key {key:?}; showing the fallback"
+            "wasl: no specific catalogue entry for error {key:?}; showing the fallback"
         ));
     }
-    let ent = found.unwrap_or_else(|| entry(FALLBACK).expect("the fallback entry exists"));
     let forms = match lang {
         Lang::En => &ent.en,
         Lang::Ar => &ent.ar,
     };
     let cat = values.count.map_or(Plural::Other, |n| plural(lang, n));
     let text = fill(forms.pick(cat), values, lang);
-    let secrets: Vec<&str> = Vec::new();
     let details = raw
-        .map(|r| redact(r, values.folder_root(), &secrets))
+        .map(|r| redact(r, values.folder_root(), secrets))
         .filter(|d| !d.is_empty());
     Rendered {
         key: ent.key.to_owned(),
@@ -724,165 +681,94 @@ impl Values {
     }
 }
 
-/// Makes a raw cause safe to show and to copy: tokens, sign-in codes, e-mail addresses and the
-/// `secrets` given (account ids and the like) become `[hidden]`; a path inside `folder_root` is cut
-/// to `Folder/…/file`; any other absolute path becomes `…`.
+/// Makes a raw cause safe to show and to copy. Tokens, sign-in codes, `Bearer`/`Basic` credentials,
+/// secret-looking `key=value` and JSON pairs, e-mail addresses and every one of `secrets` (account ids
+/// and the like) become `[hidden]`. A path inside `folder_root` is cut to `Folder/…/file`; any other
+/// absolute path becomes `…`, spaces in it included. The whole text is scanned, not word by word.
 pub fn redact(raw: &str, folder_root: Option<&str>, secrets: &[&str]) -> String {
+    use regex::{Captures, Regex};
+    use std::sync::OnceLock;
+    struct Rules {
+        credential: Regex,
+        pair: Regex,
+        token: Regex,
+        email: Regex,
+        marked: Regex,
+        windows_path: Regex,
+        unix_path: Regex,
+    }
+    static RULES: OnceLock<Rules> = OnceLock::new();
+    let r = RULES.get_or_init(|| {
+        // A path runs to the next whitespace; a space stays inside it only when the next piece holds
+        // a separator too (`Jane Doe\x.txt`), so words after a path ("isn't in a view") stay.
+        let chunk = r#"[^\s'"<>|*?]*"#;
+        let tail = format!(r#"{chunk}(?: {chunk}[\\/]{chunk})*"#);
+        let re = |p: &str| Regex::new(p).expect("a fixed pattern");
+        Rules {
+            credential: re(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+"),
+            pair: re(
+                r#"(?i)\b("?(?:access_token|refresh_token|id_token|token|client_secret|password|passphrase|code|api_key|secret|authorization|account_id|email|user)"?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s&,;}]+)"#,
+            ),
+            token: re(r"(?i)(?:ya29\.|1//|eyJ|gho_|ghp_|sk-|GOCSPX-)[A-Za-z0-9._\-/]+"),
+            email: re(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"),
+            marked: re(&format!("\u{2}ROOT\u{2}({tail})")),
+            windows_path: re(&format!(r#"[A-Za-z]:[\\/]{tail}"#)),
+            unix_path: re(&format!(r#"(^|[\s'"(=])(/[^\s/]{tail})"#)),
+        }
+    });
     let mut text = raw.to_owned();
     for s in secrets.iter().filter(|s| !s.is_empty()) {
         text = text.replace(s, "[hidden]");
     }
+    text = r.credential.replace_all(&text, "$1 [hidden]").into_owned();
+    text = r.pair.replace_all(&text, "${1}[hidden]").into_owned();
+    text = r.token.replace_all(&text, "[hidden]").into_owned();
+    text = r.email.replace_all(&text, "[hidden]").into_owned();
     let root = folder_root
-        .map(|r| r.trim_end_matches(['/', '\\']).to_owned())
-        .filter(|r| !r.is_empty());
-    let root_name = root
-        .as_deref()
-        .map(|r| r.rsplit(['/', '\\']).next().unwrap_or(r).to_owned());
-    let root_mark = "\u{2}ROOT\u{2}";
-    if let Some(r) = &root {
-        for variant in [r.clone(), r.replace('\\', "/"), r.replace('/', "\\")] {
-            text = text.replace(&variant, root_mark);
-        }
+        .map(|f| f.trim_end_matches(['/', '\\']))
+        .filter(|f| !f.is_empty());
+    let root_name = root.map(|f| f.rsplit(['/', '\\']).next().unwrap_or(f).to_owned());
+    if let Some(root) = root {
+        let variants: Vec<String> = [root.to_owned(), root.replace('\\', "/"), root.replace('/', "\\")]
+            .iter()
+            .map(|v| regex::escape(v))
+            .collect();
+        // The root counts only as a whole name: `/a/Life` is not the start of `/a/LifeOS2/x`.
+        let inside =
+            Regex::new(&format!(r"(?:{})([\\/]|[^\w\\/.-]|$)", variants.join("|"))).expect("a built pattern");
+        text = inside.replace_all(&text, "\u{2}ROOT\u{2}$1").into_owned();
     }
-    let mut out = String::with_capacity(text.len());
-    let mut hide_next = false;
-    for piece in split_keep(&text) {
-        match piece {
-            Piece::Space(s) => out.push_str(s),
-            Piece::Word(w) => {
-                let (lead, core, trail) = peel(w);
-                if hide_next && !core.is_empty() {
-                    hide_next = false;
-                    out.push_str(lead);
-                    out.push_str("[hidden]");
-                    out.push_str(trail);
-                    continue;
-                }
-                if core.eq_ignore_ascii_case("bearer") || core.eq_ignore_ascii_case("authorization:") {
-                    hide_next = true;
-                }
-                out.push_str(lead);
-                out.push_str(&redact_word(core, root_name.as_deref(), root_mark));
-                out.push_str(trail);
-            }
-        }
-    }
-    out
+    let name = root_name.unwrap_or_else(|| "…".to_owned());
+    text = r
+        .marked
+        .replace_all(&text, |c: &Captures| {
+            let (body, rest) = split_punct(&c[1]);
+            let parts: Vec<&str> = body.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
+            let short = match parts.as_slice() {
+                [] => name.clone(),
+                [one] => format!("{name}/{one}"),
+                [.., last] => format!("{name}/…/{last}"),
+            };
+            format!("{short}{rest}")
+        })
+        .into_owned();
+    text = r
+        .windows_path
+        .replace_all(&text, |c: &Captures| format!("…{}", split_punct(&c[0]).1))
+        .into_owned();
+    text = r
+        .unix_path
+        .replace_all(&text, |c: &Captures| {
+            format!("{}…{}", &c[1], split_punct(&c[2]).1)
+        })
+        .into_owned();
+    text
 }
 
-enum Piece<'a> {
-    Space(&'a str),
-    Word(&'a str),
-}
-
-fn split_keep(s: &str) -> Vec<Piece<'_>> {
-    let mut v = Vec::new();
-    let mut start = 0;
-    let mut in_space = None;
-    for (i, c) in s.char_indices() {
-        let sp = c.is_whitespace();
-        match in_space {
-            None => in_space = Some(sp),
-            Some(prev) if prev != sp => {
-                v.push(if prev {
-                    Piece::Space(&s[start..i])
-                } else {
-                    Piece::Word(&s[start..i])
-                });
-                start = i;
-                in_space = Some(sp);
-            }
-            _ => {}
-        }
-    }
-    if let Some(prev) = in_space {
-        v.push(if prev {
-            Piece::Space(&s[start..])
-        } else {
-            Piece::Word(&s[start..])
-        });
-    }
-    v
-}
-
-/// Splits quotes and brackets off the ends of a word.
-fn peel(w: &str) -> (&str, &str, &str) {
-    let lead_len = w.len() - w.trim_start_matches(['\'', '"', '(', '[', '<']).len();
-    let rest = &w[lead_len..];
-    let trail_len = rest.len() - rest.trim_end_matches(['\'', '"', ')', ']', '>', ',', ';']).len();
-    (
-        &w[..lead_len],
-        &rest[..rest.len() - trail_len],
-        &rest[rest.len() - trail_len..],
-    )
-}
-
-fn redact_word(w: &str, root_name: Option<&str>, root_mark: &str) -> String {
-    // key=value and key:value for secrets.
-    for sep in ['=', ':'] {
-        if let Some((k, _)) = w.split_once(sep) {
-            let k = k.trim_matches(['"', '\'']).to_ascii_lowercase();
-            if matches!(
-                k.as_str(),
-                "access_token"
-                    | "refresh_token"
-                    | "id_token"
-                    | "token"
-                    | "client_secret"
-                    | "password"
-                    | "passphrase"
-                    | "code"
-                    | "api_key"
-                    | "key"
-                    | "secret"
-                    | "authorization"
-                    | "account"
-                    | "account_id"
-                    | "user"
-                    | "email"
-            ) && !w.ends_with(sep)
-            {
-                return format!("{}{sep}[hidden]", &w[..w.find(sep).unwrap_or(0)]);
-            }
-        }
-    }
-    let lower = w.to_ascii_lowercase();
-    if lower.starts_with("ya29.")
-        || w.starts_with("1//")
-        || w.starts_with("eyJ")
-        || lower.starts_with("gho_")
-        || lower.starts_with("ghp_")
-        || lower.starts_with("sk-")
-        || lower.starts_with("wasl-token")
-    {
-        return "[hidden]".to_owned();
-    }
-    if w.contains('@') && w.contains('.') && !w.starts_with('/') && !w.contains('/') {
-        return "[hidden]".to_owned();
-    }
-    if let Some(pos) = w.find(root_mark) {
-        let after = w[pos + root_mark.len()..].replace('\\', "/");
-        let parts: Vec<&str> = after.split('/').filter(|p| !p.is_empty()).collect();
-        let name = root_name.unwrap_or("…");
-        return match parts.as_slice() {
-            [] => name.to_owned(),
-            [one] => format!("{name}/{one}"),
-            [.., last] => format!("{name}/…/{last}"),
-        };
-    }
-    if looks_absolute(w) {
-        return "…".to_owned();
-    }
-    w.to_owned()
-}
-
-fn looks_absolute(w: &str) -> bool {
-    let b = w.as_bytes();
-    (w.starts_with('/') && w.len() > 1 && !w.starts_with("//") || w.starts_with("//") && w.len() > 2)
-        || w.starts_with("\\\\")
-        || (b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/'))
-        || w.starts_with("~/")
-        || w.starts_with("file://")
+/// Splits trailing sentence punctuation off a matched path: `x.txt:` is `x.txt` and `:`.
+fn split_punct(path: &str) -> (&str, &str) {
+    let cut = path.trim_end_matches([':', ',', ';', '.', ')']).len();
+    path.split_at(cut)
 }
 
 /// The reference document: one section per entry, generated from [`ENTRIES`].
@@ -1013,6 +899,7 @@ mod tests {
                 &Values::default().count(n),
                 lang,
                 None,
+                &[],
                 &mut quiet(),
             )
             .text
@@ -1026,58 +913,6 @@ mod tests {
         assert_eq!(r(11, Lang::Ar), "11 مجلدًا يحتاج إليك");
         assert_eq!(r(100, Lang::Ar), "100 مجلد يحتاج إليك");
         assert_eq!(r(102, Lang::Ar), "102 مجلد يحتاج إليك");
-    }
-
-    #[test]
-    fn unknown_key_gets_the_fallback_and_one_log_line() {
-        let mut lines = Vec::new();
-        let r = render(
-            "error.never_heard_of_it",
-            &Values::default().folder("LifeOS"),
-            Lang::En,
-            Some("boom"),
-            &mut |l| lines.push(l),
-        );
-        assert_eq!(r.key, FALLBACK);
-        assert_eq!(
-            r.text,
-            "Something went wrong syncing LifeOS. Wasl will try again at the next sync."
-        );
-        assert_eq!(r.fix, Some(Fix::Retry));
-        assert_eq!(r.details.as_deref(), Some("boom"));
-        assert_eq!(lines.len(), 1);
-        assert!(lines[0].contains("error.never_heard_of_it"));
-        let mut again = Vec::new();
-        render("error.network", &Values::default(), Lang::En, None, &mut |l| {
-            again.push(l)
-        });
-        assert!(again.is_empty(), "a known key logs nothing");
-    }
-
-    #[test]
-    fn a_missing_value_reads_plainly_and_a_value_is_not_filled_twice() {
-        let r = render(
-            "error.not_found",
-            &Values::default(),
-            Lang::En,
-            None,
-            &mut quiet(),
-        );
-        assert_eq!(
-            r.text,
-            "a file isn't there any more. Skipped it; the rest of this folder synced."
-        );
-        let r = render(
-            "error.not_found",
-            &Values::default().file("{folder}").folder("Docs"),
-            Lang::En,
-            None,
-            &mut quiet(),
-        );
-        assert_eq!(
-            r.text,
-            "{folder} isn't there any more. Skipped it; the rest of Docs synced."
-        );
     }
 
     #[test]
@@ -1103,67 +938,6 @@ mod tests {
     }
 
     #[test]
-    fn the_failures_people_hit_each_get_their_own_entry() {
-        use crate::run::ErrorKind as K;
-        let cases = [
-            (K::NotFound, "file not found: report.xlsx", "error.file_gone"),
-            (
-                K::NotFound,
-                "local folder not found: /home/a/LifeOS",
-                "error.folder_missing",
-            ),
-            (K::Io, "No space left on device (os error 28)", "error.disk_full"),
-            (
-                K::Quota,
-                "storageQuotaExceeded: the user's Drive storage quota has been exceeded",
-                "error.quota",
-            ),
-            (
-                K::Quota,
-                "write failed: not enough space on the disk",
-                "error.disk_full",
-            ),
-            (
-                K::Io,
-                "The filename or extension is too long. (os error 206)",
-                "error.name_refused",
-            ),
-            (K::Server, "invalid name: reserved name CON", "error.name_refused"),
-            (
-                K::Auth,
-                "invalid_grant: token has been expired or revoked",
-                "error.auth",
-            ),
-            (
-                K::Auth,
-                "internal_failure: saved sign-in could not be read from the keyring",
-                "error.sign_in_unreadable",
-            ),
-            (K::Network, "dns error", "error.network"),
-        ];
-        for (kind, raw, key) in cases {
-            assert_eq!(classify(kind, raw), key, "{raw}");
-            assert!(entry(key).is_some());
-        }
-        let fix = |k| entry(k).unwrap().fix;
-        assert_eq!(fix("error.disk_full"), Some(Fix::OpenStorageSettings));
-        assert_eq!(fix("error.quota"), Some(Fix::OpenDriveStorage));
-        assert_eq!(fix("error.name_refused"), Some(Fix::OpenToRename));
-        assert_eq!(fix("error.sign_in_unreadable"), Some(Fix::SignInAgain));
-        let gone = render(
-            "error.file_gone",
-            &Values::default().file("a.txt").folder("Docs"),
-            Lang::En,
-            None,
-            &mut quiet(),
-        );
-        assert_eq!(
-            gone.text,
-            "a.txt was gone before Wasl could sync it. Skipped it; the rest of Docs synced."
-        );
-    }
-
-    #[test]
     fn no_entry_shows_a_bare_internal_code() {
         for ent in ENTRIES {
             for t in ent.en.all().chain(ent.ar.all()) {
@@ -1182,25 +956,195 @@ mod tests {
     }
 
     #[test]
-    fn details_never_hold_tokens_accounts_or_outside_paths() {
-        let raw = "request failed for /home/ahmad/Secret/other.txt with Bearer ya29.A0planted-token \
-                   access_token=abc123 refresh_token=1//planted for ahmad@example.com account acct-7f3 \
-                   at C:\\Users\\ahmad\\Documents\\LifeOS\\sub\\deep\\file.xlsx and '/home/ahmad/LifeOS/a/b.txt'";
-        let d = redact(raw, Some("/home/ahmad/LifeOS"), &["acct-7f3"]);
-        for planted in [
-            "ya29",
-            "abc123",
-            "1//planted",
-            "ahmad@example.com",
-            "acct-7f3",
-            "/home/ahmad/Secret",
-            "C:\\Users",
-            "Documents",
-        ] {
-            assert!(!d.contains(planted), "{planted} leaked: {d}");
+    fn an_unknown_key_or_an_other_error_gets_the_fallback_and_one_log_line() {
+        let mut lines = Vec::new();
+        let r = render(
+            "error.never_heard_of_it",
+            &Values::default().folder("LifeOS"),
+            Lang::En,
+            Some("boom"),
+            &[],
+            &mut |l| lines.push(l),
+        );
+        assert_eq!(r.key, FALLBACK);
+        assert_eq!(
+            r.text,
+            "Something went wrong syncing LifeOS. Wasl will try again at the next sync."
+        );
+        assert_eq!(r.fix, Some(Fix::Retry));
+        assert_eq!(r.details.as_deref(), Some("boom"));
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("error.never_heard_of_it"));
+        // An error kind the engine itself calls Other reaches the fallback by key, and logs too.
+        let mut other = Vec::new();
+        let r = render(
+            key_for_kind(crate::run::ErrorKind::Other),
+            &Values::default(),
+            Lang::En,
+            None,
+            &[],
+            &mut |l| other.push(l),
+        );
+        assert_eq!(r.key, FALLBACK);
+        assert_eq!(other.len(), 1);
+        let mut known = Vec::new();
+        render(
+            "error.network",
+            &Values::default(),
+            Lang::En,
+            None,
+            &[],
+            &mut |l| known.push(l),
+        );
+        assert!(known.is_empty(), "a known key logs nothing");
+    }
+
+    #[test]
+    fn a_missing_value_reads_plainly_and_a_value_is_not_filled_twice() {
+        let r = render(
+            "error.file_gone",
+            &Values::default(),
+            Lang::En,
+            None,
+            &[],
+            &mut quiet(),
+        );
+        assert_eq!(
+            r.text,
+            "a file was gone before Wasl could sync it. Skipped it; the rest of this folder synced."
+        );
+        let r = render(
+            "error.file_gone",
+            &Values::default().file("{folder}").folder("Docs"),
+            Lang::En,
+            None,
+            &[],
+            &mut quiet(),
+        );
+        assert_eq!(
+            r.text,
+            "{folder} was gone before Wasl could sync it. Skipped it; the rest of Docs synced."
+        );
+    }
+
+    #[test]
+    fn only_the_operating_systems_error_numbers_pick_the_specific_entries() {
+        use crate::run::ErrorKind as K;
+        let cases = [
+            (K::Io, "No space left on device (os error 28)", "error.disk_full"),
+            (
+                K::Io,
+                "There is not enough space on the disk. (os error 112)",
+                "error.disk_full",
+            ),
+            (
+                K::Io,
+                "The filename or extension is too long. (os error 206)",
+                "error.name_refused",
+            ),
+            (K::Io, "File name too long (os error 36)", "error.name_refused"),
+            (
+                K::Quota,
+                "storageQuotaExceeded: the user's Drive storage quota has been exceeded",
+                "error.quota",
+            ),
+            (
+                K::Permission,
+                "Disk full notes.txt: access denied (os error 5)",
+                "error.permission",
+            ),
+            (K::Io, "cannot read Folder plan.docx (os error 5)", "error.io"),
+            (K::Io, "boom (os error 281)", "error.io"),
+            (
+                K::Auth,
+                "invalid_grant: token has been expired or revoked",
+                "error.auth",
+            ),
+            (K::NotFound, "This pair has no Drive folder", "error.not_found"),
+            (K::Network, "dns error", "error.network"),
+        ];
+        for (kind, raw, key) in cases {
+            assert_eq!(classify(kind, raw), key, "{raw}");
+            assert!(entry(key).is_some());
         }
-        assert!(d.contains("LifeOS/…/b.txt"), "{d}");
-        assert!(d.starts_with("request failed for … with Bearer [hidden]"), "{d}");
+        let fix = |k| entry(k).unwrap().fix;
+        assert_eq!(fix("error.disk_full"), Some(Fix::OpenStorageSettings));
+        assert_eq!(fix("error.quota"), Some(Fix::OpenDriveStorage));
+        assert_eq!(fix("error.name_refused"), Some(Fix::OpenToRename));
+        let gone = render(
+            "error.file_gone",
+            &Values::default().file("a.txt").folder("Docs"),
+            Lang::En,
+            None,
+            &[],
+            &mut quiet(),
+        );
+        assert_eq!(
+            gone.text,
+            "a.txt was gone before Wasl could sync it. Skipped it; the rest of Docs synced."
+        );
+    }
+
+    #[test]
+    fn a_failure_that_stops_the_run_never_says_the_rest_synced() {
+        // The engine stops the whole run for Auth, Permission and Quota (EngineError::is_fatal).
+        for key in [
+            "error.auth",
+            "error.permission",
+            "error.quota",
+            "error.not_found",
+            "error.io",
+        ] {
+            let ent = entry(key).unwrap();
+            for t in ent.en.all().chain(ent.ar.all()) {
+                assert!(
+                    !t.contains("the rest") && !t.contains("بقية") && !t.contains("Skipped"),
+                    "{key}: {t}"
+                );
+            }
+        }
+    }
+
+    fn planted(raw: &str, root: Option<&str>) -> String {
+        redact(raw, root, &["acct-7f3"])
+    }
+
+    #[test]
+    fn details_never_hold_tokens_accounts_or_outside_paths() {
+        let cases = [
+            "request failed for Bearer ya29.A0planted-token on acct-7f3",
+            r#"{"access_token":"ya29.abc","refresh_token":"opaque-refresh-xyz","client_secret":"GOCSPX-planted"}"#,
+            "GET /cb?code=4/0AplantedCode&state=x failed",
+            "Authorization: Basic dXNlcjpwbGFudGVkcGFzcw==",
+            "sent to user@example.com",
+            "failed to open C:\\Users\\Jane Doe\\Documents\\x.txt: denied",
+            "cannot read /home/user/Secret Stuff/other.txt (os error 5)",
+            "path=/home/user/Secret/other.txt",
+            "key=acct-7f3",
+        ];
+        for raw in cases {
+            let d = planted(raw, None);
+            for leak in [
+                "ya29",
+                "opaque-refresh",
+                "GOCSPX",
+                "4/0Aplanted",
+                "dXNlcjp",
+                "user@example.com",
+                "Jane",
+                "Doe",
+                "Secret",
+                "acct-7f3",
+                "C:\\Users",
+                "/home/user",
+            ] {
+                assert!(!d.contains(leak), "{leak} leaked from {raw:?}: {d}");
+            }
+        }
+        assert_eq!(
+            planted("failed to open C:\\Users\\Jane Doe\\x.txt: denied", None),
+            "failed to open …: denied"
+        );
     }
 
     #[test]
@@ -1211,6 +1155,19 @@ mod tests {
             &[],
         );
         assert_eq!(d, "cannot open LifeOS/…/z.txt: denied");
+        let d = redact(
+            "bad '/home/user/LifeOS/a/b.txt' and /home/user/Other/c.txt (os error 2)",
+            Some("/home/user/LifeOS"),
+            &[],
+        );
+        assert_eq!(d, "bad 'LifeOS/…/b.txt' and … (os error 2)");
+        // A sibling that only starts with the folder's name is outside the folder.
+        let d = redact(
+            "cannot open /home/user/LifeOS2/x/y.txt: denied",
+            Some("/home/user/LifeOS"),
+            &[],
+        );
+        assert_eq!(d, "cannot open …: denied");
     }
 
     #[test]
