@@ -19,6 +19,12 @@
 //! A run that is skipped (its conditions, device sync off), fails, is blocked or is cancelled takes
 //! nothing, and the pair waits `Timing::skip_wait` before it tries again. A partial run takes what
 //! was seen before it and also waits, so its failed items are not retried on every tick.
+//!
+//! A run that fails for a passing reason (Drive can't be reached, is busy or has a problem) is
+//! retried by the engine's one policy (`wasl_proto::retry`): the pair runs again after a pause that
+//! grows with each failure, and nothing else starts it meanwhile, so the pause isn't cut short and
+//! the tries aren't used up faster than the policy says. When the policy gives up the pair goes back
+//! to its interval and its changes.
 
 use crate::daemon::Daemon;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
@@ -28,6 +34,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use wasl_core::RunStatus;
 use wasl_engine::Trigger;
+use wasl_proto::{ErrorKind, RetryPolicy};
 use wasl_store::Pair;
 
 /// Global interval when a pair says "follow the global setting" (interval 0).
@@ -45,6 +52,8 @@ pub struct Timing {
     pub settle: Duration,
     pub skip_wait: Duration,
     pub bin_purge_every: Duration,
+    /// How a failed run is retried: tries and the pause between them.
+    pub retry: RetryPolicy,
 }
 
 impl Default for Timing {
@@ -54,6 +63,7 @@ impl Default for Timing {
             settle: SETTLE,
             skip_wait: SKIP_WAIT,
             bin_purge_every: Duration::from_secs(6 * 3600),
+            retry: RetryPolicy::DEFAULT,
         }
     }
 }
@@ -199,7 +209,17 @@ pub async fn run(daemon: Arc<Daemon>, timing: Timing) {
             {
                 continue;
             }
-            let trigger = if due(p, global, now_ms) {
+            // A passing failure is retried on the policy's clock and nothing else starts the pair
+            // before it: not its interval, not a change.
+            let trigger = if runs_on_its_own(p)
+                && let Some(retry) = timing.retry.plan(&p.status)
+            {
+                if retry.next_at.is_none_or(|at| now_ms >= at) {
+                    Some(Trigger::Schedule)
+                } else {
+                    None
+                }
+            } else if due(p, global, now_ms) {
                 Some(Trigger::Schedule)
             } else if wanted.contains_key(p.id.as_str())
                 && settled(&daemon, &changed, &p.id, now, timing.settle)
@@ -213,12 +233,21 @@ pub async fn run(daemon: Arc<Daemon>, timing: Timing) {
                 let d = daemon.clone();
                 let id = p.id.clone();
                 let (ch, retry) = (changed.clone(), retry_at.clone());
-                let skip_wait = timing.skip_wait;
+                let (skip_wait, policy) = (timing.skip_wait, timing.retry);
                 let _started = Started(started.clone(), id.clone());
                 tokio::spawn(async move {
                     let _started = _started;
                     let outcome = d.run(&id, trigger).await;
-                    let wait = after_run(lock(&ch).get_mut(&id), &outcome, now);
+                    // The run's own record says whether the policy retries it.
+                    let retried = outcome.status == RunStatus::Failed
+                        && outcome.error_kind.is_some_and(ErrorKind::transient)
+                        && d.store
+                            .lock()
+                            .get_pair(&id)
+                            .ok()
+                            .flatten()
+                            .is_some_and(|p| policy.plan(&p.status).is_some());
+                    let wait = after_run(lock(&ch).get_mut(&id), &outcome, now, retried);
                     let mut waiting = lock(&retry);
                     if wait {
                         waiting.insert(id, Instant::now() + skip_wait);
@@ -239,8 +268,14 @@ pub async fn run(daemon: Arc<Daemon>, timing: Timing) {
 /// Books a run's outcome and says whether the pair waits before trying again. A run that finished
 /// (in full or in part) took what was seen before it began at `start`; a partial one waits. A run
 /// that failed, was blocked or cancelled, or was skipped took nothing and waits, unless the skip
-/// was for a run already in flight, which is followed like any run.
-fn after_run(seen: Option<&mut Seen>, outcome: &wasl_engine::RunOutcome, start: Instant) -> bool {
+/// was for a run already in flight, which is followed like any run. A failure the retry policy
+/// retries (`retried`) waits by the policy's pause instead, so it takes no `skip_wait` of its own.
+fn after_run(
+    seen: Option<&mut Seen>,
+    outcome: &wasl_engine::RunOutcome,
+    start: Instant,
+    retried: bool,
+) -> bool {
     match outcome.status {
         RunStatus::Success | RunStatus::Partial => {
             if let Some(seen) = seen {
@@ -249,6 +284,7 @@ fn after_run(seen: Option<&mut Seen>, outcome: &wasl_engine::RunOutcome, start: 
             outcome.status == RunStatus::Partial
         }
         RunStatus::Skipped => outcome.message.as_deref() != Some(wasl_engine::ALREADY_RUNNING),
+        RunStatus::Failed if retried => false,
         _ => true,
     }
 }
@@ -503,12 +539,12 @@ mod tests {
         let start = Instant::now();
         let mut s = seen(&[("a.txt", start - Duration::from_secs(1))], None);
         let skipped = outcome(RunStatus::Skipped, Some("Waiting for the pair's conditions"));
-        assert!(after_run(Some(&mut s), &skipped, start), "the pair waits");
+        assert!(after_run(Some(&mut s), &skipped, start, false), "the pair waits");
         assert!(!s.is_empty(), "the change waits for a run that happens");
         let done = outcome(RunStatus::Success, None);
-        assert!(!after_run(Some(&mut s), &done, start));
+        assert!(!after_run(Some(&mut s), &done, start, false));
         assert!(s.is_empty(), "the run took it");
-        assert!(!after_run(None, &done, start));
+        assert!(!after_run(None, &done, start, false));
     }
 
     #[test]
@@ -517,7 +553,7 @@ mod tests {
         for status in [RunStatus::Failed, RunStatus::Blocked, RunStatus::Cancelled] {
             let mut s = seen(&[("a.txt", start - Duration::from_secs(1))], None);
             assert!(
-                after_run(Some(&mut s), &outcome(status, None), start),
+                after_run(Some(&mut s), &outcome(status, None), start, false),
                 "{status:?}"
             );
             assert!(
@@ -532,8 +568,47 @@ mod tests {
         let start = Instant::now();
         let mut s = seen(&[("a.txt", start - Duration::from_secs(1))], None);
         let partial = outcome(RunStatus::Partial, Some("1 item failed"));
-        assert!(after_run(Some(&mut s), &partial, start), "no retry on every tick");
+        assert!(
+            after_run(Some(&mut s), &partial, start, false),
+            "no retry on every tick"
+        );
         assert!(s.is_empty());
+    }
+
+    #[test]
+    fn a_failure_the_policy_retries_waits_by_the_policy_not_by_skip_wait() {
+        let start = Instant::now();
+        let mut s = seen(&[("a.txt", start - Duration::from_secs(1))], None);
+        let failed = outcome(RunStatus::Failed, Some("offline"));
+        assert!(!after_run(Some(&mut s), &failed, start, true));
+        assert!(!s.is_empty(), "the change waits for a run that finishes");
+        assert!(
+            after_run(Some(&mut s), &failed, start, false),
+            "once it has given up"
+        );
+    }
+
+    fn failing(kind: wasl_proto::ErrorKind, failures: u32, at: i64) -> Pair {
+        let mut p = pair(5, Some(at));
+        p.status.last_status = Some(RunStatus::Failed);
+        p.status.last_error_kind = Some(kind);
+        p.status.consecutive_failures = failures;
+        p
+    }
+
+    #[test]
+    fn a_passing_failure_is_planned_by_the_policy_and_a_lasting_one_is_not() {
+        let policy = RetryPolicy::DEFAULT;
+        let net = failing(wasl_proto::ErrorKind::Network, 1, 1_000);
+        assert_eq!(Some(31_000), policy.plan(&net.status).and_then(|r| r.next_at));
+        let auth = failing(wasl_proto::ErrorKind::Auth, 1, 1_000);
+        assert_eq!(None, policy.plan(&auth.status));
+        let done = failing(
+            wasl_proto::ErrorKind::Network,
+            wasl_proto::retry::MAX_TRIES,
+            1_000,
+        );
+        assert_eq!(None, policy.plan(&done.status), "it gave up");
     }
 
     #[test]
@@ -541,7 +616,7 @@ mod tests {
         let start = Instant::now();
         let mut s = seen(&[("a.txt", start - Duration::from_secs(1))], None);
         let busy = outcome(RunStatus::Skipped, Some(wasl_engine::ALREADY_RUNNING));
-        assert!(!after_run(Some(&mut s), &busy, start));
+        assert!(!after_run(Some(&mut s), &busy, start, false));
         assert!(!s.is_empty(), "the run in flight is followed like any run");
     }
 

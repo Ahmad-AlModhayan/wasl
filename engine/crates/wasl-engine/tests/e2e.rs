@@ -533,8 +533,9 @@ async fn one_bad_file_does_not_stop_the_others() {
     assert_eq!(map(&[("good1.txt", "1"), ("good2.txt", "2")]), w.drive_files());
     let p = w.pair();
     assert_eq!(
-        (Some(RunStatus::Partial), 1),
-        (p.status.last_status, p.status.consecutive_failures)
+        (Some(RunStatus::Partial), 0),
+        (p.status.last_status, p.status.consecutive_failures),
+        "a finished run is not a failure in a row"
     );
 }
 
