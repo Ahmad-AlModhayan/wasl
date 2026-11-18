@@ -129,8 +129,8 @@ falling back to English.
 - Note: A vault folder whose keys this device doesn't hold (locked, or its keys unusable). Not a file held open by another program.
 - Values: folder
 - Fix: `unlock_vault`
-- English: The encrypted folder {folder} is locked on this device, so it can't sync. Unlock it, then try again.
-- Arabic: المجلد المشفّر {folder} مقفل على هذا الجهاز، لذلك لا يمكن مزامنته. افتح قفله ثم حاول مجددًا.
+- English: Wasl can't sync {folder}: it is encrypted and locked on this device. Unlock it, then try again.
+- Arabic: لا يستطيع وصل مزامنة {folder}: فهو مشفّر ومقفل على هذا الجهاز. افتح قفله ثم حاول مجددًا.
 
 ## `error.network`
 

@@ -932,7 +932,9 @@ pub fn redact_with(raw: &str, roots: &[&str], secrets: &[&str]) -> String {
         .into_owned();
     text = r
         .windows_path
-        .replace_all(&text, |c: &Captures| format!("{}…{}", &c[1], split_punct(&c[2]).1))
+        .replace_all(&text, |c: &Captures| {
+            format!("{}…{}", &c[1], split_punct(&c[2]).1)
+        })
         .into_owned();
     text = r
         .unix_path
@@ -1585,8 +1587,14 @@ mod tests {
         }
         // A real drive path is still cut, at the start, after a space and after a quote.
         assert_eq!(redact(r"C:\Users\user\x.txt: denied", None, &[]), "…: denied");
-        assert_eq!(redact(r"cannot open C:\Users\user\x.txt: denied", None, &[]), "cannot open …: denied");
-        assert_eq!(redact(r#"open "D:/a/b c/d.txt" failed"#, None, &[]), r#"open "…" failed"#);
+        assert_eq!(
+            redact(r"cannot open C:\Users\user\x.txt: denied", None, &[]),
+            "cannot open …: denied"
+        );
+        assert_eq!(
+            redact(r#"open "D:/a/b c/d.txt" failed"#, None, &[]),
+            r#"open "…" failed"#
+        );
     }
 
     #[test]
@@ -1608,7 +1616,10 @@ mod tests {
             assert!(d.contains("[hidden]"), "{raw:?}: {d}");
         }
         // The key stays; only the value goes.
-        assert_eq!(redact("AWS_SECRET_ACCESS_KEY=opaque-5", None, &[]), "AWS_SECRET_ACCESS_KEY=[hidden]");
+        assert_eq!(
+            redact("AWS_SECRET_ACCESS_KEY=opaque-5", None, &[]),
+            "AWS_SECRET_ACCESS_KEY=[hidden]"
+        );
         // A prefixed `code` is a status, not a secret.
         for raw in [
             "zipCode=94107 errorCode: 404",
@@ -1623,12 +1634,27 @@ mod tests {
     fn a_locked_entry_without_a_folder_does_not_double_the_noun() {
         let r = |lang, values: &Values| render("error.locked", values, lang, None, &[], &mut quiet()).text;
         let none = Values::default();
-        assert_eq!(r(Lang::En, &none).matches("folder").count(), 1, "{}", r(Lang::En, &none));
-        assert_eq!(r(Lang::Ar, &none).matches("المجلد").count(), 1, "{}", r(Lang::Ar, &none));
+        assert_eq!(
+            r(Lang::En, &none).matches("folder").count(),
+            1,
+            "{}",
+            r(Lang::En, &none)
+        );
+        assert_eq!(
+            r(Lang::Ar, &none).matches("المجلد").count(),
+            1,
+            "{}",
+            r(Lang::Ar, &none)
+        );
         let named = Values::default().folder("Photos");
         assert!(r(Lang::En, &named).contains("Photos"));
         assert!(r(Lang::Ar, &named).contains("Photos"));
-        assert_eq!(r(Lang::En, &named).matches("folder").count(), 0, "{}", r(Lang::En, &named));
+        assert_eq!(
+            r(Lang::En, &named).matches("folder").count(),
+            0,
+            "{}",
+            r(Lang::En, &named)
+        );
     }
 
     #[test]
