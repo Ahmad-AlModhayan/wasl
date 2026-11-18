@@ -78,27 +78,34 @@ fn node(name: &str) -> Node {
 
 /// What a restart sees: the node's data folder as a copy. The running daemon keeps its lock on the
 /// original (one engine per data folder, wasl#21) and a stopped process isn't possible here, so
-/// the "restarted" daemon opens the copy, flushed first.
+/// the "restarted" daemon opens the copy.
+///
+/// The store is copied with SQLite (`VACUUM INTO`), under the store's own lock, so a task that is
+/// still writing (a closing link notes the device, wasl#49) is either in the copy or after it.
+/// Copying the files would not do: on Windows SQLite holds byte-range locks on the file while it
+/// writes, and a copy that meets one fails with "locked a portion of the file".
 fn restart_copy(n: &Node, name: &str) -> PathBuf {
+    let to = n.data.with_file_name(name);
+    std::fs::create_dir_all(&to).unwrap();
     n.daemon
         .store
         .lock()
         .connection()
-        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .execute("VACUUM INTO ?1", [to.join("wasl.db").to_str().unwrap()])
         .unwrap();
     fn copy(from: &std::path::Path, to: &std::path::Path) {
         std::fs::create_dir_all(to).unwrap();
         for e in std::fs::read_dir(from).unwrap() {
             let e = e.unwrap();
             let (src, dst) = (e.path(), to.join(e.file_name()));
+            let name = e.file_name().to_string_lossy().into_owned();
             if e.file_type().unwrap().is_dir() {
                 copy(&src, &dst);
-            } else if src.extension().is_none_or(|x| x != "lock") {
+            } else if !name.starts_with("wasl.db") && src.extension().is_none_or(|x| x != "lock") {
                 std::fs::copy(&src, &dst).unwrap();
             }
         }
     }
-    let to = n.data.with_file_name(name);
     copy(&n.data, &to);
     to
 }
@@ -187,6 +194,34 @@ async fn the_key_and_the_group_survive_a_restart() {
         .replace("Desktop", "Desk top");
     std::fs::write(&path, text).unwrap();
     assert!(Daemon::open(config(damaged.clone(), a.secrets.clone(), "Laptop")).is_err());
+}
+
+/// A task still writes to the store when a restart copy is taken, as the note a closing link
+/// leaves does (wasl#49). The copy must not trip over the writer's lock, and must open as a store.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_restart_copy_is_taken_while_the_store_is_being_written() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let n = node("Laptop");
+    let store = n.daemon.store.clone();
+    let stop = Arc::new(AtomicBool::new(false));
+    let writer = {
+        let stop = stop.clone();
+        std::thread::spawn(move || {
+            let mut at = 0;
+            while !stop.load(Ordering::Relaxed) {
+                at += 1;
+                store.lock().note_device_seen("writer", at).unwrap();
+                std::thread::yield_now();
+            }
+        })
+    };
+    for i in 0..20 {
+        let copy = restart_copy(&n, &format!("data-copy-{i}"));
+        let opened = wasl_store::Store::open(copy.join("wasl.db")).unwrap();
+        assert!(opened.get_pair("p").unwrap().is_some(), "copy {i} has the pair");
+    }
+    stop.store(true, Ordering::Relaxed);
+    writer.join().unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
