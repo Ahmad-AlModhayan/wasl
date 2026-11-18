@@ -65,3 +65,4 @@ jobs:
           WASL_FUSE_TESTS: ${{ runner.os == 'Linux' && 'require' || '' }}
       # Two real wasld processes, paired, syncing and removing (test build, loopback only).
       - run: cargo test -p wasld --features miqyas --test two_daemons
+        timeout-minutes: 15

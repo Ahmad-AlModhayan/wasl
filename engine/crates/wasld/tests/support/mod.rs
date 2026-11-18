@@ -96,13 +96,17 @@ impl Device {
 
     /// Asks the daemon to sync every pair it has now (a run already going is left alone).
     pub async fn sync_now(&self) {
-        let Ok(c) = Client::connect(&Paths::at(&self.home)).await else {
-            return;
+        // A sync call returns when the run ends, so the whole round is bounded.
+        let round = async {
+            let Ok(c) = Client::connect(&Paths::at(&self.home)).await else {
+                return;
+            };
+            let Ok(s) = c.status().await else { return };
+            for p in s.pairs {
+                let _ = c.sync(&p.pair.id, wasl_engine::Trigger::Manual).await;
+            }
         };
-        let Ok(s) = c.status().await else { return };
-        for p in s.pairs {
-            let _ = c.sync(&p.pair.id, wasl_engine::Trigger::Manual).await;
-        }
+        let _ = tokio::time::timeout(Duration::from_secs(20), round).await;
     }
 
     /// What the daemon says about each of its pairs, for failure messages.
@@ -151,7 +155,9 @@ where
 {
     let end = Instant::now() + WAIT;
     loop {
-        if let Some(v) = check().await {
+        // A call inside `check` that never answers must not outlive the deadline.
+        let left = end.saturating_duration_since(Instant::now());
+        if let Ok(Some(v)) = tokio::time::timeout(left, check()).await {
             return v;
         }
         if Instant::now() > end {
@@ -171,7 +177,14 @@ pub async fn at_stage(c: &Client, d: &Device, stage: PairingStage) -> PairingSta
         &[d],
         || async {
             let s = c.pairing_status().await.ok()?;
-            assert_ne!(PairingStage::Failed, s.stage, "pairing failed: {:?}", s.message);
+            assert_ne!(
+                PairingStage::Failed,
+                s.stage,
+                "pairing failed: {:?}
+{}",
+                s.message,
+                d.logs()
+            );
             (s.stage == stage).then_some(s)
         },
     )
@@ -245,8 +258,20 @@ pub async fn share_folder(a: &Device, b: &Device) {
         .await
         .unwrap();
     // Starting from the preview is the go-ahead for a new pair's first sync.
-    ca.sync(PAIR_ID, wasl_engine::Trigger::Preview).await.unwrap();
-    cb.sync(&pb.id, wasl_engine::Trigger::Preview).await.unwrap();
+    for (c, d, id) in [(&ca, a, PAIR_ID), (&cb, b, pb.id.as_str())] {
+        let run = c.sync(id, wasl_engine::Trigger::Preview);
+        match tokio::time::timeout(WAIT, run).await {
+            Ok(r) => {
+                r.unwrap();
+            }
+            Err(_) => panic!(
+                "the first sync on {} did not end in {WAIT:?}
+{}",
+                d.name,
+                d.logs()
+            ),
+        }
+    }
     for (c, d, id) in [(&ca, a, PAIR_ID), (&cb, b, pb.id.as_str())] {
         eventually(
             &format!("the first sync of {} to end well", d.name),

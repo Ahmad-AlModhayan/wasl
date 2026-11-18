@@ -69,7 +69,13 @@ async fn removing_a_device_drops_it_from_the_list_and_stops_its_changes() {
     );
 
     std::fs::write(a.path("after.txt"), "y").unwrap();
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    // The same nudged syncs that delivered before.txt, now for five seconds: nothing may arrive.
+    let until = std::time::Instant::now() + Duration::from_secs(5);
+    while std::time::Instant::now() < until {
+        a.sync_now().await;
+        b.sync_now().await;
+        tokio::time::sleep(Duration::from_millis(400)).await;
+    }
     assert!(
         !b.path("after.txt").exists(),
         "B got a change after it was removed"
