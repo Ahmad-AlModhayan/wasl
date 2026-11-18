@@ -1,12 +1,12 @@
 // No console window when started at login on Windows.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+use wasl_ipc::Paths;
 use wasld::schedule::Timing;
 #[cfg(not(feature = "miqyas"))]
 use {
     std::sync::Arc,
     std::time::Duration,
-    wasl_ipc::Paths,
     wasld::daemon::DaemonConfig,
     wasld::oauth::OAuthConfig,
     wasld::tokens::{Keychain, secrets_for},
