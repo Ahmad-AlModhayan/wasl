@@ -313,16 +313,22 @@ impl Apply {
         let old_rel = rel.to_owned();
         let old = self.fs(move |fs| fs.stat(&old_rel)).await?;
         let old_rel = rel.to_owned();
-        // The copy is indexed before the swap, so a stop anywhere leaves no bin file the index
-        // does not know (it would never expire). A stop before the swap leaves an indexed copy of
-        // a file that is still in place: the next run bins the same content again, and the cap on
-        // versions and the retention time clear the extra.
+        // The copy is indexed right after it is made and before the swap, so a stop at any of the
+        // points around the swap leaves no bin file the index does not know (it would never
+        // expire). A stop before the swap leaves an indexed copy of a file that is still in
+        // place: the next run bins the same content again, and the cap on versions and the
+        // retention time clear the extra. If the index write itself fails, the copy is removed.
         let copy = match self.fs_raw(move |fs| fs.bin_copy(&old_rel)).await? {
             Ok(Some(location)) => {
                 let size = old.map_or(0, |o| o.size);
-                let id = self
-                    .index_binned(key, rel, reason, location.clone(), size)
-                    .await?;
+                let id = match self.index_binned(key, rel, reason, location.clone(), size).await {
+                    Ok(id) => id,
+                    Err(e) => {
+                        let loc = location.clone();
+                        let _ = self.fs(move |fs| fs.purge_from_bin(&loc)).await;
+                        return Err(e);
+                    }
+                };
                 Some((location, id))
             }
             Ok(None) => None,

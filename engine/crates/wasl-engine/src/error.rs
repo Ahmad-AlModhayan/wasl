@@ -54,8 +54,9 @@ impl EngineError {
     /// An I/O error from the disk on a path made from a name that came from elsewhere (a Drive
     /// name, a peer's name), after the one mapping function ran. The disk's own refusal of the
     /// path (the typed [`wasl_fs::UnsafePath`]) is [`EngineError::NameRefused`]; anything else is
-    /// the plain conversion. Only the apply layer and the executor call this: an invalid path
-    /// from anywhere else (an agent's scope, say) is not a name the user can fix on Drive.
+    /// the plain conversion. The apply layer, the executor and device pull call this for the
+    /// names they made: an invalid path from anywhere else (an agent's scope, say) is not a name
+    /// the user can fix on Drive.
     pub(crate) fn from_name_io(e: std::io::Error) -> EngineError {
         if wasl_fs::is_unsafe_path(&e) {
             EngineError::NameRefused(format!(

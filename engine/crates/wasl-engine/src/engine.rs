@@ -1359,8 +1359,12 @@ impl Engine {
         for (b, to, key) in moves {
             if to != b.local_rel {
                 // Unchanged here since the last sync, and nothing at the new place.
-                if !apply.as_planned(&b.local_rel).await? {
-                    continue;
+                match apply.as_planned(&b.local_rel).await {
+                    Ok(true) => {}
+                    Ok(false) => continue,
+                    // A file that cannot be looked at is left for the planner, as it always was.
+                    Err(e) if apply.killed() => return Err(e),
+                    Err(_) => continue,
                 }
                 if let Some((parent, _)) = to.rsplit_once('/')
                     && let Err(e) = apply.mkdir(parent).await

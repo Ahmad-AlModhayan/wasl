@@ -416,7 +416,6 @@ impl Executor {
     // ------------------------------------------------------------------ handlers
 
     async fn mkdir_local(&self, key: &str, local_rel: &str) -> Result<()> {
-        self.apply.check_name(local_rel)?;
         self.apply.mkdir(local_rel).await?;
         let rel = local_rel.to_owned();
         let st = self.fs_named(move |fs| fs.stat(&rel)).await?;

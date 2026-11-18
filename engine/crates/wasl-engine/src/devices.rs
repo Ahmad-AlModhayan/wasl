@@ -83,7 +83,8 @@ pub struct PullReport {
     pub rejected: usize,
     /// Of those, the peer's names this disk refuses even after mapping (a drive-like prefix
     /// such as `a:b.txt` on a disk that cannot hold it, a name too long): only that item is
-    /// skipped, with its name here. It is not read again, so it does not hold the peer back.
+    /// skipped, with its name here. It does not hold the peer back; it is read (and listed) again
+    /// only while other steps of the pull are deferred.
     pub refused: Vec<String>,
     /// Files received and installed here (new or replaced content).
     pub received: usize,
@@ -968,7 +969,13 @@ impl DeviceSync {
             (Some(copy), Some(d)) if !d.is_dir => {
                 let copy = self.free_copy_name(index, copy)?;
                 let copy = copy.as_str();
-                if !apply.rename(&self.lp(key), &self.lp(copy)).await.map_err(later)? {
+                // The copy's name is made here, not the peer's: if the disk refuses it, the peer's
+                // item is not at fault, so it waits like any other failed step.
+                if !apply
+                    .rename(&self.lp(key), &self.lp(copy))
+                    .await
+                    .map_err(|_| Deferred::Later)?
+                {
                     return Err(Deferred::Later);
                 }
                 // The copy is a new file here, with the losing content. Its vector descends from

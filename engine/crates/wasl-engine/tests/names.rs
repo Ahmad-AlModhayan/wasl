@@ -512,6 +512,21 @@ async fn a_rename_on_drive_is_followed_under_the_name_this_disk_gives_it() {
                 .is_none(),
             "{to}"
         );
+        // And on from the mapped name: a second rename starts from a row whose local name is not
+        // its Drive name, and the file follows it too.
+        w.clock.advance(10_000);
+        assert!(w.drive.move_path(&format!("Sync/{to}"), "Sync/again.txt"));
+        for _ in 0..2 {
+            let o = w.sync().await;
+            assert_eq!(RunStatus::Success, o.status, "{to}: {:?}", o.message);
+        }
+        assert_eq!(
+            map(&[("again.txt", "body")]),
+            w.local_files(),
+            "{to}: second rename"
+        );
+        assert!(bin_is_empty(&w), "{to}: second rename binned nothing");
+        assert_eq!(0, w.drive.trashed_files().len(), "{to}: second rename");
     }
 }
 
