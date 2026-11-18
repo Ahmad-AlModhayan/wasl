@@ -83,9 +83,9 @@ async fn removing_a_device_drops_it_from_the_list_and_stops_its_changes() {
 }
 
 /// What an ordinary person does: saves a file and waits. Nothing here asks the daemons to sync.
-/// Ignored until wasl#38 is fixed: on Windows the change never arrives within 60 s.
+/// The file is written right after the first sync, before the schedule's next tick has started
+/// the folder watchers (wasl#38): the change must still arrive, from the catch-up run.
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "wasl#38: a new file does not sync by itself on Windows"]
 async fn a_new_file_syncs_by_itself_without_pressing_sync() {
     let (_root, a, b) = two().await;
     pair(&a, &b).await;
