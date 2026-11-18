@@ -214,8 +214,7 @@ the CLI all return it with a stable key, the values and the words in the caller'
 | `last_seen` | `device.last_seen_now`, `_minutes`, `_hours`, `_days` | no open link; the time is in `values.count` and `last_seen_at` |
 | `cant_reach` | `device.cant_reach` | never reached from here, or not for 30 days |
 
-"Last seen" is kept in `device_seen` when a link opens and closes, every minute while one is open, and
-when it is read. A folder with route `devices` that is up to date, shared with a device that is
+"Last seen" is kept in `device_seen` when a link opens and closes, every minute while one is open (a device online now is read as seen now). A folder with route `devices` that is up to date, shared with a device that is
 offline, reads `waiting` with `folder.waiting_device` (or `folder.cant_reach_device`), naming the
 device. A folder that also syncs through Drive stays up to date and lists the device in `peers`.
 

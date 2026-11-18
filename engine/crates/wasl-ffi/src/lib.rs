@@ -22,7 +22,7 @@ pub use vaults::{NewVault, vault_v2_create, vault_v2_unlock, vault_version};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use wasl_core::BaselineEntry;
 use wasl_core::conditions::DeviceState;
 use wasl_core::{PlanSummary, RunStatus};
@@ -318,7 +318,7 @@ pub struct WaslEngine {
     /// On-demand readers by cache folder: one per folder, shared by every caller.
     readers: Mutex<HashMap<PathBuf, Arc<OnDemandReader>>>,
     /// The device group this phone is in while it takes part, so statuses name the devices.
-    devices: Mutex<Option<Arc<wasl_devices::Devices>>>,
+    devices: Mutex<Option<Weak<wasl_devices::Devices>>>,
     /// Who watches folder statuses ([`StatusSink`]).
     watch: Arc<status::StatusWatch>,
 }

@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex, OnceLock, Weak};
+use std::sync::{Arc, Mutex, OnceLock, TryLockError, Weak};
 use std::time::Duration;
 
 use wasl_devices::Devices;
@@ -24,8 +24,11 @@ use crate::{WaslEngine, WaslError};
 /// Progress and device news come in bursts; statuses are decided at most this often for them.
 const SETTLE: Duration = Duration::from_millis(120);
 
-/// Is told when a folder's status changes. Called from a background thread, once per folder whose
-/// status is not what the last call (or [`WaslEngine::watch_status`]) gave.
+/// Is told when a folder's status changes, once per folder whose status is not what the last call (or
+/// [`WaslEngine::watch_status`]) gave. It runs on whichever thread made the change: the thread of the
+/// engine call that changed a status (`set_paused`, `sync`, `refresh_status`, ...) or a background
+/// thread for run progress and device news. An app that draws in it must hop to its UI thread, and
+/// the call should not throw.
 #[uniffi::export(with_foreign)]
 pub trait StatusSink: Send + Sync {
     fn on_folder_status(&self, pair_id: String, status: FolderStatus);
@@ -90,9 +93,23 @@ impl StatusWatch {
             return;
         }
         self.again.store(true, Ordering::SeqCst);
-        let Ok(_round) = self.busy.try_lock() else {
-            return;
-        };
+        loop {
+            let round = match self.busy.try_lock() {
+                Ok(g) => g,
+                Err(TryLockError::Poisoned(p)) => p.into_inner(),
+                // Another round is running; it sees `again` before it lets go.
+                Err(TryLockError::WouldBlock) => return,
+            };
+            self.round(engine);
+            drop(round);
+            // A call that asked while the lock was still held leaves one more round to us.
+            if !self.again.load(Ordering::SeqCst) {
+                break;
+            }
+        }
+    }
+
+    fn round(&self, engine: &WaslEngine) {
         while self.again.swap(false, Ordering::SeqCst) {
             let Some((lang, sink)) = self.watcher.lock().unwrap_or_else(|p| p.into_inner()).clone() else {
                 return;
@@ -114,7 +131,11 @@ impl StatusWatch {
                     .collect()
             };
             for status in changed {
-                sink.on_folder_status(status.pair_id.clone(), status);
+                // A sink that throws must not stop later updates.
+                let id = status.pair_id.clone();
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    sink.on_folder_status(id, status)
+                }));
             }
         }
     }
@@ -150,7 +171,12 @@ impl WaslEngine {
     /// when this phone takes part in its device group.
     pub(crate) fn statuses(&self, lang: Lang) -> Result<Vec<FolderStatus>, WaslError> {
         let list = self.engine.folder_statuses(lang, &free_bytes, &mut |_| {})?;
-        let devices = self.devices.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let devices = self
+            .devices
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .as_ref()
+            .and_then(Weak::upgrade);
         Ok(match devices {
             Some(d) => d.with_peers(list, lang),
             None => list,
@@ -158,7 +184,8 @@ impl WaslEngine {
     }
 
     pub(crate) fn set_devices(&self, devices: Option<Arc<Devices>>) {
-        *self.devices.lock().unwrap_or_else(|p| p.into_inner()) = devices;
+        // Weak: the app's own `WaslDevices` keeps the group alive, not the engine.
+        *self.devices.lock().unwrap_or_else(|p| p.into_inner()) = devices.as_ref().map(Arc::downgrade);
     }
 
     /// A call that can change a status has run: tell the watcher, if there is one.
