@@ -81,6 +81,11 @@ pub struct PullReport {
     /// Entries a peer sent that this device will not act on (ignored or internal paths,
     /// inconsistent versions).
     pub rejected: usize,
+    /// Of those, the peer's names this disk refuses even after mapping (a drive-like prefix
+    /// such as `a:b.txt` on a disk that cannot hold it, a name too long): only that item is
+    /// skipped, with its name here. It does not hold the peer back; it is read (and listed) again
+    /// only while other steps of the pull are deferred.
+    pub refused: Vec<String>,
     /// Files received and installed here (new or replaced content).
     pub received: usize,
     /// The spellings of names held twice, here or on the peer (ADR-0004 rule 2): everything with
@@ -160,6 +165,18 @@ impl DeviceSync {
         local_path(self.fs.as_ref(), key)
     }
 
+    /// Whether this disk refuses the local name of `key` even after mapping: a path the file
+    /// system's checks reject, or a part over the length limit. A peer's item with such a name
+    /// is skipped and reported, never retried.
+    fn refuses(&self, key: &str) -> bool {
+        let rel = self.lp(key);
+        let rules = self.fs.name_rules();
+        wasl_fs::check_rel(&rel).is_err()
+            || rel
+                .split('/')
+                .any(|part| wasl_core::names::refusal(part, rules).is_some())
+    }
+
     /// The apply layer for one step, told what the index says is at `keys`: the layer re-checks
     /// each against the disk before it replaces, removes or renames it.
     fn apply_for(&self, index: &Index, keys: &[&str]) -> Apply {
@@ -222,14 +239,19 @@ impl DeviceSync {
         let builder = crate::engine::rules_builder(&self.pair);
         // A name this disk maps (`a:b` on Windows) is found on disk under its local name and goes
         // back to the key the index holds it under.
-        let reverse: HashMap<String, String> = index
-            .entries
-            .keys()
-            .filter_map(|k| {
-                let local = local_path(fs.as_ref(), k);
-                (local != *k).then(|| (local, k.clone()))
-            })
-            .collect();
+        // Only live entries: a deleted `REPORT~1.DOC`'s tombstone must not claim the name
+        // `REPORT～1.DOC` a new file now has. Two live keys with one local name are a clash the
+        // pull holds; the smallest key (the map's order) is the one that is found.
+        let mut reverse: HashMap<String, String> = HashMap::new();
+        for (k, e) in &index.entries {
+            if e.version.deleted {
+                continue;
+            }
+            let local = local_path(fs.as_ref(), k);
+            if local != *k {
+                reverse.entry(local).or_insert_with(|| k.clone());
+            }
+        }
         let (report, rules) = tokio::task::spawn_blocking(move || {
             let key_of = |rel: &str| reverse.get(rel).cloned().unwrap_or_else(|| rel.to_owned());
             let scan = wasl_fs::scan(fs.as_ref(), builder, &key_of, || false)?;
@@ -337,7 +359,14 @@ impl DeviceSync {
                 .await
                 .map_err(peer_error)?;
             for (k, v) in page.entries {
-                if k.is_empty() || wasl_fs::check_rel_on(&k, false).is_err() {
+                // A key that could leave the folder (absolute, `..`, backslash, NUL) is the peer's
+                // bug and stops the pull. A drive-like prefix (`a:b.txt`) is a fine name on
+                // some disks: whether this one takes it is judged per item below.
+                if k.is_empty()
+                    || wasl_fs::check_rel_on(&k, false)
+                        .err()
+                        .is_some_and(|e| wasl_fs::unsafe_path_why(&e) != Some("drive prefix"))
+                {
                     return Err(EngineError::Integrity(format!("peer sent a bad name: {k:?}")));
                 }
                 collected += 1;
@@ -370,6 +399,10 @@ impl DeviceSync {
                 let ok = acceptable(&rules, k, v);
                 if !ok {
                     report.rejected += 1;
+                } else if self.refuses(k) {
+                    report.rejected += 1;
+                    report.refused.push(k.clone());
+                    return false;
                 }
                 ok
             })
@@ -380,6 +413,11 @@ impl DeviceSync {
         let steps = self
             .same_names(&mut index, steps, &mut changed, &mut report)
             .await;
+        // A rename in place that was stopped is the end of the run, not a step that failed: the
+        // steps after it must not run on a disk the process has left.
+        if self.killed() {
+            return Err(EngineError::Other("fault plan: the pull was stopped".into()));
+        }
 
         // Merged histories first, then folders (parents first), files, and deletions (children
         // first), so a file's folder exists and a folder is empty when it goes.
@@ -430,8 +468,15 @@ impl DeviceSync {
                 Err(Deferred::Later) => report.deferred += 1,
                 // Something the peer got wrong: skipped for good, it does not hold back the rest.
                 Err(Deferred::Never) => report.rejected += 1,
+                // A name this disk refuses: skipped and named, and not read again.
+                Err(Deferred::Refused) => {
+                    report.rejected += 1;
+                    report.refused.push(key);
+                }
             }
         }
+        report.refused.sort();
+        report.refused.dedup();
         {
             let mut s = self.store.lock();
             s.save_index(&self.pair.id, &index, Some(&changed), &[])?;
@@ -461,9 +506,12 @@ impl DeviceSync {
         use wasl_core::identity::name_key;
         // Every live name on either side, by name key: (spelling, on the peer's side).
         let mut names: BTreeMap<String, BTreeSet<(String, bool)>> = BTreeMap::new();
+        // Keyed by the local name (mapped as this disk needs): two keys that the disk would give
+        // one name are one name, whatever they look like on the peer.
+        let local_key = |key: &str| name_key(&self.lp(key));
         for (k, e) in &index.entries {
             if !e.version.deleted {
-                names.entry(name_key(k)).or_default().insert((k.clone(), false));
+                names.entry(local_key(k)).or_default().insert((k.clone(), false));
             }
         }
         let gone: HashMap<&str, &Version> = steps
@@ -481,7 +529,7 @@ impl DeviceSync {
             };
             if !v.deleted {
                 names
-                    .entry(name_key(key))
+                    .entry(local_key(key))
                     .or_default()
                     .insert((key.clone(), true));
             }
@@ -545,10 +593,10 @@ impl DeviceSync {
         // A key is held when its name, or a folder above it, clashes.
         let held = |key: &str| {
             !clashing.is_empty()
-                && (clashing.contains(&name_key(key))
+                && (clashing.contains(&local_key(key))
                     || key
                         .match_indices('/')
-                        .any(|(i, _)| clashing.contains(&name_key(&key[..i]))))
+                        .any(|(i, _)| clashing.contains(&local_key(&key[..i]))))
         };
         let mut kept = Vec::with_capacity(steps.len());
         for s in steps {
@@ -575,7 +623,8 @@ impl DeviceSync {
             return false;
         }
         let apply = self.apply_for(index, &[old]);
-        if !matches!(apply.rename(&self.lp(old), &self.lp(new)).await, Ok(true))
+        if self.lp(old) != self.lp(new)
+            && !matches!(apply.rename(&self.lp(old), &self.lp(new)).await, Ok(true))
             || apply.before_record().is_err()
         {
             return false;
@@ -625,7 +674,8 @@ impl DeviceSync {
         }
         let keys: Vec<&str> = moving.iter().map(String::as_str).collect();
         let apply = self.apply_for(index, &keys[..1.min(keys.len())]);
-        if !matches!(apply.rename(&self.lp(old), &self.lp(new)).await, Ok(true))
+        if self.lp(old) != self.lp(new)
+            && !matches!(apply.rename(&self.lp(old), &self.lp(new)).await, Ok(true))
             || apply.before_record().is_err()
         {
             return None;
@@ -689,28 +739,29 @@ impl DeviceSync {
             record(index, key, v.clone(), 0, 0);
             return Ok(());
         }
-        if !self.clean(index, key).map_err(|_| Deferred::Later)? {
+        if !self.clean(index, key).map_err(later)? {
             return Err(Deferred::Later);
         }
         // Everything below changes the disk only through the apply layer, which looks at the item
         // again first and leaves it alone if it is no longer what the index says.
         let rel = self.lp(key);
         let apply = self.apply_for(index, &[key]);
-        let exists = self.fs.stat(&rel).map_err(|_| Deferred::Later)?;
+        let exists = self.fs.stat(&rel).map_err(later)?;
+        if !v.deleted {
+            // A name the disk can never hold costs no fetch.
+            apply.check_name(&rel).map_err(later)?;
+        }
         if v.deleted {
             let was_here = exists.is_some();
             match exists {
                 Some(d) if d.is_dir => {
                     // Only an empty folder goes; anything left in it keeps it.
-                    if !apply.remove_empty_dir(&rel).await.map_err(|_| Deferred::Later)? {
+                    if !apply.remove_empty_dir(&rel).await.map_err(later)? {
                         return Err(Deferred::Later);
                     }
                 }
                 Some(_) => {
-                    let removed = apply
-                        .delete(key, &rel, "DELETED")
-                        .await
-                        .map_err(|_| Deferred::Later)?;
+                    let removed = apply.delete(key, &rel, "DELETED").await.map_err(later)?;
                     if !removed {
                         report.changed_since_planned.push(key.to_owned());
                         return Err(Deferred::Later);
@@ -718,7 +769,7 @@ impl DeviceSync {
                 }
                 None => {}
             }
-            apply.before_record().map_err(|_| Deferred::Later)?;
+            apply.before_record().map_err(later)?;
             let _ = self.store.lock().forget_chunks(&self.pair.id, key);
             record(index, key, v.clone(), 0, 0);
             report.taken += 1;
@@ -727,16 +778,13 @@ impl DeviceSync {
         }
         if v.is_dir {
             if exists.as_ref().is_some_and(|d| !d.is_dir)
-                && !apply
-                    .delete(key, &rel, "OVERWRITTEN")
-                    .await
-                    .map_err(|_| Deferred::Later)?
+                && !apply.delete(key, &rel, "OVERWRITTEN").await.map_err(later)?
             {
                 report.changed_since_planned.push(key.to_owned());
                 return Err(Deferred::Later);
             }
-            apply.mkdir(&rel).await.map_err(|_| Deferred::Later)?;
-            apply.before_record().map_err(|_| Deferred::Later)?;
+            apply.mkdir(&rel).await.map_err(later)?;
+            apply.before_record().map_err(later)?;
             record(index, key, v.clone(), 0, 0);
             report.taken += 1;
             return Ok(());
@@ -766,14 +814,12 @@ impl DeviceSync {
             .await
             .ok_or(Deferred::Later)?;
         if let Some(parent) = parent_of(&rel)
-            && apply.mkdir(parent).await.is_err()
+            && let Err(e) = apply.mkdir(parent).await
         {
             let _ = std::fs::remove_file(&staged);
-            return Err(Deferred::Later);
+            return Err(later(e));
         }
-        if exists.as_ref().is_some_and(|d| d.is_dir)
-            && !apply.remove_empty_dir(&rel).await.map_err(|_| Deferred::Later)?
-        {
+        if exists.as_ref().is_some_and(|d| d.is_dir) && !apply.remove_empty_dir(&rel).await.map_err(later)? {
             let _ = std::fs::remove_file(&staged);
             return Err(Deferred::Later);
         }
@@ -781,13 +827,13 @@ impl DeviceSync {
         let Some(installed) = apply
             .install(staged, key, &rel, Some(v.mtime), "OVERWRITTEN")
             .await
-            .map_err(|_| Deferred::Later)?
+            .map_err(later)?
         else {
             report.changed_since_planned.push(key.to_owned());
             return Err(Deferred::Later);
         };
-        apply.before_record().map_err(|_| Deferred::Later)?;
-        remember_chunks(&self.store, &self.pair.id, key, &list).map_err(|_| Deferred::Later)?;
+        apply.before_record().map_err(later)?;
+        remember_chunks(&self.store, &self.pair.id, key, &list).map_err(later)?;
         record(index, key, v.clone(), installed.size, installed.mtime_ms);
         report.taken += 1;
         report.received += 1;
@@ -911,18 +957,20 @@ impl DeviceSync {
         copy_key: Option<&str>,
         changed: &mut Vec<String>,
     ) -> Result<(), Deferred> {
-        if !self.clean(index, key).map_err(|_| Deferred::Later)? {
+        if !self.clean(index, key).map_err(later)? {
             return Err(Deferred::Later);
         }
         let Some(local) = index.entries.get(key).cloned() else {
             return Ok(());
         };
-        let disk = self.fs.stat(&self.lp(key)).map_err(|_| Deferred::Later)?;
+        let disk = self.fs.stat(&self.lp(key)).map_err(later)?;
         let apply = self.apply_for(index, &[key]);
         match (copy_key, disk) {
             (Some(copy), Some(d)) if !d.is_dir => {
                 let copy = self.free_copy_name(index, copy)?;
                 let copy = copy.as_str();
+                // The copy's name is made here, not the peer's: if the disk refuses it, the peer's
+                // item is not at fault, so it waits like any other failed step.
                 if !apply
                     .rename(&self.lp(key), &self.lp(copy))
                     .await
@@ -962,7 +1010,7 @@ impl DeviceSync {
                 if !apply
                     .delete(key, &self.lp(key), "CONFLICT")
                     .await
-                    .map_err(|_| Deferred::Later)?
+                    .map_err(later)?
                 {
                     return Err(Deferred::Later);
                 }
@@ -980,11 +1028,7 @@ impl DeviceSync {
     fn free_copy_name(&self, index: &Index, copy: &str) -> Result<String, Deferred> {
         let taken = |name: &str| -> Result<bool, Deferred> {
             Ok(index.get(name).is_some_and(|v| !v.deleted)
-                || self
-                    .fs
-                    .stat(&self.lp(name))
-                    .map_err(|_| Deferred::Later)?
-                    .is_some())
+                || self.fs.stat(&self.lp(name)).map_err(later)?.is_some())
         };
         if !taken(copy)? {
             return Ok(copy.to_owned());
@@ -1009,6 +1053,34 @@ impl DeviceSync {
 enum Deferred {
     Later,
     Never,
+    /// The disk refuses the item's name even after mapping: skipped and reported, not retried.
+    Refused,
+}
+
+/// An error that says whether it is the disk refusing a name.
+trait NameRefusal {
+    fn is_refusal(&self) -> bool;
+}
+
+impl NameRefusal for EngineError {
+    fn is_refusal(&self) -> bool {
+        matches!(self, EngineError::NameRefused(_))
+    }
+}
+
+impl NameRefusal for io::Error {
+    fn is_refusal(&self) -> bool {
+        wasl_fs::is_unsafe_path(self)
+    }
+}
+
+/// A step that failed: a refused name is final, anything else is read again at the next pull.
+fn later<E: NameRefusal>(e: E) -> Deferred {
+    if e.is_refusal() {
+        Deferred::Refused
+    } else {
+        Deferred::Later
+    }
 }
 
 /// Whether a peer's entry is one this device may act on: no internal name in its path, nothing

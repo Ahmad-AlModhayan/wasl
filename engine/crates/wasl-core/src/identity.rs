@@ -9,6 +9,7 @@
 //! [`check_names`] applies the rule to a plan's input:
 //! - the same file spelled differently on Drive and on the device is one key (Drive's spelling),
 //!   whether it met for the first time (NFC on Drive, NFD on a Mac) or Drive renamed it;
+//! - two Drive names the device's disk maps to one local name are held out too, as one name;
 //! - a name held twice on one side (two spellings in one Drive folder, or on a case-sensitive
 //!   device) is a clash: every key with that name, and everything under it, stays out of the plan
 //!   and is reported, never merged or deleted (SRS FR-C7);
@@ -229,6 +230,27 @@ fn find_clashes(input: &mut PlanInput, clash: &mut BTreeSet<String>) {
     }
 }
 
+/// Pass 5. Two Drive names this disk maps to one local name (`aux.txt` and `aux＿.txt` on Windows,
+/// `report.` and `report．`): only one file can hold that name, so both stay out of the plan and are
+/// reported with the other clashes. Without this the second never syncs and is planned again every
+/// run. Drive names only: a baseline row whose Drive item is gone shares its local name with a new
+/// Drive name legitimately (a rename Drive made).
+fn find_mapped_clashes(input: &PlanInput, clash: &mut BTreeSet<String>) {
+    let mut by_local: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+    for (k, r) in &input.remote {
+        // A Google file lands under an export name of its own (`Report.docx`), which the export
+        // naming keeps apart from a real file's; only plain files are named by the mapper alone.
+        if r.google_mime.is_some() {
+            continue;
+        }
+        let rel = input.local_rel_by_key.get(k).map_or(k.as_str(), String::as_str);
+        by_local.entry(name_key(rel)).or_default().push(k);
+    }
+    for keys in by_local.values().filter(|keys| keys.len() > 1) {
+        clash.extend(keys.iter().map(|k| name_key(k)));
+    }
+}
+
 /// Applies the name rule to `input`. `drive_clashes` are the Drive paths the listing left out
 /// because another item in the same folder has the same name.
 pub fn check_names(mut input: PlanInput, drive_clashes: &[String]) -> NameCheck {
@@ -237,6 +259,7 @@ pub fn check_names(mut input: PlanInput, drive_clashes: &[String]) -> NameCheck 
     merge_first_meetings(&mut input);
     follow_folder_keys(&mut input);
     find_clashes(&mut input, &mut clash);
+    find_mapped_clashes(&input, &mut clash);
 
     // A synced item Drive moved into a clashing folder is not deleted on Drive: it waits too.
     let ids_in_clash: BTreeSet<&str> = input
@@ -322,6 +345,42 @@ mod tests {
             remote_version: Some(1),
             export_mime: None,
         }
+    }
+
+    #[test]
+    fn two_drive_names_with_one_local_name_are_a_clash_and_distinct_ones_are_not() {
+        let mut input = PlanInput::default();
+        for (key, rel) in [
+            ("aux.txt", "aux\u{ff3f}.txt"),
+            ("aux\u{ff3f}.txt", "aux\u{ff3f}.txt"),
+            ("fine.txt", "fine.txt"),
+        ] {
+            input.remote.insert(key.into(), remote(key, key, "m"));
+            input.local_rel_by_key.insert(key.into(), rel.into());
+        }
+        let c = check_names(input, &[]);
+        assert_eq!(
+            vec!["aux.txt", "aux\u{ff3f}.txt"],
+            c.clashes.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+        assert_eq!(vec!["fine.txt"], c.input.remote.keys().collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn a_drive_rename_onto_a_mapped_name_is_not_a_clash() {
+        // The synced `plain.txt` row has no Drive item now; `aux.txt` is the same file renamed.
+        let mut input = PlanInput::default();
+        input
+            .baseline
+            .insert("plain.txt".into(), synced("plain.txt", "1", "m"));
+        input.remote.insert("aux.txt".into(), remote("aux.txt", "1", "m"));
+        input
+            .local_rel_by_key
+            .insert("aux.txt".into(), "aux\u{ff3f}.txt".into());
+        input
+            .local_rel_by_key
+            .insert("plain.txt".into(), "aux\u{ff3f}.txt".into());
+        assert!(check_names(input, &[]).clashes.is_empty());
     }
 
     #[test]

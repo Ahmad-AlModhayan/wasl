@@ -83,10 +83,62 @@ async fn a_download_over_a_file_never_leaves_the_path_empty() {
             "{at}: trashed on Drive: {:?}",
             seen.trashed
         );
-        // The old content is kept in the bin by the end, whichever point the stop was at (a stop
-        // after the swap and before the bin is indexed leaves the copy unindexed: the next run
-        // finds the file current and has nothing to bin).
-        assert!(seen.binned <= 1, "{at}");
+        // The old content is in the bin by the end wherever the run stopped after the copy was
+        // made, and every file in the bin folder is indexed (an unindexed one would never expire).
+        // A stop before the swap leaves an indexed copy of a file still in place, and the next
+        // run copies it again.
+        assert!(seen.binned <= 2, "{at}");
+        assert_eq!(
+            seen.bin_contents.len(),
+            seen.binned,
+            "{at}: a file in the bin folder is not in the index"
+        );
+        if matches!(
+            seen.point,
+            Point::AfterBin | Point::AfterRename | Point::BeforeRecord
+        ) {
+            assert!(
+                seen.bin_contents.contains(&"old".to_owned()),
+                "{at}: the old content is not in the bin: {:?}",
+                seen.bin_contents
+            );
+        }
+    })
+    .await;
+}
+
+/// wasl#11, the other download site: a Google Doc exported again over its earlier export.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_export_over_an_export_never_leaves_the_path_empty() {
+    fn make() -> World {
+        let w = World::new();
+        w.drive.put_google_doc("Sync/Plan", wasl_core::docs::GOOGLE_DOC);
+        futures_block(w.sync());
+        // The doc changes on Drive: the next run exports it over the file from the first run.
+        w.clock.advance(10_000);
+        w.drive.put_file("Sync/Plan", b"edited");
+        w
+    }
+    for_each_kill_point(make, |seen| {
+        let at = format!("{:?}", seen.point);
+        let name = "Plan.docx";
+        assert!(
+            seen.local_at_stop.contains_key(name),
+            "{at}: at the stop the path was empty: {:?}",
+            seen.local_at_stop
+        );
+        assert_eq!(RunStatus::Success, seen.status, "{at}");
+        assert!(seen.local.contains_key(name), "{at}: {:?}", seen.local);
+        assert!(
+            seen.trashed.is_empty(),
+            "{at}: trashed on Drive: {:?}",
+            seen.trashed
+        );
+        assert_eq!(
+            seen.bin_contents.len(),
+            seen.binned,
+            "{at}: an unindexed file in the bin"
+        );
     })
     .await;
 }
@@ -158,6 +210,35 @@ async fn upload_then_delete_never_loses_the_content() {
         let on_drive = seen.drive.get("a.txt").is_some_and(|c| c == "mine");
         let on_device = seen.local.get("a.txt").is_some_and(|c| c == "mine");
         assert!(on_drive || on_device, "{at}: not on Drive and not on the device");
+    })
+    .await;
+}
+
+/// wasl#41: a rename made on Drive is followed on the device through the apply layer, so its steps
+/// are kill points like any other change to a local file.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_rename_followed_from_drive_never_loses_the_file() {
+    fn make() -> World {
+        let w = World::new();
+        w.write("a.txt", "mine");
+        futures_block(w.sync());
+        w.clock.advance(10_000);
+        assert!(w.drive.move_path("Sync/a.txt", "Sync/b.txt"));
+        w
+    }
+    for_each_kill_point(make, |seen| {
+        let at = format!("{:?}", seen.point);
+        assert_eq!(
+            vec![&"mine".to_owned()],
+            seen.local_at_stop.values().collect::<Vec<_>>(),
+            "{at}: at the stop the file was not under exactly one name: {:?}",
+            seen.local_at_stop
+        );
+        assert_eq!(RunStatus::Success, seen.status, "{at}");
+        assert_eq!(map(&[("b.txt", "mine")]), seen.local, "{at}");
+        assert_eq!(map(&[("b.txt", "mine")]), seen.drive, "{at}");
+        assert!(seen.trashed.is_empty(), "{at}: {:?}", seen.trashed);
+        assert_eq!(0, seen.binned, "{at}: a rename bins nothing");
     })
     .await;
 }

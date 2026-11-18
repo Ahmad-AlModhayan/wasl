@@ -13,7 +13,10 @@ mod scan;
 mod std_fs;
 
 pub use hash::{ContentHash, hash_reader};
-pub use local::{FsEntry, LocalFs, ReadablePath, check_rel, check_rel_on, is_internal_name};
+pub use local::{
+    FsEntry, LocalFs, ReadablePath, UnsafePath, check_rel, check_rel_on, is_internal_name, is_unsafe_path,
+    unsafe_path_why,
+};
 pub use scan::{ScanOutcome, scan, scan_under};
 pub use std_fs::StdFs;
 pub use wasl_core::names;
