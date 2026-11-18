@@ -6,13 +6,14 @@ use std::collections::HashMap;
 use std::io::{BufRead, IsTerminal, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use wasl_cli::{i18n, service, t};
+use wasl_cli::{i18n, service, t, words};
 use wasl_ipc::{
     Account, Client, ClientError, DaemonStatus, ErrorKind, Event, LocalChangeKind, Overall, PairState, Paths,
 };
 use wasl_proto::{
     Action, BinSide, Pair, Phase, PlanSummary, Progress, RunOutcome, RunStatus, SyncMode, Trigger,
 };
+use wasl_proto::{Rendered, Values};
 
 pub const OK: u8 = 0;
 pub const GENERAL: u8 = 1;
@@ -25,26 +26,52 @@ pub const AUTH: u8 = 5;
 pub struct Fail {
     pub code: u8,
     pub message: String,
+    /// The raw cause, made safe; printed only behind `--details`.
+    pub details: Option<String>,
 }
 
 impl Fail {
     pub fn new(code: u8, message: String) -> Fail {
-        Fail { code, message }
+        Fail {
+            code,
+            message,
+            details: None,
+        }
+    }
+
+    /// A failure worded by the catalogue.
+    pub fn said(code: u8, r: Rendered) -> Fail {
+        Fail {
+            code,
+            message: r.text,
+            details: r.details.filter(|_| words::details_wanted()),
+        }
     }
 }
 
 impl From<ClientError> for Fail {
     fn from(e: ClientError) -> Fail {
+        let none = Values::default();
         match e {
-            ClientError::NotRunning => Fail::new(NOT_RUNNING, t!(NotRunning)),
-            ClientError::Untrusted => Fail::new(GENERAL, t!(Untrusted)),
-            ClientError::NeedsUpdate {
-                behind: wasl_ipc::Behind::This,
-            } => Fail::new(GENERAL, t!(ClientNeedsUpdate)),
-            ClientError::NeedsUpdate {
-                behind: wasl_ipc::Behind::Peer,
-            } => Fail::new(GENERAL, t!(DaemonNeedsUpdate)),
-            ClientError::Io(e) => Fail::new(GENERAL, t!(ConnectionLost, e)),
+            ClientError::NotRunning => Fail::said(NOT_RUNNING, words::say("daemon.not_running", &none, None)),
+            ClientError::Untrusted => Fail::said(GENERAL, words::say("daemon.untrusted", &none, None)),
+            ClientError::NeedsUpdate { behind } => {
+                let (key, raw) = match behind {
+                    wasl_ipc::Behind::This => (
+                        "daemon.client_needs_update",
+                        "this wasl needs an update to talk to the running wasld",
+                    ),
+                    wasl_ipc::Behind::Peer => (
+                        "daemon.daemon_needs_update",
+                        "the running wasld needs an update to talk to this wasl",
+                    ),
+                };
+                Fail::said(GENERAL, words::say(key, &none, Some(raw)))
+            }
+            ClientError::Io(e) => Fail::said(
+                GENERAL,
+                words::say("daemon.connection_lost", &none, Some(&e.to_string())),
+            ),
             ClientError::Remote(r) => {
                 let code = match r.kind {
                     ErrorKind::NotFound => NOT_FOUND,
@@ -52,7 +79,7 @@ impl From<ClientError> for Fail {
                     ErrorKind::Invalid | ErrorKind::Unsupported => USAGE,
                     _ => GENERAL,
                 };
-                Fail::new(code, r.message)
+                Fail::said(code, words::say(r.kind.key(), &none, Some(&r.message)))
             }
         }
     }
@@ -67,6 +94,10 @@ fn paths() -> R<Paths> {
 /// Connects to this user's wasld, and follows its language setting unless `WASL_LANG` is set.
 pub(crate) async fn connect() -> R<Client> {
     let c = Client::connect(&paths()?).await?;
+    // The accounts and folders it reports are kept out of every cause shown from here on.
+    if let Ok(st) = c.status().await {
+        words::learn(&st);
+    }
     if !i18n::forced()
         && let Ok(Some(lang)) = c.setting("language").await
     {
@@ -256,12 +287,12 @@ fn folders(p: &Pair) -> String {
 
 fn overall_label(o: Overall) -> (String, Tone) {
     match o {
-        Overall::UpToDate => (t!(OverallUpToDate), Tone::Good),
-        Overall::Syncing => (t!(OverallSyncing), Tone::Busy),
-        Overall::Paused => (t!(OverallPaused), Tone::Quiet),
-        Overall::Waiting => (t!(OverallWaiting), Tone::Quiet),
-        Overall::NeedsYou => (t!(OverallNeedsYou), Tone::Bad),
-        Overall::Idle => (t!(OverallIdle), Tone::Quiet),
+        Overall::UpToDate => (words::text("overall.synced"), Tone::Good),
+        Overall::Syncing => (words::text("overall.syncing"), Tone::Busy),
+        Overall::Paused => (words::text("overall.paused"), Tone::Quiet),
+        Overall::Waiting => (words::text("overall.waiting"), Tone::Quiet),
+        Overall::NeedsYou => (words::text("overall.needs_you"), Tone::Bad),
+        Overall::Idle => (words::text("overall.idle"), Tone::Quiet),
     }
 }
 
@@ -319,14 +350,14 @@ fn pair_state(ps: &PairState, accounts: &[Account]) -> (String, Tone) {
     if ps.running {
         return match &ps.progress {
             Some(pr) => (progress_text(pr), Tone::Busy),
-            None => (t!(OverallSyncing), Tone::Busy),
+            None => (words::text("overall.syncing"), Tone::Busy),
         };
     }
     if !p.enabled {
         return (t!(StateOff), Tone::Quiet);
     }
     if p.paused {
-        return (t!(OverallPaused), Tone::Quiet);
+        return (words::text("overall.paused"), Tone::Quiet);
     }
     if let Some(a) = accounts
         .iter()
@@ -344,14 +375,18 @@ fn pair_state(ps: &PairState, accounts: &[Account]) -> (String, Tone) {
         return (t!(StateWaitingPreview), Tone::Quiet);
     }
     match p.status.last_status {
-        Some(RunStatus::Failed) => (
-            t!(StateFailed, p.status.last_error.clone().unwrap_or_default()),
-            Tone::Bad,
-        ),
-        Some(RunStatus::Partial) => (t!(RunPartial), Tone::Bad),
+        Some(RunStatus::Failed) => {
+            let raw = p.status.last_error.clone().unwrap_or_default();
+            let cause = words::run_cause(false, p.status.last_error_kind, &raw, &p.name).text;
+            (t!(StateFailed, cause), Tone::Bad)
+        }
+        Some(RunStatus::Partial) => match &p.status.last_error {
+            Some(raw) => (words::run_cause(true, None, raw, &p.name).text, Tone::Bad),
+            None => (t!(RunPartial), Tone::Bad),
+        },
         Some(RunStatus::Blocked) => (t!(StateApprove), Tone::Bad),
         None => (t!(StateNeverSynced), Tone::Quiet),
-        _ => (t!(OverallUpToDate), Tone::Good),
+        _ => (words::text("overall.synced"), Tone::Good),
     }
 }
 
@@ -413,12 +448,18 @@ fn outcome_code(o: &RunOutcome) -> u8 {
     }
 }
 
-fn outcome_line(name: &str, o: &RunOutcome) -> String {
-    let msg = o
-        .message
-        .clone()
-        .or_else(|| o.blocker.as_ref().map(|b| format!("{b:?}")))
-        .unwrap_or_default();
+/// A run's line and, behind `--details`, the redacted cause: the raw text stays out of the line.
+fn outcome_line(name: &str, o: &RunOutcome) -> (String, Option<String>) {
+    let (msg, details) = match &o.message {
+        Some(raw) => {
+            let r = words::run_cause(o.status == RunStatus::Partial, o.error_kind, raw, name);
+            (r.text, r.details)
+        }
+        None => (
+            o.blocker.as_ref().map(|b| format!("{b:?}")).unwrap_or_default(),
+            None,
+        ),
+    };
     let (line, tone) = match o.status {
         RunStatus::Success => (
             t!(
@@ -438,7 +479,16 @@ fn outcome_line(name: &str, o: &RunOutcome) -> String {
         RunStatus::Cancelled => (t!(OutcomeCancelled, name), Tone::Quiet),
         RunStatus::Running => (t!(OutcomeRunning, name), Tone::Busy),
     };
-    paint(line.trim_end_matches([' ', ':']), tone)
+    (paint(line.trim_end_matches([' ', ':']), tone), details)
+}
+
+/// Prints an outcome's line, and its cause when `--details` asked for it.
+fn print_outcome(name: &str, o: &RunOutcome) {
+    let (line, details) = outcome_line(name, o);
+    println!("{line}");
+    if let Some(d) = details.filter(|_| words::details_wanted()) {
+        eprintln!("{}", t!(DetailsLine, d));
+    }
 }
 
 async fn sync(pair: Option<String>, wait: bool) -> R<u8> {
@@ -524,7 +574,7 @@ async fn run_pairs(pair: Option<String>, wait: bool, trigger: Trigger) -> R<u8> 
                 }
                 Some(Event::RunFinished { pair_id, outcome }) if wait && target.is_none() => {
                     out::finish_progress_line();
-                    println!("{}", outcome_line(&name_of(&pair_id), &outcome));
+                    print_outcome(&name_of(&pair_id), &outcome);
                 }
                 Some(Event::ShuttingDown) => {
                     out::finish_progress_line();
@@ -542,7 +592,7 @@ fn report_outcomes(target: Option<&Pair>, outcomes: &[RunOutcome]) -> u8 {
             let o = outcomes.first();
             match o {
                 Some(o) => {
-                    println!("{}", outcome_line(&p.name, o));
+                    print_outcome(&p.name, o);
                     if o.status == RunStatus::Blocked {
                         println!("{}", t!(SeePreview, p.name));
                     }
@@ -614,7 +664,7 @@ async fn pair_list(json: bool) -> R<u8> {
         let state = if !p.enabled {
             t!(StateOff)
         } else if p.paused {
-            t!(OverallPaused)
+            words::text("overall.paused")
         } else {
             t!(StateOn)
         };
@@ -975,7 +1025,10 @@ async fn account_add() -> R<u8> {
                 _ => {}
             }
         }
-        Err(Fail::new(GENERAL, t!(ConnectionLost, "")))
+        Err(Fail::new(
+            GENERAL,
+            words::say("daemon.connection_lost", &Values::default(), None).text,
+        ))
     };
     match tokio::time::timeout(Duration::from_secs(300), wait).await {
         Ok(r) => r,

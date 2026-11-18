@@ -19,6 +19,9 @@ use wasl_cli::{i18n, t};
     long_about = None,
 )]
 pub struct Cli {
+    /// With an error, also print its Details: the cause, with tokens and account IDs left out.
+    #[arg(long, global = true)]
+    pub details: bool,
     #[command(subcommand)]
     pub cmd: Cmd,
 }
@@ -623,6 +626,7 @@ pub enum ServiceCmd {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     i18n::init_from_env();
+    wasl_cli::words::set_details(cli.details);
     let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
         Ok(rt) => rt,
         Err(e) => {
@@ -635,6 +639,9 @@ fn main() -> ExitCode {
         Err(fail) => {
             out::finish_progress_line();
             eprintln!("{}", t!(ErrorLine, fail.message));
+            if let Some(d) = &fail.details {
+                eprintln!("{}", t!(DetailsLine, d));
+            }
             ExitCode::from(fail.code)
         }
     }

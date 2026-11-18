@@ -477,6 +477,48 @@ pub enum ErrorKind {
     Other,
 }
 
+#[cfg(test)]
+mod error_key_tests {
+    use super::ErrorKind;
+    use wasl_proto::words;
+
+    #[test]
+    fn every_daemon_error_kind_has_its_entry() {
+        let want = [
+            (ErrorKind::NotFound, "request.not_found"),
+            (ErrorKind::Invalid, "error.invalid"),
+            (ErrorKind::Auth, "request.auth"),
+            (ErrorKind::Network, "request.network"),
+            (ErrorKind::Permission, "request.permission"),
+            (ErrorKind::Locked, "request.locked"),
+            (ErrorKind::Busy, "error.busy"),
+            (ErrorKind::Unsupported, "error.unsupported"),
+            (ErrorKind::Other, words::REQUEST_FALLBACK),
+        ];
+        for (kind, key) in want {
+            assert_eq!(kind.key(), key);
+            assert!(words::entry(key).is_some(), "{key} is not in the catalogue");
+        }
+    }
+}
+
+impl ErrorKind {
+    /// The catalogue entry (`wasl_proto::words`) that words this kind of error.
+    pub fn key(self) -> &'static str {
+        match self {
+            ErrorKind::NotFound => "request.not_found",
+            ErrorKind::Invalid => "error.invalid",
+            ErrorKind::Auth => "request.auth",
+            ErrorKind::Network => "request.network",
+            ErrorKind::Permission => "request.permission",
+            ErrorKind::Locked => "request.locked",
+            ErrorKind::Busy => "error.busy",
+            ErrorKind::Unsupported => "error.unsupported",
+            ErrorKind::Other => wasl_proto::words::REQUEST_FALLBACK,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
 #[error("{message}")]
 pub struct RemoteError {

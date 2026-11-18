@@ -538,6 +538,22 @@ async fn one_bad_file_does_not_stop_the_others() {
     );
 }
 
+/// A partial run's message carries how many items failed, in the shape the catalogue reads back.
+#[tokio::test]
+async fn a_partial_run_says_how_many_items_failed() {
+    let w = World::new();
+    w.write("good.txt", "1");
+    w.write("refused1.txt", "x");
+    w.write("refused2.txt", "y");
+    w.drive.poison("refused1.txt");
+    w.drive.poison("refused2.txt");
+    let r = w.sync().await;
+    assert_eq!(RunStatus::Partial, r.status);
+    let message = r.message.unwrap_or_default();
+    assert!(message.starts_with("2 items couldn't sync. First: "), "{message}");
+    assert_eq!(Some(2), wasl_proto::words::partial_count(&message));
+}
+
 #[tokio::test]
 async fn sign_in_failures_stop_the_run_and_are_recorded() {
     let w = World::new();

@@ -167,15 +167,7 @@ macro_rules! messages {
 
 messages! {
     ErrorLine => "Error: {0}", "خطأ: {0}";
-    NotRunning => "wasld is not running. Start it with: wasl daemon start",
-        "wasld لا يعمل. شغّله بالأمر: wasl daemon start";
-    Untrusted => "The program answering is not this user's wasld.",
-        "البرنامج الذي يجيب ليس wasld الخاص بهذا المستخدم.";
-    ClientNeedsUpdate => "This wasl is older than the running wasld and can't talk to it. Update Wasl.",
-        "هذا الأمر wasl أقدم من wasld العامل ولا يستطيع التخاطب معه. حدّث وصل.";
-    DaemonNeedsUpdate => "The running wasld is older than this wasl and can't talk to it. Update Wasl and restart it.",
-        "wasld العامل أقدم من هذا الأمر wasl ولا يستطيع التخاطب معه. حدّث وصل وأعد تشغيله.";
-    ConnectionLost => "Lost the connection to wasld: {0}", "انقطع الاتصال بـ wasld: {0}";
+    DetailsLine => "Details: {0}", "التفاصيل: {0}";
     NoSuchPair => "No folder pair matches \"{0}\". See: wasl pair list",
         "لا يوجد ربط يطابق \"{0}\". راجع: wasl pair list";
     AmbiguousPair => "\"{0}\" matches more than one folder pair; use its id:\n{1}",
@@ -188,13 +180,6 @@ messages! {
     MethodDownloadOnly => SyncMode::DownloadOnly.names().0, SyncMode::DownloadOnly.names().1;
     MethodDownloadThenDelete => SyncMode::DownloadThenDelete.names().0, SyncMode::DownloadThenDelete.names().1;
     MethodMirrorDown => SyncMode::DownloadMirror.names().0, SyncMode::DownloadMirror.names().1;
-
-    OverallUpToDate => "Synced", "تمت المزامنة";
-    OverallSyncing => "Syncing", "تجري المزامنة";
-    OverallPaused => "Paused", "متوقف مؤقتًا";
-    OverallWaiting => "Waiting", "في الانتظار";
-    OverallNeedsYou => "Needs you", "يحتاج إليك";
-    OverallIdle => "No folder pairs yet", "لا توجد روابط بعد";
 
     PhaseStarting => "Starting", "يبدأ";
     PhaseListingRemote => "Reading Drive", "يقرأ Drive";
@@ -253,7 +238,7 @@ messages! {
     ColSize => "SIZE", "الحجم";
 
     OutcomeSuccess => "{0}: synced ({1})", "{0}: تمت المزامنة ({1})";
-    OutcomePartial => "{0}: synced, but some files failed: {1}", "{0}: تمت المزامنة لكن فشلت بعض الملفات: {1}";
+    OutcomePartial => "{0}: {1}", "{0}: {1}";
     OutcomeFailed => "{0}: sync failed: {1}", "{0}: فشلت المزامنة: {1}";
     OutcomeBlocked => "{0}: stopped to ask you first: {1}", "{0}: توقفت المزامنة لتسألك أولًا: {1}";
     OutcomeSkipped => "{0}: did not start: {1}", "{0}: لم تبدأ المزامنة: {1}";

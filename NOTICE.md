@@ -12,3 +12,4 @@ Dependencies keep their own licences (see `engine/Cargo.lock`, `engine/deny.toml
 ## Third-Party & Asset Notices
 
 - Fonts under `docs/design/project/fonts` are licensed under the SIL Open Font License 1.1 with each font's own notice.
+- Open-source libraries that need a notice are listed in `THIRD_PARTY_NOTICES.md`.

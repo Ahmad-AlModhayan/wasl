@@ -855,10 +855,7 @@ impl Engine {
                 .unwrap_or_default();
             return Ok((
                 RunStatus::Partial,
-                Some(match stats.errors {
-                    1 => first,
-                    n => format!("{n} items couldn't sync. First: {first}"),
-                }),
+                Some(wasl_proto::words::partial_message(stats.errors as u64, &first)),
                 Some(summary),
                 Some(ErrorKind::Other),
                 stats,
