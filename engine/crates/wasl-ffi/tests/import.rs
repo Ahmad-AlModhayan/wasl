@@ -278,10 +278,13 @@ fn ids_that_would_leave_the_bin_folder_and_foreign_drive_rows_are_refused() {
         "the pair rules refuse it at the door"
     );
     // As a database from before the rules could hold it: the import must refuse it too.
+    // (The engine lets go of the database first: one engine per data folder.)
+    drop(e);
     wasl_store::Store::open(dir.path().join("wasl.db"))
         .unwrap()
         .create_pair(&evil)
         .unwrap();
+    let e = engine(dir.path());
     let exported = dir.path().join("x");
     std::fs::write(&exported, "older").unwrap();
     let mut b = bin("t1", BinSide::Local, "a.txt");

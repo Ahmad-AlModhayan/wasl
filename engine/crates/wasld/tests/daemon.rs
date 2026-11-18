@@ -187,10 +187,26 @@ async fn start_full(
     view_backend: Option<Arc<dyn wasld::views::Backend>>,
     devices: Option<wasl_devices::DeviceConfig>,
 ) -> Running {
+    start_seeded(g, signed_in, view_backend, devices, None).await
+}
+
+/// `seed` writes to the database before the daemon opens it (a second store can't be opened
+/// beside a running daemon: one engine per data folder).
+async fn start_seeded(
+    g: &Google,
+    signed_in: bool,
+    view_backend: Option<Arc<dyn wasld::views::Backend>>,
+    devices: Option<wasl_devices::DeviceConfig>,
+    seed: Option<&dyn Fn(&wasl_store::Store)>,
+) -> Running {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("Sync");
     std::fs::create_dir_all(&root).unwrap();
     let paths = Paths::at(dir.path().join("data"));
+    if let Some(seed) = seed {
+        std::fs::create_dir_all(&paths.data).unwrap();
+        seed(&wasl_store::Store::open(paths.data.join("wasl.db")).unwrap());
+    }
     let secrets = Arc::new(MemorySecrets::default());
     let vault_keys = Arc::new(MemorySecrets::default());
     if signed_in {
@@ -1154,11 +1170,14 @@ fn known_vault(passphrase: &str) -> wasl_store::VaultRecord {
 #[tokio::test(flavor = "multi_thread")]
 async fn vaults_unlock_and_lock_through_the_daemon() {
     let g = google().await;
-    let d = start(&g, true).await;
-    wasl_store::Store::open(d.paths.data.join("wasl.db"))
-        .unwrap()
-        .put_vault(&known_vault("correct horse battery"))
-        .unwrap();
+    let d = start_seeded(
+        &g,
+        true,
+        None,
+        None,
+        Some(&|s| s.put_vault(&known_vault("correct horse battery")).unwrap()),
+    )
+    .await;
     let c = Client::connect(&d.paths).await.unwrap();
     let listed = c.vaults().await.unwrap();
     assert_eq!(1, listed.len());

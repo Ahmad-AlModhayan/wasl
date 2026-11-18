@@ -2,10 +2,11 @@
 
 use crate::auth::{self, ClientProof, DaemonProof, Hello, Opening, Token, Welcome};
 use crate::paths::Paths;
+use crate::proto::VersionRange;
 use crate::proto::{
-    AcceptConfirmation, Account, DaemonStatus, DevicesInfo, DriveFolder, ErrorKind, Event, Frame,
-    IgnoreExplanation, NewVault, NewView, OfferInfo, PROTOCOL_VERSION, PairSharing, PairingStatus,
-    Passphrase, RemoteError, Request, VaultFolder, VaultInfo, VaultUpgrade, View, ViewsInfo,
+    AcceptConfirmation, Account, Behind, DaemonStatus, DevicesInfo, DriveFolder, ErrorKind, Event, Frame,
+    IgnoreExplanation, NewVault, NewView, OfferInfo, PairSharing, PairingStatus, Passphrase, RemoteError,
+    Request, VaultFolder, VaultInfo, VaultUpgrade, View, ViewsInfo,
 };
 use crate::transport::{self, LineWriter};
 use serde::de::DeserializeOwned;
@@ -27,8 +28,12 @@ pub enum ClientError {
     NotRunning,
     #[error("the daemon did not prove it is this user's wasld")]
     Untrusted,
-    #[error("wasld speaks protocol {0}; this client speaks {PROTOCOL_VERSION}")]
-    Version(u32),
+    /// The client and the daemon share no protocol version; `behind` is the side to update.
+    #[error("{}", match behind {
+        Behind::This => "this client needs an update to talk to wasld",
+        Behind::Peer => "wasld needs an update to talk to this client",
+    })]
+    NeedsUpdate { behind: Behind },
     #[error(transparent)]
     Remote(#[from] RemoteError),
     #[error("connection to wasld lost: {0}")]
@@ -54,25 +59,35 @@ pub struct Client {
     next_id: AtomicU64,
     events: Mutex<Option<mpsc::UnboundedReceiver<Event>>>,
     pub daemon_version: String,
+    /// The protocol version this connection speaks: the highest the client and the daemon share.
+    pub protocol: u32,
 }
 
 impl Client {
     pub async fn connect(paths: &Paths) -> Result<Client, ClientError> {
+        Client::connect_with_range(paths, VersionRange::CURRENT).await
+    }
+
+    /// Connects offering `range` instead of the versions this build speaks. For tests that play a
+    /// client from another release.
+    #[doc(hidden)]
+    pub async fn connect_with_range(paths: &Paths, range: VersionRange) -> Result<Client, ClientError> {
         let token = Token::read(&paths.token()).map_err(|_| ClientError::NotRunning)?;
         let stream = transport::connect(paths)
             .await
             .map_err(|_| ClientError::NotRunning)?;
-        Client::handshake(stream, &token).await
+        Client::handshake(stream, &token, range).await
     }
 
-    async fn handshake(stream: transport::BoxStream, token: &Token) -> Result<Client, ClientError> {
+    async fn handshake(
+        stream: transport::BoxStream,
+        token: &Token,
+        ours: VersionRange,
+    ) -> Result<Client, ClientError> {
         let (mut reader, mut writer) = transport::split(stream);
         let mine = auth::nonce()?;
         writer
-            .write(&Opening::Hello(Hello {
-                version: PROTOCOL_VERSION,
-                nonce: mine.clone(),
-            }))
+            .write(&Opening::Hello(Hello::offering(ours, mine.clone())))
             .await?;
         let theirs: DaemonProof = reader.read().await?.ok_or(ClientError::Untrusted)?;
         if !token.verify(auth::DAEMON_ROLE, &mine, &theirs.proof) {
@@ -84,9 +99,12 @@ impl Client {
             })
             .await?;
         let welcome: Welcome = reader.read().await?.ok_or(ClientError::Untrusted)?;
-        if welcome.protocol != PROTOCOL_VERSION {
-            return Err(ClientError::Version(welcome.protocol));
-        }
+        let theirs = welcome.range();
+        let Some(protocol) = ours.highest_common(theirs) else {
+            return Err(ClientError::NeedsUpdate {
+                behind: ours.behind(theirs),
+            });
+        };
 
         let pending: Pending = Arc::new(Mutex::new(HashMap::new()));
         let (tx, rx) = mpsc::unbounded_channel();
@@ -119,6 +137,7 @@ impl Client {
             next_id: AtomicU64::new(1),
             events: Mutex::new(Some(rx)),
             daemon_version: welcome.version,
+            protocol,
         })
     }
 
