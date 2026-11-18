@@ -15,7 +15,9 @@ pub enum Point {
     AfterFlush,
     /// The old copy is in the bin and still at its path (the swap has not happened).
     AfterBin,
-    /// The new file has taken the name.
+    /// The item is about to be renamed (it still has its old name).
+    BeforeRename,
+    /// The new file has taken the name (or the item has been renamed).
     AfterRename,
     /// The baseline row is gone; the remote is not yet in Drive's bin (move mode).
     AfterRowRemoved,

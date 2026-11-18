@@ -3,7 +3,7 @@
 //! then bookkeeping, then transfers in parallel, then deletions deepest first.
 
 use crate::apply::{Apply, BIN_RETENTION_MS, CHANGED_SINCE_PLANNED, CHANGED_SINCE_PLANNED_MESSAGE};
-use crate::error::{EngineError, Result};
+use crate::error::{EngineError, NAME_REFUSED, Result};
 use crate::remote::{Remote, RemoteInfo, UploadSpec};
 use crate::support::{CancelToken, Clock, HashCache, Phase, Tracker, new_id};
 use std::collections::{HashMap, HashSet};
@@ -218,9 +218,14 @@ impl Executor {
             let message = format!("{} {}", failed_to(&a), e.user_message());
             self.lock(&self.first_error)
                 .get_or_insert_with(|| format!("{}: {message}", name_of(a.key())));
+            let code = if matches!(e, EngineError::NameRefused(_)) {
+                NAME_REFUSED
+            } else {
+                "ERROR"
+            };
             self.event(
                 EventLevel::Error,
-                "ERROR",
+                code,
                 Some(a.key()),
                 &message,
                 Some(e.to_string()),

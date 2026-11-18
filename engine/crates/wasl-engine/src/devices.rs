@@ -19,14 +19,15 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use wasl_chunk::{ChunkList, ChunkLocation, ChunkParams, ChunkSource, Hash, plan_fetch};
+use wasl_core::names::{NameRules, to_local_name_with};
 use wasl_core::nway::{ConflictMode, Index, Scanned, Step, Version, plan_with};
 use wasl_core::vv::ShortId;
 use wasl_fs::LocalFs;
 use wasl_ignore::IgnoreRules;
 use wasl_net::{DeviceId, IndexPage, Offer, PeerError, PeerLink, PeerResult, PeerService, ShareId};
-use wasl_store::{BinSide, NewBinEntry, Pair, SharedStore};
+use wasl_store::{Pair, SharedStore};
 
-use crate::apply::BIN_RETENTION_MS;
+use crate::apply::Apply;
 use crate::error::{EngineError, Result};
 use crate::support::{Clock, new_id};
 use futures_util::StreamExt;
@@ -86,6 +87,9 @@ pub struct PullReport {
     /// those names stays out of the pull, and is read again, until one is renamed. Their steps
     /// count in `deferred` too.
     pub clashes: Vec<String>,
+    /// Files a change was planned for that were edited here after the plan was made, and so were
+    /// left alone (the Drive side's `CHANGED_SINCE_PLANNED`). They count in `deferred` too.
+    pub changed_since_planned: Vec<String>,
     pub bytes_fetched: u64,
     pub bytes_local: u64,
 }
@@ -103,6 +107,8 @@ pub struct DeviceSync {
     rules: Mutex<Option<Arc<IgnoreRules>>>,
     /// Most entries and bytes one pull collects from a peer.
     pull_limit: (usize, usize),
+    #[cfg(any(test, feature = "test-support"))]
+    fault: Option<Arc<crate::fault::FaultPlan>>,
 }
 
 impl DeviceSync {
@@ -128,7 +134,55 @@ impl DeviceSync {
             mode,
             rules: Mutex::new(None),
             pull_limit: (MAX_PULL_ENTRIES, MAX_PULL_BYTES),
+            #[cfg(any(test, feature = "test-support"))]
+            fault: None,
         }
+    }
+
+    /// Test seam: stops a pull where `fault` says, as if the process had died there.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn with_fault(mut self, fault: Arc<crate::fault::FaultPlan>) -> Self {
+        self.fault = Some(fault);
+        self
+    }
+
+    fn killed(&self) -> bool {
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(p) = &self.fault {
+            return p.is_dead();
+        }
+        false
+    }
+
+    /// The local path of an index key: each part named as this disk accepts it. The key stays the
+    /// name every device shares; only the disk sees the mapped one.
+    fn lp(&self, key: &str) -> String {
+        local_path(self.fs.as_ref(), key)
+    }
+
+    /// The apply layer for one step, told what the index says is at `keys`: the layer re-checks
+    /// each against the disk before it replaces, removes or renames it.
+    fn apply_for(&self, index: &Index, keys: &[&str]) -> Apply {
+        let seen: Vec<(String, bool, u64, i64)> = keys
+            .iter()
+            .filter_map(|k| {
+                index
+                    .entries
+                    .get(*k)
+                    .filter(|e| !e.version.deleted)
+                    .map(|e| (self.lp(k), e.version.is_dir, e.local_size, e.local_mtime))
+            })
+            .collect();
+        let apply = Apply::new(
+            self.store.clone(),
+            self.fs.clone(),
+            self.clock.clone(),
+            &self.pair,
+        )
+        .expecting_entries(seen.iter().map(|(r, d, s, m)| (r.as_str(), *d, *s, *m)));
+        #[cfg(any(test, feature = "test-support"))]
+        let apply = apply.with_fault(self.fault.clone());
+        apply
     }
 
     /// Collects at most `entries` index entries and `bytes` of them per pull (tests use small
@@ -166,8 +220,19 @@ impl DeviceSync {
         );
         let mut index = self.load_index()?;
         let builder = crate::engine::rules_builder(&self.pair);
+        // A name this disk maps (`a:b` on Windows) is found on disk under its local name and goes
+        // back to the key the index holds it under.
+        let reverse: HashMap<String, String> = index
+            .entries
+            .keys()
+            .filter_map(|k| {
+                let local = local_path(fs.as_ref(), k);
+                (local != *k).then(|| (local, k.clone()))
+            })
+            .collect();
         let (report, rules) = tokio::task::spawn_blocking(move || {
-            let scan = wasl_fs::scan(fs.as_ref(), builder, &|rel: &str| rel.to_owned(), || false)?;
+            let key_of = |rel: &str| reverse.get(rel).cloned().unwrap_or_else(|| rel.to_owned());
+            let scan = wasl_fs::scan(fs.as_ref(), builder, &key_of, || false)?;
             if !scan.unreadable.is_empty() {
                 // A folder that could not be read would look deleted: record nothing this time.
                 return Err(EngineError::Io(format!(
@@ -206,19 +271,20 @@ impl DeviceSync {
                 if wasl_fs::is_internal_name(name_of(&e.rel)) || held.contains(&e.rel) {
                     continue;
                 }
+                let key = key_of(&e.rel);
                 let stale_cut = recut && !e.is_dir && medium.contains(&e.size);
-                let hash = if e.is_dir || !(stale_cut || index.needs_hash(&e.rel, e.size, e.mtime)) {
+                let hash = if e.is_dir || !(stale_cut || index.needs_hash(&key, e.size, e.mtime)) {
                     None
                 } else {
                     let params = ChunkParams::for_size(e.size);
                     let list = wasl_chunk::chunk_reader(fs.open_read(&e.rel)?, &params)?;
-                    remember_chunks(&store, &pair_id, &e.rel, &list)?;
+                    remember_chunks(&store, &pair_id, &key, &list)?;
                     report.hashed += 1;
-                    touched.push(e.rel.clone());
+                    touched.push(key.clone());
                     Some(wasl_chunk::to_hex(&list.blake3))
                 };
                 scanned.push(Scanned {
-                    key: e.rel,
+                    key,
                     is_dir: e.is_dir,
                     size: e.size,
                     mtime: e.mtime,
@@ -271,7 +337,7 @@ impl DeviceSync {
                 .await
                 .map_err(peer_error)?;
             for (k, v) in page.entries {
-                if k.is_empty() || wasl_fs::check_rel(&k).is_err() {
+                if k.is_empty() || wasl_fs::check_rel_on(&k, false).is_err() {
                     return Err(EngineError::Integrity(format!("peer sent a bad name: {k:?}")));
                 }
                 collected += 1;
@@ -311,7 +377,9 @@ impl DeviceSync {
         let mut index = self.load_index()?;
         let steps = plan_with(&index, &remote, self.mode);
         let mut changed: Vec<String> = Vec::new();
-        let steps = self.same_names(&mut index, steps, &mut changed, &mut report);
+        let steps = self
+            .same_names(&mut index, steps, &mut changed, &mut report)
+            .await;
 
         // Merged histories first, then folders (parents first), files, and deletions (children
         // first), so a file's folder exists and a folder is empty when it goes.
@@ -354,6 +422,9 @@ impl DeviceSync {
                     }
                 }
             };
+            if self.killed() {
+                return Err(EngineError::Other("fault plan: the pull was stopped".into()));
+            }
             match outcome {
                 Ok(()) => changed.push(key),
                 Err(Deferred::Later) => report.deferred += 1,
@@ -380,7 +451,7 @@ impl DeviceSync {
     ///   sent, or one each that are not a rename. Every key with that name, and everything under
     ///   it, stays out of this pull (and is read again at the next) until one of them is renamed;
     ///   the spellings are listed in [`PullReport::clashes`].
-    fn same_names(
+    async fn same_names(
         &self,
         index: &mut Index,
         steps: Vec<Step>,
@@ -415,6 +486,13 @@ impl DeviceSync {
                     .insert((key.clone(), true));
             }
         }
+        let live: HashMap<&str, &Version> = steps
+            .iter()
+            .filter_map(|s| match s {
+                Step::Take { key, version } if !version.deleted => Some((key.as_str(), version)),
+                _ => None,
+            })
+            .collect();
         let mut renamed: HashSet<String> = HashSet::new();
         let mut clashing: BTreeSet<String> = BTreeSet::new(); // name keys
         for (nk, spellings) in &names {
@@ -438,12 +516,24 @@ impl DeviceSync {
                 && let Some(tomb) = gone.get(old)
             {
                 let is_file = index.get(old).is_some_and(|v| !v.is_dir);
-                // If the rename can't be made, the steps run as usual and wait where the folder
-                // isn't as indexed. A folder renamed that way still waits as before (#190).
-                if is_file && parent_of(old) == parent_of(new) && self.rename_in_place(index, old, new, tomb)
-                {
-                    renamed.insert((*old).to_owned());
-                    changed.extend([(*old).to_owned(), (*new).to_owned()]);
+                // If the rename can't be made, the steps run as usual and wait where the item
+                // isn't as indexed.
+                if parent_of(old) == parent_of(new) {
+                    if is_file {
+                        if self.rename_in_place(index, old, new, tomb).await {
+                            renamed.insert((*old).to_owned());
+                            changed.extend([(*old).to_owned(), (*new).to_owned()]);
+                        }
+                    } else if live.get(new).is_some_and(|v| v.is_dir)
+                        && let Some(moved) = self.rename_dir_in_place(index, old, new, &gone, &live).await
+                    {
+                        // The folder and everything in it: their old keys take the peer's
+                        // tombstones, their new keys are already as the peer has them.
+                        for (from, to) in moved {
+                            renamed.insert(from.clone());
+                            changed.extend([from, to]);
+                        }
+                    }
                 }
                 continue;
             }
@@ -477,33 +567,101 @@ impl DeviceSync {
 
     /// Renames the unchanged local file `old` to `new` (the same name, spelled as the peer now
     /// spells it) and moves its index entry and chunks with it; `old` takes the peer's tombstone.
-    fn rename_in_place(&self, index: &mut Index, old: &str, new: &str, gone: &Version) -> bool {
+    async fn rename_in_place(&self, index: &mut Index, old: &str, new: &str, gone: &Version) -> bool {
         let Some(entry) = index.entries.get(old).cloned() else {
             return false;
         };
-        if !self.clean(index, old).unwrap_or(false) || self.fs.rename(old, new).is_err() {
+        if !self.clean(index, old).unwrap_or(false) {
+            return false;
+        }
+        let apply = self.apply_for(index, &[old]);
+        if !matches!(apply.rename(&self.lp(old), &self.lp(new)).await, Ok(true))
+            || apply.before_record().is_err()
+        {
             return false;
         }
         record(index, new, entry.version, entry.local_size, entry.local_mtime);
         record(index, old, gone.clone(), 0, 0);
+        self.move_chunks(old, new);
+        true
+    }
+
+    /// Renames the unchanged local folder `old` to `new` (the same name, spelled as the peer now
+    /// spells it) in one rename, and moves the index entries and chunks of everything in it
+    /// along: nothing is binned, fetched or sent again because of it. Every item in the folder
+    /// must be as indexed, have a tombstone from the peer under its old name and a live entry
+    /// under its new one; otherwise nothing
+    /// is renamed and the steps wait as before. Returns the (old key, new key) pairs moved.
+    async fn rename_dir_in_place(
+        &self,
+        index: &mut Index,
+        old: &str,
+        new: &str,
+        gone: &HashMap<&str, &Version>,
+        live: &HashMap<&str, &Version>,
+    ) -> Option<Vec<(String, String)>> {
+        let under = format!("{old}/");
+        let moving: Vec<String> = index
+            .entries
+            .iter()
+            .filter(|(k, e)| (k.as_str() == old || k.starts_with(&under)) && !e.version.deleted)
+            .map(|(k, _)| k.clone())
+            .collect();
+        if moving.is_empty() {
+            return None;
+        }
+        for k in &moving {
+            // The peer must have both halves of the rename: the old name gone and the new one
+            // there, as the same kind of item. Otherwise it deleted this item while renaming
+            // the folder, and moving it along would bring it back.
+            let to = format!("{new}{}", &k[old.len()..]);
+            let same_kind = live
+                .get(to.as_str())
+                .zip(index.get(k))
+                .is_some_and(|(l, mine)| l.is_dir == mine.is_dir);
+            if !gone.contains_key(k.as_str()) || !same_kind || !self.clean(index, k).unwrap_or(false) {
+                return None;
+            }
+        }
+        let keys: Vec<&str> = moving.iter().map(String::as_str).collect();
+        let apply = self.apply_for(index, &keys[..1.min(keys.len())]);
+        if !matches!(apply.rename(&self.lp(old), &self.lp(new)).await, Ok(true))
+            || apply.before_record().is_err()
+        {
+            return None;
+        }
+        let mut moved = Vec::with_capacity(moving.len());
+        for from in moving {
+            let to = format!("{new}{}", &from[old.len()..]);
+            if let Some(e) = index.entries.get(&from).cloned() {
+                record(index, &to, e.version, e.local_size, e.local_mtime);
+                record(index, &from, gone[from.as_str()].clone(), 0, 0);
+                self.move_chunks(&from, &to);
+            }
+            moved.push((from, to));
+        }
+        Some(moved)
+    }
+
+    /// The chunk list of the file at `from` now belongs to `to`.
+    fn move_chunks(&self, from: &str, to: &str) {
         let list = {
             let s = self.store.lock();
-            s.chunked_blake3(&self.pair.id, old)
+            s.chunked_blake3(&self.pair.id, from)
                 .ok()
                 .flatten()
-                .and_then(|b| s.chunk_list(&self.pair.id, old, &b).ok().flatten())
+                .and_then(|b| s.chunk_list(&self.pair.id, from, &b).ok().flatten())
         };
         if let Some(list) = list.and_then(|bytes| ChunkList::from_bytes(&bytes).ok()) {
-            let _ = remember_chunks(&self.store, &self.pair.id, new, &list);
+            let _ = remember_chunks(&self.store, &self.pair.id, to, &list);
         }
-        let _ = self.store.lock().forget_chunks(&self.pair.id, old);
-        true
+        let _ = self.store.lock().forget_chunks(&self.pair.id, from);
     }
 
     /// Whether the local item at `key` is as the index last recorded it (or absent where the
     /// index says it is absent).
     fn clean(&self, index: &Index, key: &str) -> io::Result<bool> {
-        let disk = self.fs.stat(key)?;
+        let disk = self.fs.stat(&self.lp(key))?;
         Ok(match (index.entries.get(key), disk) {
             (None, None) => true,
             (Some(e), None) => e.version.deleted,
@@ -534,19 +692,33 @@ impl DeviceSync {
         if !self.clean(index, key).map_err(|_| Deferred::Later)? {
             return Err(Deferred::Later);
         }
-        let exists = self.fs.stat(key).map_err(|_| Deferred::Later)?;
+        // Everything below changes the disk only through the apply layer, which looks at the item
+        // again first and leaves it alone if it is no longer what the index says.
+        let rel = self.lp(key);
+        let apply = self.apply_for(index, &[key]);
+        let exists = self.fs.stat(&rel).map_err(|_| Deferred::Later)?;
         if v.deleted {
             let was_here = exists.is_some();
             match exists {
                 Some(d) if d.is_dir => {
                     // Only an empty folder goes; anything left in it keeps it.
-                    if !self.fs.remove_dir_if_empty(key).map_err(|_| Deferred::Later)? {
+                    if !apply.remove_empty_dir(&rel).await.map_err(|_| Deferred::Later)? {
                         return Err(Deferred::Later);
                     }
                 }
-                Some(_) => self.to_bin(key, "DELETED").map_err(|_| Deferred::Later)?,
+                Some(_) => {
+                    let removed = apply
+                        .delete(key, &rel, "DELETED")
+                        .await
+                        .map_err(|_| Deferred::Later)?;
+                    if !removed {
+                        report.changed_since_planned.push(key.to_owned());
+                        return Err(Deferred::Later);
+                    }
+                }
                 None => {}
             }
+            apply.before_record().map_err(|_| Deferred::Later)?;
             let _ = self.store.lock().forget_chunks(&self.pair.id, key);
             record(index, key, v.clone(), 0, 0);
             report.taken += 1;
@@ -554,10 +726,17 @@ impl DeviceSync {
             return Ok(());
         }
         if v.is_dir {
-            if exists.as_ref().is_some_and(|d| !d.is_dir) {
-                self.to_bin(key, "OVERWRITTEN").map_err(|_| Deferred::Later)?;
+            if exists.as_ref().is_some_and(|d| !d.is_dir)
+                && !apply
+                    .delete(key, &rel, "OVERWRITTEN")
+                    .await
+                    .map_err(|_| Deferred::Later)?
+            {
+                report.changed_since_planned.push(key.to_owned());
+                return Err(Deferred::Later);
             }
-            self.fs.mkdir(key).map_err(|_| Deferred::Later)?;
+            apply.mkdir(&rel).await.map_err(|_| Deferred::Later)?;
+            apply.before_record().map_err(|_| Deferred::Later)?;
             record(index, key, v.clone(), 0, 0);
             report.taken += 1;
             return Ok(());
@@ -586,23 +765,28 @@ impl DeviceSync {
             .build(link, key, &list, report)
             .await
             .ok_or(Deferred::Later)?;
-        if let Some(parent) = parent_of(key) {
-            self.fs.mkdir(parent).map_err(|_| Deferred::Later)?;
+        if let Some(parent) = parent_of(&rel)
+            && apply.mkdir(parent).await.is_err()
+        {
+            let _ = std::fs::remove_file(&staged);
+            return Err(Deferred::Later);
         }
-        if let Some(d) = &exists {
-            let reason = if d.is_dir { "DELETED" } else { "OVERWRITTEN" };
-            if d.is_dir && !self.fs.remove_dir_if_empty(key).map_err(|_| Deferred::Later)? {
-                let _ = std::fs::remove_file(&staged);
-                return Err(Deferred::Later);
-            }
-            if !d.is_dir {
-                self.to_bin(key, reason).map_err(|_| Deferred::Later)?;
-            }
+        if exists.as_ref().is_some_and(|d| d.is_dir)
+            && !apply.remove_empty_dir(&rel).await.map_err(|_| Deferred::Later)?
+        {
+            let _ = std::fs::remove_file(&staged);
+            return Err(Deferred::Later);
         }
-        let installed = self
-            .fs
-            .install(&staged, key, Some(v.mtime))
-            .map_err(|_| Deferred::Later)?;
+        // The old copy, if any, goes to the bin from beside the swap, under the one bin policy.
+        let Some(installed) = apply
+            .install(staged, key, &rel, Some(v.mtime), "OVERWRITTEN")
+            .await
+            .map_err(|_| Deferred::Later)?
+        else {
+            report.changed_since_planned.push(key.to_owned());
+            return Err(Deferred::Later);
+        };
+        apply.before_record().map_err(|_| Deferred::Later)?;
         remember_chunks(&self.store, &self.pair.id, key, &list).map_err(|_| Deferred::Later)?;
         record(index, key, v.clone(), installed.size, installed.mtime_ms);
         report.taken += 1;
@@ -642,7 +826,7 @@ impl DeviceSync {
             pair_id: self.pair.id.clone(),
         };
         let plan = plan_fetch(list, &source);
-        let staged = self.fs.staging_path(key).ok()?;
+        let staged = self.fs.staging_path(&self.lp(key)).ok()?;
         let spool = spool_dir(&staged, &new_id(self.clock.as_ref()));
         // Exclusive: never reuse (or later delete) a folder this pull did not make.
         std::fs::create_dir(&spool).ok()?;
@@ -733,12 +917,19 @@ impl DeviceSync {
         let Some(local) = index.entries.get(key).cloned() else {
             return Ok(());
         };
-        let disk = self.fs.stat(key).map_err(|_| Deferred::Later)?;
+        let disk = self.fs.stat(&self.lp(key)).map_err(|_| Deferred::Later)?;
+        let apply = self.apply_for(index, &[key]);
         match (copy_key, disk) {
             (Some(copy), Some(d)) if !d.is_dir => {
                 let copy = self.free_copy_name(index, copy)?;
                 let copy = copy.as_str();
-                self.fs.rename(key, copy).map_err(|_| Deferred::Later)?;
+                if !apply
+                    .rename(&self.lp(key), &self.lp(copy))
+                    .await
+                    .map_err(|_| Deferred::Later)?
+                {
+                    return Err(Deferred::Later);
+                }
                 // The copy is a new file here, with the losing content. Its vector descends from
                 // whatever the index held at that name (an earlier copy's tombstone), so no old
                 // deletion of that name can bin it (#141).
@@ -768,7 +959,13 @@ impl DeviceSync {
                 changed.push(copy.to_owned());
             }
             (_, Some(d)) if !d.is_dir => {
-                self.to_bin(key, "CONFLICT").map_err(|_| Deferred::Later)?;
+                if !apply
+                    .delete(key, &self.lp(key), "CONFLICT")
+                    .await
+                    .map_err(|_| Deferred::Later)?
+                {
+                    return Err(Deferred::Later);
+                }
                 let mut gone = local.version;
                 gone.deleted = true;
                 record(index, key, gone, 0, 0);
@@ -783,7 +980,11 @@ impl DeviceSync {
     fn free_copy_name(&self, index: &Index, copy: &str) -> Result<String, Deferred> {
         let taken = |name: &str| -> Result<bool, Deferred> {
             Ok(index.get(name).is_some_and(|v| !v.deleted)
-                || self.fs.stat(name).map_err(|_| Deferred::Later)?.is_some())
+                || self
+                    .fs
+                    .stat(&self.lp(name))
+                    .map_err(|_| Deferred::Later)?
+                    .is_some())
         };
         if !taken(copy)? {
             return Ok(copy.to_owned());
@@ -799,30 +1000,6 @@ impl DeviceSync {
             }
         }
         Err(Deferred::Later)
-    }
-
-    /// Moves the local file at `key` to the bin and records it there.
-    fn to_bin(&self, key: &str, reason: &str) -> Result<()> {
-        let size = self.fs.stat(key)?.map_or(0, |d| d.size);
-        let location = self.fs.move_to_bin(key)?;
-        let now = self.clock.now_ms();
-        let entry = NewBinEntry {
-            id: new_id(self.clock.as_ref()),
-            pair_id: self.pair.id.clone(),
-            side: BinSide::Local,
-            key: key.to_owned(),
-            reason: reason.to_owned(),
-            location,
-            deleted_at: now,
-            expires_at: now + BIN_RETENTION_MS,
-            size,
-            account_id: None,
-            remote_file_id: None,
-            display_name: Some(name_of(key).to_owned()),
-            pair_name: Some(self.pair.name.clone()),
-        };
-        self.store.lock().add_to_bin(&entry)?;
-        Ok(())
     }
 }
 
@@ -937,9 +1114,22 @@ fn remember_chunks(store: &SharedStore, pair_id: &str, key: &str, list: &ChunkLi
     Ok(())
 }
 
+/// The local path of an index key on `fs`: each part named as this disk accepts it (see
+/// [`NameRules::device`]). A disk that accepts every name a peer's disk did gets the key back.
+fn local_path(fs: &dyn LocalFs, key: &str) -> String {
+    let rules = NameRules::device(fs.name_rules().windows);
+    if !rules.windows {
+        return key.to_owned();
+    }
+    key.split('/')
+        .map(|part| to_local_name_with(part, rules))
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 /// Reads one chunk from a local file.
 fn read_at(fs: &dyn LocalFs, at: &ChunkLocation) -> io::Result<Vec<u8>> {
-    let readable = fs.readable_path(&at.file)?;
+    let readable = fs.readable_path(&local_path(fs, &at.file))?;
     let mut f = File::open(&readable.path)?;
     f.seek(SeekFrom::Start(at.offset))?;
     let mut buf = vec![0u8; at.len as usize];

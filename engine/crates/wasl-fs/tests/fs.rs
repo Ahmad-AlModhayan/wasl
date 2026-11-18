@@ -596,3 +596,23 @@ fn bin_copy_of_nothing_is_none_and_of_a_folder_is_unsupported() {
         fs.bin_copy("d").unwrap_err().kind()
     );
 }
+
+#[test]
+fn every_name_the_mapper_makes_for_windows_passes_the_windows_check() {
+    use wasl_core::names::{NameRules, to_local_name_with};
+    for n in [
+        "CON",
+        "aux.txt",
+        "report.",
+        "notes ",
+        "a:b.txt",
+        "REPORT~1.DOC",
+        "nul",
+        "COM1.txt",
+        "x|y",
+        "plain",
+    ] {
+        let local = to_local_name_with(n, NameRules::drive(true));
+        assert!(wasl_fs::check_rel_on(&local, true).is_ok(), "{n:?} -> {local:?}");
+    }
+}

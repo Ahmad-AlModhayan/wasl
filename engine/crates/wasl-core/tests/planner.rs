@@ -9,6 +9,7 @@ use wasl_core::docs::{
     is_export_name,
 };
 use wasl_core::guards::GuardConfig;
+use wasl_core::names::NameRules;
 use wasl_core::paths::{name_of, parent_of};
 use wasl_core::planner::{export_local_rel, mapped_local_rel, over_size_limit};
 use wasl_core::{
@@ -41,6 +42,7 @@ fn cfg() -> PlannerConfig {
             first_merge_guard: false,
             approved_once: false,
         },
+        name_rules: Default::default(),
     }
 }
 
@@ -2272,13 +2274,30 @@ fn mapped_local_rel_companion_helper() {
 #[test]
 fn export_local_rel_companion_helper() {
     let docx = export_target(GOOGLE_DOC, false).unwrap();
-    assert_eq!("docs/notes.docx", export_local_rel("docs", "notes", docx));
-    assert_eq!("docs/notes.docx", export_local_rel("docs", "notes.docx", docx));
-    assert_eq!("docs/notes.DOCX", export_local_rel("docs", "notes.DOCX", docx));
-    assert_eq!("a？b.docx", export_local_rel("", "a?b", docx));
+    assert_eq!(
+        "docs/notes.docx",
+        export_local_rel("docs", "notes", docx, NameRules::PORTABLE)
+    );
+    assert_eq!(
+        "docs/notes.docx",
+        export_local_rel("docs", "notes.docx", docx, NameRules::PORTABLE)
+    );
+    assert_eq!(
+        "docs/notes.DOCX",
+        export_local_rel("docs", "notes.DOCX", docx, NameRules::PORTABLE)
+    );
+    assert_eq!(
+        "a？b.docx",
+        export_local_rel("", "a?b", docx, NameRules::PORTABLE)
+    );
     assert_eq!(
         "notes.pdf",
-        export_local_rel("", "notes", export_target(GOOGLE_DOC, true).unwrap())
+        export_local_rel(
+            "",
+            "notes",
+            export_target(GOOGLE_DOC, true).unwrap(),
+            NameRules::PORTABLE
+        )
     );
 }
 
