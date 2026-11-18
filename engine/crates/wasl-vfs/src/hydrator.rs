@@ -10,7 +10,8 @@ use crate::{FileRef, Result, Source, VfsError};
 /// How far ahead a sequential reader is served.
 #[derive(Debug, Clone, Copy)]
 pub struct ReadAhead {
-    /// Blocks fetched beyond a read once the reader has read this many blocks in order.
+    /// Blocks fetched beyond a read once the reader has read this many blocks in order (reads that
+    /// stay inside one block do not count).
     pub blocks: u64,
     pub after: u64,
 }
@@ -101,8 +102,12 @@ impl Hydrator {
     fn ahead_for(&self, f: &FileRef, offset: u64, end: u64, last: u64) -> u64 {
         let mut streams = self.streams.lock().unwrap_or_else(|p| p.into_inner());
         let key = format!("{}\0{}", f.id, f.version);
+        // The run counts blocks entered in order, not reads: a system that hands one block over in
+        // pieces (Windows, pages one after another) is not a reader going through the file, and
+        // a seek followed by a small read must cost one block (wasl#42).
         let run = match streams.get(&key) {
-            Some((prev_end, run)) if *prev_end == offset => run + 1,
+            // `offset` is where the last read ended, so the block before it was the last one read.
+            Some((prev_end, run)) if *prev_end == offset && offset > 0 => run + (last - (offset - 1) / BLOCK),
             _ => 0,
         };
         streams.insert(key, (end, run));

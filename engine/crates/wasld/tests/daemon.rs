@@ -428,7 +428,9 @@ async fn a_change_in_the_folder_syncs_without_asking() {
 }
 
 /// A pair that syncs on change, past its preview, with its watcher up.
-async fn syncing_on_change(c: &Client, d: &Running) {
+/// Returns the instant runs so far: when the first sync ends before the watcher starts, the pair
+/// has one catch-up run (wasl#38) that the tests below do not count.
+async fn syncing_on_change(c: &Client, d: &Running) -> usize {
     let mut p = pair(&d.root);
     p.instant_sync = true;
     c.create_pair(p).await.unwrap();
@@ -437,6 +439,7 @@ async fn syncing_on_change(c: &Client, d: &Running) {
         c.sync("p1", Trigger::Preview).await.unwrap().status
     );
     tokio::time::sleep(Duration::from_millis(3500)).await;
+    instant_runs(c).await
 }
 
 /// Whether Drive saw an upload of `name` within `wait`.
@@ -462,7 +465,7 @@ async fn a_change_during_a_run_gets_a_follow_up_run() {
     let g = google().await;
     let d = start(&g, true).await;
     let c = Client::connect(&d.paths).await.unwrap();
-    syncing_on_change(&c, &d).await;
+    let before = syncing_on_change(&c, &d).await;
 
     std::fs::write(d.root.join("slow.txt"), "held").unwrap();
     assert!(
@@ -477,7 +480,11 @@ async fn a_change_during_a_run_gets_a_follow_up_run() {
         "the change during the run got a run of its own"
     );
     tokio::time::sleep(Duration::from_millis(500)).await;
-    assert_eq!(2, instant_runs(&c).await, "the watcher's run and its follow-up");
+    assert_eq!(
+        before + 2,
+        instant_runs(&c).await,
+        "the watcher's run and its follow-up"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -485,7 +492,7 @@ async fn several_changes_during_a_run_give_one_follow_up_run() {
     let g = google().await;
     let d = start(&g, true).await;
     let c = Client::connect(&d.paths).await.unwrap();
-    syncing_on_change(&c, &d).await;
+    let before = syncing_on_change(&c, &d).await;
 
     std::fs::write(d.root.join("slow.txt"), "held").unwrap();
     assert!(
@@ -505,7 +512,11 @@ async fn several_changes_during_a_run_give_one_follow_up_run() {
     }
     // Past the settle time, so a second follow-up would have started.
     tokio::time::sleep(Duration::from_millis(4500)).await;
-    assert_eq!(2, instant_runs(&c).await, "the watcher's run and one follow-up");
+    assert_eq!(
+        before + 2,
+        instant_runs(&c).await,
+        "the watcher's run and one follow-up"
+    );
     let mut uploads = g.uploads.lock().unwrap().clone();
     uploads.sort();
     assert_eq!(
@@ -516,8 +527,9 @@ async fn several_changes_during_a_run_give_one_follow_up_run() {
 }
 
 /// Issue #88: a sync the person started is followed like the watcher's runs, and its own file
-/// doesn't run the pair again. The pair syncs on change only once slow.txt is written, so no run
-/// of the watcher's own can start ahead of the manual sync and leave it skipped.
+/// doesn't run the pair again. The sync starts as the pair is set to sync on change, before the
+/// new watcher's catch-up run (wasl#38) is due, so no run of the watcher's own starts ahead of the
+/// manual sync and leaves it skipped.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_change_during_a_manual_sync_gets_one_follow_up_run() {
     let g = google().await;
@@ -532,7 +544,6 @@ async fn a_change_during_a_manual_sync_gets_one_follow_up_run() {
     let mut p = c.pair("p1").await.unwrap().unwrap();
     p.instant_sync = true;
     c.update_pair(p).await.unwrap();
-    tokio::time::sleep(Duration::from_millis(3500)).await; // the watcher is up
 
     let manual = {
         let c = Client::connect(&d.paths).await.unwrap();
@@ -553,7 +564,8 @@ async fn a_change_during_a_manual_sync_gets_one_follow_up_run() {
         uploaded(&g, "slow.txt", Duration::from_secs(15)).await,
         "the manual sync reached the slow upload"
     );
-    // That sync is now held on the slow upload, past its scan.
+    // That sync is now held on the slow upload, past its scan, and the watcher is up.
+    tokio::time::sleep(Duration::from_millis(300)).await;
     std::fs::write(d.root.join("during.txt"), "written mid-sync").unwrap();
 
     assert_eq!(RunStatus::Success, manual.await.unwrap());
@@ -577,7 +589,7 @@ async fn a_change_right_after_a_run_ends_still_runs_the_pair() {
     let g = google().await;
     let d = start(&g, true).await;
     let c = Client::connect(&d.paths).await.unwrap();
-    syncing_on_change(&c, &d).await;
+    let before = syncing_on_change(&c, &d).await;
 
     std::fs::write(d.root.join("slow.txt"), "held").unwrap();
     assert!(
@@ -603,7 +615,7 @@ async fn a_change_right_after_a_run_ends_still_runs_the_pair() {
     );
     tokio::time::sleep(Duration::from_millis(1500)).await;
     assert_eq!(
-        2,
+        before + 2,
         instant_runs(&c).await,
         "the watcher's run and one for the change"
     );
