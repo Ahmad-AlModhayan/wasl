@@ -2,7 +2,7 @@
 
 use crate::{Result, Store, to_i64, to_u64};
 use rusqlite::{OptionalExtension, Row, params};
-use wasl_core::{ConflictPolicy, RunStatus};
+use wasl_core::{ConflictPolicy, ErrorKind, RunStatus};
 
 pub use wasl_proto::store::{ConflictRecord, EventLevel, RunEvent, RunRecord, RunStats};
 
@@ -16,6 +16,10 @@ fn run_from_row(r: &Row<'_>) -> rusqlite::Result<RunRecord> {
         status: RunStatus::parse(&status).unwrap_or(RunStatus::Failed),
         stats: serde_json::from_str(&stats).unwrap_or_default(),
         message: r.get(5)?,
+        // A name this build doesn't know (written by a newer one) reads as no kind.
+        error_kind: r
+            .get::<_, Option<String>>(8)?
+            .and_then(|k| ErrorKind::parse(&k)),
         started_at: r.get(6)?,
         ended_at: r.get(7)?,
     })
@@ -54,14 +58,28 @@ impl Store {
         message: Option<&str>,
         ended_at: i64,
     ) -> Result<()> {
+        self.finish_run_with_kind(id, status, stats, message, None, ended_at)
+    }
+
+    /// [`Store::finish_run`] for a run that failed, keeping the kind of its failure (issue #57).
+    pub fn finish_run_with_kind(
+        &self,
+        id: &str,
+        status: RunStatus,
+        stats: &RunStats,
+        message: Option<&str>,
+        error_kind: Option<ErrorKind>,
+        ended_at: i64,
+    ) -> Result<()> {
         self.conn.execute(
-            "UPDATE runs SET status = ?2, stats_json = ?3, message = ?4, ended_at = ?5 WHERE id = ?1",
+            "UPDATE runs SET status = ?2, stats_json = ?3, message = ?4, ended_at = ?5, error_kind = ?6 WHERE id = ?1",
             params![
                 id,
                 status.as_str(),
                 serde_json::to_string(stats).unwrap_or_else(|_| "{}".into()),
                 message,
-                ended_at
+                ended_at,
+                error_kind.map(ErrorKind::as_str)
             ],
         )?;
         Ok(())
@@ -71,7 +89,7 @@ impl Store {
         Ok(self
             .conn
             .query_row(
-                "SELECT id, pair_id, trigger, status, stats_json, message, started_at, ended_at FROM runs WHERE id = ?1",
+                "SELECT id, pair_id, trigger, status, stats_json, message, started_at, ended_at, error_kind FROM runs WHERE id = ?1",
                 [id],
                 run_from_row,
             )
@@ -81,7 +99,7 @@ impl Store {
     /// Runs newest first; for one pair or all.
     pub fn runs(&self, pair_id: Option<&str>, limit: u32) -> Result<Vec<RunRecord>> {
         let mut stmt = self.conn.prepare_cached(
-            "SELECT id, pair_id, trigger, status, stats_json, message, started_at, ended_at FROM runs
+            "SELECT id, pair_id, trigger, status, stats_json, message, started_at, ended_at, error_kind FROM runs
              WHERE ?1 IS NULL OR pair_id = ?1 ORDER BY started_at DESC, rowid DESC LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![pair_id, limit], run_from_row)?;

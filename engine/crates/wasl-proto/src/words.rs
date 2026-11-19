@@ -1333,10 +1333,11 @@ pub fn reference_markdown() -> String {
         }
         s.push('\n');
     }
+    s.push_str(&crate::run_items::fixes_markdown());
     s
 }
 
-fn fix_name(f: Fix) -> String {
+pub(crate) fn fix_name(f: Fix) -> String {
     serde_json::to_value(f)
         .ok()
         .and_then(|v| v.as_str().map(str::to_owned))

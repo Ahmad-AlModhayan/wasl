@@ -911,7 +911,9 @@ impl Engine {
     ) {
         let now = self.clock.now_ms();
         let s = self.store.lock();
-        let _ = s.finish_run(run_id, status, stats, message, now);
+        // The kind is what a failed run's history words are made from (issue #57).
+        let failure = kind.filter(|_| status == RunStatus::Failed);
+        let _ = s.finish_run_with_kind(run_id, status, stats, message, failure, now);
         let Ok(Some(current)) = s.get_pair(&pair.id) else {
             return;
         };

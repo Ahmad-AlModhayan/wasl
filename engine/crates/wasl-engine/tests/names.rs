@@ -546,4 +546,15 @@ async fn a_name_the_disk_refuses_is_reported_with_its_code() {
         .collect();
     assert_eq!(vec![Some("REPORT~1.DOC".to_owned())], refused, "{events:?}");
     assert_eq!(map(&[("fine.txt", "ok")]), w.local_files());
+    // The history lists it, worded, with what to do (issue #56).
+    let items = w.engine.run_items(&o.run_id, wasl_proto::Lang::En).unwrap();
+    assert_eq!(1, items.len(), "{items:?}");
+    assert_eq!("NAME_REFUSED", items[0].action);
+    assert_eq!("error.name_refused", items[0].words.key);
+    assert_eq!(Some("REPORT~1.DOC"), items[0].words.values.file.as_deref());
+    assert_eq!(Some(wasl_proto::Fix::OpenToRename), items[0].words.fix);
+    assert!(
+        items[0].fix_words.as_deref().is_some_and(|t| t.contains("Rename")),
+        "{items:?}"
+    );
 }

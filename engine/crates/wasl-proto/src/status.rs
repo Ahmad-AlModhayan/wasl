@@ -244,13 +244,18 @@ pub fn folder_status_for(
                         if newest { raw } else { None },
                     ))
                 }
-                // Only the newest run's cause is kept with the folder; an older failure is worded by
-                // the fallback, quietly, until runs keep their own entry.
+                // The newest run's cause is kept with the folder. An older failure is worded from
+                // the kind its own run kept; a run stored before runs kept it (issue #57) reads as
+                // the fallback, quietly.
                 RunStatus::Failed => {
                     let (key, cause) = if newest {
                         (failed_key.unwrap_or(words::FALLBACK), raw)
                     } else {
-                        (words::FALLBACK, r.message.as_deref())
+                        let cause = r.message.as_deref();
+                        let key = r.error_kind.map_or(words::FALLBACK, |k| {
+                            words::classify_for(platform, k, cause.unwrap_or(""))
+                        });
+                        (key, cause)
                     };
                     Some(words::render_with(
                         key,
@@ -1073,6 +1078,7 @@ mod tests {
                 ..Default::default()
             },
             message: None,
+            error_kind: None,
             started_at: 10,
             ended_at: Some(20),
         };
@@ -1083,6 +1089,48 @@ mod tests {
         assert_eq!(2, s.last_runs.len());
         assert_eq!("run.partial", s.last_runs[0].words.as_ref().unwrap().key);
         assert!(s.last_runs[1].words.is_none());
+    }
+
+    /// An older failed run is worded from the kind its own run kept (issue #57); one stored before
+    /// runs kept it reads as the generic sentence.
+    #[test]
+    fn an_older_failed_run_is_worded_from_its_own_kind() {
+        let p = {
+            let mut p = pair();
+            p.status.last_status = Some(RunStatus::Failed);
+            p.status.last_error = Some("no route to host".into());
+            p.status.last_error_kind = Some(ErrorKind::Network);
+            p
+        };
+        let run = |id: &str, kind: Option<ErrorKind>| RunRecord {
+            id: id.into(),
+            pair_id: "p1".into(),
+            trigger: "manual".into(),
+            status: RunStatus::Failed,
+            stats: RunStats::default(),
+            message: Some("raw cause".into()),
+            error_kind: kind,
+            started_at: 10,
+            ended_at: Some(20),
+        };
+        let runs = [
+            run("r4", Some(ErrorKind::Network)),
+            run("r3", Some(ErrorKind::Auth)),
+            run("r2", Some(ErrorKind::Quota)),
+            run("r1", None),
+        ];
+        let mut f = facts(&p);
+        f.runs = &runs;
+        let status = decide(&f);
+        let keys: Vec<&str> = status
+            .last_runs
+            .iter()
+            .map(|r| r.words.as_ref().unwrap().key.as_str())
+            .collect();
+        assert_eq!(
+            vec!["error.network", "error.auth", "error.quota", words::FALLBACK],
+            keys
+        );
     }
 
     #[test]

@@ -1207,7 +1207,15 @@ impl Devices {
                 ..RunStats::default()
             });
         if s.start_run(&run_id, &pair.id, trigger.as_str(), now).is_ok() {
-            let _ = s.finish_run(&run_id, outcome.status, &stats, outcome.message.as_deref(), now);
+            let failure = outcome.error_kind.filter(|_| outcome.status == RunStatus::Failed);
+            let _ = s.finish_run_with_kind(
+                &run_id,
+                outcome.status,
+                &stats,
+                outcome.message.as_deref(),
+                failure,
+                now,
+            );
         }
         let mut st = current.status;
         st.last_run_at = Some(now);

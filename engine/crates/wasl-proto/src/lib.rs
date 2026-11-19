@@ -13,6 +13,7 @@ pub mod oplog;
 pub mod presets;
 pub mod retry;
 pub mod run;
+pub mod run_items;
 pub mod status;
 pub mod store;
 pub mod words;
@@ -41,6 +42,7 @@ pub use oplog::{
 pub use presets::{PRESET_IDS, is_valid_preset_id};
 pub use retry::{RetryInfo, RetryPolicy};
 pub use run::{ErrorKind, RunStatus};
+pub use run_items::{RunItem, fix_words, run_items};
 pub use status::{
     CANT_REACH_AFTER_MS, DeviceFacts, DevicePresence, DeviceStatus, Facts, FolderCounts, FolderPeer,
     FolderState, FolderStatus, LastRun, OverallState, OverallStatus, WaitReason, device_status,

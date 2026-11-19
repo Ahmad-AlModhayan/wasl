@@ -6,6 +6,7 @@ uniffi::setup_scaffolding!();
 
 mod devices;
 mod on_demand;
+mod run_items;
 mod saf;
 mod status;
 mod vaults;
@@ -516,11 +517,12 @@ impl WaslEngine {
             } else {
                 run.status
             };
-            s.finish_run(
+            s.finish_run_with_kind(
                 &run.id,
                 status,
                 &run.stats,
                 run.message.as_deref(),
+                run.error_kind,
                 run.ended_at.unwrap_or(run.started_at),
             )?;
             s.append_events(&run.id, &r.events)?;

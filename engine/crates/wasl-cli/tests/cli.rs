@@ -52,6 +52,9 @@ struct Fake {
     account_trouble: Mutex<Option<(String, Option<wasl_proto::SignInCause>)>>,
     /// The runs `Request::Runs` returns.
     run_history: Mutex<Vec<wasl_proto::RunRecord>>,
+    /// The events every run in the history has in its log: `Request::RunItems` words them as the
+    /// daemon does (the run's folder is Work).
+    run_log: Mutex<Vec<wasl_proto::RunEvent>>,
 }
 
 impl Fake {
@@ -355,6 +358,21 @@ impl Handler for Fake {
                 .take(limit as usize)
                 .cloned()
                 .collect::<Vec<_>>()),
+            Request::RunItems { run_id, lang } => {
+                if !self.run_history.lock().unwrap().iter().any(|r| r.id == run_id) {
+                    return Err(RemoteError {
+                        kind: ErrorKind::NotFound,
+                        message: format!("run {run_id}"),
+                    });
+                }
+                ok(wasl_proto::run_items(
+                    &self.run_log.lock().unwrap(),
+                    "Work",
+                    lang.unwrap_or(wasl_proto::Lang::En),
+                    &["/home/outside/vault"],
+                    &["acc1"],
+                ))
+            }
             Request::Devices if self.request_error.lock().unwrap().is_some() => Err(RemoteError {
                 kind: self.request_error.lock().unwrap().unwrap(),
                 message: self
@@ -1296,6 +1314,7 @@ fn run_record(id: &str, pair: &str, status: RunStatus, message: &str) -> wasl_pr
         status,
         stats: wasl_proto::RunStats::default(),
         message: Some(message.into()),
+        error_kind: None,
         started_at: 1_760_000_000_000,
         ended_at: Some(1_760_000_060_000),
     }
@@ -1447,6 +1466,163 @@ async fn history_words_how_each_run_ended_and_keeps_the_key_for_agents() {
         r.stdout
     );
     assert!(r.stdout.contains("2 items in Work didn't sync"), "{}", r.stdout);
+}
+
+/// A run's log as the engine writes it: two files left out among the routine lines.
+fn a_log_with_files_left_out() -> Vec<wasl_proto::RunEvent> {
+    let event = |action: &str, key: Option<&str>, message: &str| wasl_proto::RunEvent {
+        at: 1_760_000_030_000,
+        level: wasl_proto::EventLevel::Warn,
+        action: action.into(),
+        key: key.map(Into::into),
+        message: message.into(),
+        detail: None,
+        bytes: 0,
+    };
+    vec![
+        event("UPLOAD", Some("kept.txt"), "uploaded"),
+        event(
+            "FILE_GONE",
+            Some("Reports/2024/budget.xlsx"),
+            "budget.xlsx was moved or deleted at /home/outside/vault/Reports/2024/budget.xlsx",
+        ),
+        event("INFO", None, "Skipped 2 Google Docs"),
+        event("NAME_REFUSED", Some("CON.txt"), &format!("refused: {RAW}")),
+    ]
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_says_which_files_it_left_out_and_what_to_do_about_each() {
+    let d = a_daemon_in_trouble();
+    *d.fake.run_log.lock().unwrap() = a_log_with_files_left_out();
+
+    // The list shows each run's ID and says how to ask about one.
+    let r = wasl(d.dir.path(), "en", &["history"]).await;
+    assert!(r.stdout.contains("r2"), "{}", r.stdout);
+    assert!(r.stdout.contains("wasl history --run"), "{}", r.stdout);
+
+    let r = wasl(d.dir.path(), "en", &["history", "--run", "r2"]).await;
+    assert_eq!(0, r.code, "{}", r.stderr);
+    for want in [
+        "Work",
+        "budget.xlsx was gone before Wasl could sync it, so it was skipped.",
+        "Drive or this device won't accept the name of CON.txt, so it was skipped.",
+        "What to do: Sync again to try once more.",
+        "What to do: Rename the file, then sync again.",
+    ] {
+        assert!(r.stdout.contains(want), "missing {want:?}:\n{}", r.stdout);
+    }
+    // The routine lines are not files left out; the path is not part of the words.
+    assert!(!r.stdout.contains("Google Docs"), "{}", r.stdout);
+    assert!(!r.stdout.contains("Reports/2024"), "{}", r.stdout);
+    assert_clean("`wasl history --run r2`", &format!("{}{}", r.stdout, r.stderr), true);
+
+    // The words come in the caller's language.
+    let ar = wasl(d.dir.path(), "ar", &["history", "--run", "r2"]).await;
+    assert_eq!(0, ar.code, "{}", ar.stderr);
+    assert!(ar.stdout.contains("budget.xlsx") && ar.stdout.contains("CON.txt"), "{}", ar.stdout);
+    assert!(
+        ar.stdout.chars().any(|c| ('\u{600}'..='\u{6ff}').contains(&c)),
+        "{}",
+        ar.stdout
+    );
+    assert!(!ar.stdout.contains("What to do"), "{}", ar.stdout);
+    assert_clean("`wasl history --run r2` in ar", &format!("{}{}", ar.stdout, ar.stderr), true);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_runs_items_in_json_have_stable_keys_and_values_and_no_raw_text() {
+    let d = a_daemon_in_trouble();
+    *d.fake.run_log.lock().unwrap() = a_log_with_files_left_out();
+    for lang in ["en", "ar"] {
+        let r = wasl(d.dir.path(), lang, &["history", "--run", "r2", "--json"]).await;
+        assert_eq!(0, r.code, "{lang}: {}", r.stderr);
+        assert_clean("history --run --json", &format!("{}{}", r.stdout, r.stderr), true);
+        let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+        assert_eq!("r2", v["run"]["id"], "{v}");
+        assert_eq!("run.partial", v["run"]["words"]["key"], "{v}");
+        let items = v["items"].as_array().unwrap();
+        assert_eq!(2, items.len(), "{v}");
+        assert_eq!("FILE_GONE", items[0]["action"]);
+        assert_eq!("Reports/2024/budget.xlsx", items[0]["path"]);
+        assert_eq!("error.file_gone", items[0]["words"]["key"]);
+        assert_eq!("budget.xlsx", items[0]["words"]["values"]["file"]);
+        assert_eq!("Work", items[0]["words"]["values"]["folder"]);
+        assert_eq!("retry", items[0]["words"]["fix"]);
+        assert_eq!("NAME_REFUSED", items[1]["action"]);
+        assert_eq!("error.name_refused", items[1]["words"]["key"]);
+        assert_eq!("open_to_rename", items[1]["words"]["fix"]);
+        assert_eq!("CON.txt", items[1]["words"]["values"]["file"]);
+        assert!(items.iter().all(|i| i["fix_words"].as_str().is_some()), "{v}");
+        // The cause waits for --details, like every other sentence.
+        assert!(!r.stdout.contains("\"details\""), "{}", r.stdout);
+    }
+    // Same keys in both languages; only the sentences differ.
+    let en = wasl(d.dir.path(), "en", &["history", "--run", "r2", "--json"]).await;
+    let ar = wasl(d.dir.path(), "ar", &["history", "--run", "r2", "--json"]).await;
+    let (en, ar): (serde_json::Value, serde_json::Value) = (
+        serde_json::from_str(&en.stdout).unwrap(),
+        serde_json::from_str(&ar.stdout).unwrap(),
+    );
+    assert_eq!(en["items"][1]["words"]["key"], ar["items"][1]["words"]["key"]);
+    assert_ne!(en["items"][1]["words"]["text"], ar["items"][1]["words"]["text"]);
+
+    // With --details the redacted cause shows, still without the secrets.
+    let r = wasl(d.dir.path(), "en", &["--details", "history", "--run", "r2", "--json"]).await;
+    assert_clean("--details history --run --json", &format!("{}{}", r.stdout, r.stderr), false);
+    assert!(r.stdout.contains("\"details\""), "{}", r.stdout);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_that_left_nothing_out_says_so_and_an_unknown_run_is_not_found() {
+    let d = a_daemon_in_trouble();
+    let r = wasl(d.dir.path(), "en", &["history", "--run", "r2"]).await;
+    assert_eq!(0, r.code, "{}", r.stderr);
+    assert!(r.stdout.contains("No file was left out"), "{}", r.stdout);
+    let r = wasl(d.dir.path(), "en", &["history", "--run", "r2", "--json"]).await;
+    let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    assert_eq!(0, v["items"].as_array().unwrap().len(), "{v}");
+
+    let r = wasl(d.dir.path(), "en", &["history", "--run", "nope-nope"]).await;
+    assert_eq!(4, r.code, "{}", r.stderr);
+    assert!(r.stderr.contains("No sync run matches"), "{}", r.stderr);
+    // A reference too short to be an ID prefix matches nothing, not every run.
+    let r = wasl(d.dir.path(), "en", &["history", "--run", "r"]).await;
+    assert_eq!(4, r.code, "{}", r.stderr);
+}
+
+/// Older failed runs read as a generic failure only when the run never kept its kind (issue #57).
+#[tokio::test(flavor = "multi_thread")]
+async fn history_words_a_failed_run_from_the_kind_it_kept() {
+    let d = start();
+    let mut kept = run_record("r1", PHOTOS, RunStatus::Failed, "the connection dropped");
+    kept.error_kind = Some(wasl_proto::ErrorKind::Network);
+    let mut full = run_record("r2", PHOTOS, RunStatus::Failed, "no room");
+    full.error_kind = Some(wasl_proto::ErrorKind::Quota);
+    // Stored before runs kept a kind: the generic sentence, and nothing invented.
+    let old = run_record("r3", PHOTOS, RunStatus::Failed, "the connection dropped");
+    *d.fake.run_history.lock().unwrap() = vec![kept, full, old];
+
+    let r = wasl(d.dir.path(), "en", &["history", "--json"]).await;
+    assert_eq!(0, r.code, "{}", r.stderr);
+    let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+    let key = |i: usize| v[i]["words"]["key"].as_str().unwrap().to_owned();
+    assert_eq!("error.network", key(0), "{v}");
+    assert_eq!("NETWORK", v[0]["error_kind"], "{v}");
+    assert_eq!("error.quota", key(1), "{v}");
+    assert_eq!(wasl_proto::words::FALLBACK, key(2), "{v}");
+    assert!(v[2].get("error_kind").is_none(), "{v}");
+    // Each reads differently in the table, in English and in Arabic.
+    for lang in ["en", "ar"] {
+        let r = wasl(d.dir.path(), lang, &["history"]).await;
+        let rows: Vec<&str> = r
+            .stdout
+            .lines()
+            .filter(|l| ["r1", "r2", "r3"].iter().any(|id| l.contains(id)))
+            .collect();
+        assert_eq!(3, rows.len(), "{}", r.stdout);
+        assert!(rows[0] != rows[1] && rows[1] != rows[2] && rows[0] != rows[2], "{lang}: {}", r.stdout);
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
