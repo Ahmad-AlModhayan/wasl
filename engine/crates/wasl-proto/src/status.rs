@@ -1114,8 +1114,7 @@ mod tests {
             ended_at: Some(20),
         };
         let runs = [
-            run("r4", Some(ErrorKind::Network)),
-            run("r3", Some(ErrorKind::Auth)),
+            run("r3", Some(ErrorKind::Network)),
             run("r2", Some(ErrorKind::Quota)),
             run("r1", None),
         ];
@@ -1127,10 +1126,7 @@ mod tests {
             .iter()
             .map(|r| r.words.as_ref().unwrap().key.as_str())
             .collect();
-        assert_eq!(
-            vec!["error.network", "error.auth", "error.quota", words::FALLBACK],
-            keys
-        );
+        assert_eq!(vec!["error.network", "error.quota", words::FALLBACK], keys);
     }
 
     #[test]

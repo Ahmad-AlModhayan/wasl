@@ -1353,7 +1353,8 @@ async fn a_folder_gone_mid_run_fails_the_run_instead_of_skipping_every_file() {
     assert!(!ErrorKind::FolderMissing.transient());
     // The run keeps its own kind, so the history words it from its cause long after the folder's
     // status has moved on (issue #57); a run that went well keeps none.
-    let kept = w.engine.store().lock().runs(Some(&w.pair().id), 10).unwrap();
+    let pair_id = w.pair().id;
+    let kept = w.engine.store().lock().runs(Some(&pair_id), 10).unwrap();
     assert_eq!(Some(ErrorKind::FolderMissing), kept[0].error_kind, "{kept:?}");
     assert_eq!(RunStatus::Success, kept[1].status);
     assert_eq!(None, kept[1].error_kind);

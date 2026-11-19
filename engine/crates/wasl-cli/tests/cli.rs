@@ -1549,8 +1549,15 @@ async fn a_runs_items_in_json_have_stable_keys_and_values_and_no_raw_text() {
     for lang in ["en", "ar"] {
         let r = wasl(d.dir.path(), lang, &["history", "--run", "r2", "--json"]).await;
         assert_eq!(0, r.code, "{lang}: {}", r.stderr);
-        assert_clean("history --run --json", &format!("{}{}", r.stdout, r.stderr), true);
         let v: serde_json::Value = serde_json::from_str(&r.stdout).unwrap();
+        // The items carry no raw text at all. The run keeps the history's redacted `message`, as
+        // `wasl history --json` does, so only the secrets are checked there.
+        assert_clean("history --run --json items", &v["items"].to_string(), true);
+        assert_clean(
+            "history --run --json",
+            &format!("{}{}", r.stdout, r.stderr),
+            false,
+        );
         assert_eq!("r2", v["run"]["id"], "{v}");
         assert_eq!("run.partial", v["run"]["words"]["key"], "{v}");
         let items = v["items"].as_array().unwrap();
