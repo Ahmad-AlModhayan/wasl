@@ -1328,8 +1328,10 @@ impl Daemon {
                 ok(())
             }
             Request::InviteDevice => ok(self.pairing_or_off()?.invite().map_err(invalid)?),
-            Request::JoinDevice { code } => {
-                self.pairing_or_off()?.join(&code).map_err(invalid)?;
+            Request::JoinDevice { code, addresses } => {
+                self.pairing_or_off()?
+                    .join_at(&code, &addresses)
+                    .map_err(invalid)?;
                 ok(())
             }
             Request::PairingStatus => ok(self.pairing_or_off()?.status()),

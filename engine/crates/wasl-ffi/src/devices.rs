@@ -204,10 +204,18 @@ impl WaslDevices {
         self.pairing.invite().map_err(other)
     }
 
-    /// Joins the device whose code was scanned. Follow it with `pairing_status`.
+    /// Joins the device whose code was scanned, or whose 8 characters were typed (any case, dash
+    /// and spaces optional). Follow it with `pairing_status`: a code that can't be read, doesn't
+    /// match or has expired ends as `Failed` with a catalogue key in `failure`.
     pub fn join(&self, code: String) -> Result<(), WaslError> {
+        self.join_at(code, Vec::new())
+    }
+
+    /// [`WaslDevices::join`] for a network where discovery is blocked: for a typed code, also tries
+    /// `addresses` (`ip:port` of the device showing the code) first.
+    pub fn join_at(&self, code: String, addresses: Vec<String>) -> Result<(), WaslError> {
         let _rt = self.rt.enter();
-        self.pairing.join(&code).map_err(other)
+        self.pairing.join_at(&code, &addresses).map_err(other)
     }
 
     pub fn pairing_status(&self) -> PairingStatus {

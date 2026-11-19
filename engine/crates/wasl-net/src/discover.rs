@@ -24,6 +24,10 @@ use tokio::net::UdpSocket;
 
 /// The mDNS service type.
 pub const SERVICE_TYPE: &str = "_wasl._udp.local.";
+/// The mDNS service type of a device that has a pairing open: announced only while the person has
+/// a code on screen, with the same random token and QUIC port as [`SERVICE_TYPE`] and nothing
+/// derived from the code. A joiner holding a typed short code browses this to find who to try.
+pub const PAIRING_SERVICE_TYPE: &str = "_wasl-pair._udp.local.";
 /// The UDP port devices listen on for broadcast probes.
 pub const PROBE_PORT: u16 = 41_414;
 
@@ -101,8 +105,25 @@ impl Lan {
 
     /// Announces `token` with the QUIC `port` on every interface.
     pub fn announce(&self, token: Token, port: u16) -> Result<(), DiscoverError> {
+        self.announce_as(SERVICE_TYPE, token, port)
+    }
+
+    /// Announces "a pairing is open here" (see [`PAIRING_SERVICE_TYPE`]) until
+    /// [`Lan::stop_announcing_pairing`].
+    pub fn announce_pairing(&self, token: Token, port: u16) -> Result<(), DiscoverError> {
+        self.announce_as(PAIRING_SERVICE_TYPE, token, port)
+    }
+
+    /// Takes the pairing announcement of `token` back.
+    pub fn stop_announcing_pairing(&self, token: Token) {
+        let _ = self
+            .daemon
+            .unregister(&format!("{}.{PAIRING_SERVICE_TYPE}", token.to_hex()));
+    }
+
+    fn announce_as(&self, service_type: &str, token: Token, port: u16) -> Result<(), DiscoverError> {
         let name = token.to_hex();
-        let info = ServiceInfo::new(SERVICE_TYPE, &name, &format!("{name}.local."), (), port, None)
+        let info = ServiceInfo::new(service_type, &name, &format!("{name}.local."), (), port, None)
             .map_err(mdns_error)?
             .enable_addr_auto();
         self.daemon.register(info).map_err(mdns_error)
@@ -110,8 +131,18 @@ impl Lan {
 
     /// Starts looking for other devices.
     pub fn browse(&self) -> Result<Browser, DiscoverError> {
+        self.browse_as(SERVICE_TYPE)
+    }
+
+    /// Starts looking for devices with a pairing open.
+    pub fn browse_pairing(&self) -> Result<Browser, DiscoverError> {
+        self.browse_as(PAIRING_SERVICE_TYPE)
+    }
+
+    fn browse_as(&self, service_type: &'static str) -> Result<Browser, DiscoverError> {
         Ok(Browser {
-            events: self.daemon.browse(SERVICE_TYPE).map_err(mdns_error)?,
+            events: self.daemon.browse(service_type).map_err(mdns_error)?,
+            service_type,
         })
     }
 
@@ -120,12 +151,12 @@ impl Lan {
     }
 }
 
-/// The token in an announced name `<token>._wasl._udp.local.` (service type matched ignoring
-/// case, as mDNS does).
-fn instance_token(fullname: &str) -> Option<Token> {
-    let cut = fullname.len().checked_sub(SERVICE_TYPE.len())?;
+/// The token in an announced name `<token>.<service_type>` (service type matched ignoring case,
+/// as mDNS does).
+fn instance_token(fullname: &str, service_type: &str) -> Option<Token> {
+    let cut = fullname.len().checked_sub(service_type.len())?;
     let (instance, suffix) = (fullname.get(..cut)?, fullname.get(cut..)?);
-    if !suffix.eq_ignore_ascii_case(SERVICE_TYPE) {
+    if !suffix.eq_ignore_ascii_case(service_type) {
         return None;
     }
     Token::from_hex(instance.strip_suffix('.')?)
@@ -134,6 +165,7 @@ fn instance_token(fullname: &str) -> Option<Token> {
 /// Devices found by mDNS, as they resolve.
 pub struct Browser {
     events: mdns_sd::Receiver<ServiceEvent>,
+    service_type: &'static str,
 }
 
 impl Browser {
@@ -144,7 +176,7 @@ impl Browser {
             if let ServiceEvent::ServiceResolved(service) = self.events.recv_async().await.ok()? {
                 // Any host on the network can announce; a name that does not fit is skipped like
                 // any other bad entry, never the end of browsing.
-                let Some(token) = instance_token(&service.fullname) else {
+                let Some(token) = instance_token(&service.fullname, self.service_type) else {
                     continue;
                 };
                 let addrs = lan_addrs(service.addresses.iter().map(|ip| socket_addr(ip, service.port)));
@@ -350,10 +382,13 @@ mod tests {
     #[test]
     fn announced_names_are_parsed_without_ever_giving_up() {
         let t = Token::random();
-        assert_eq!(Some(t), instance_token(&format!("{}.{SERVICE_TYPE}", t.to_hex())));
         assert_eq!(
             Some(t),
-            instance_token(&format!("{}._WASL._UDP.LOCAL.", t.to_hex()))
+            instance_token(&format!("{}.{SERVICE_TYPE}", t.to_hex()), SERVICE_TYPE)
+        );
+        assert_eq!(
+            Some(t),
+            instance_token(&format!("{}._WASL._UDP.LOCAL.", t.to_hex()), SERVICE_TYPE)
         );
         for bad in [
             "",
@@ -363,8 +398,22 @@ mod tests {
             "zz._wasl._udp.local.",
             "é._other._udp.local.",
         ] {
-            assert_eq!(None, instance_token(bad), "{bad}");
+            assert_eq!(None, instance_token(bad, SERVICE_TYPE), "{bad}");
+            // A device announcement is not a pairing announcement, and the other way round.
+            assert_eq!(None, instance_token(bad, PAIRING_SERVICE_TYPE), "{bad}");
         }
+        assert_eq!(
+            Some(t),
+            instance_token(
+                &format!("{}.{PAIRING_SERVICE_TYPE}", t.to_hex()),
+                PAIRING_SERVICE_TYPE
+            )
+        );
+        assert_eq!(
+            None,
+            instance_token(&format!("{}.{SERVICE_TYPE}", t.to_hex()), PAIRING_SERVICE_TYPE)
+        );
+        {}
     }
     use proptest::prelude::*;
 
@@ -533,6 +582,50 @@ mod tests {
             Ok(Some(f)) => assert!(f.addrs.iter().all(|a| a.port() == 4244), "{f:?}"),
             _ => eprintln!("note: skipped, no multicast on this machine (nothing heard in 5 s)"),
         }
+        announcer.shutdown();
+        browser.shutdown();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_pairing_announcement_is_found_only_while_it_is_up() {
+        let (announcer, browser) = match (Lan::new(), Lan::new()) {
+            (Ok(a), Ok(b)) => (a, b),
+            (a, b) => {
+                eprintln!("note: skipped, mDNS unavailable: {:?}", a.err().or(b.err()));
+                return;
+            }
+        };
+        let token = Token::random();
+        announcer.announce_pairing(token, 4245).unwrap();
+        let mut plain = browser.browse().unwrap();
+        let mut pairing = browser.browse_pairing().unwrap();
+        let seen = tokio::time::timeout(Duration::from_secs(5), async {
+            while let Some(f) = pairing.next().await {
+                if f.token == token {
+                    return Some(f);
+                }
+            }
+            None
+        })
+        .await;
+        match seen {
+            Ok(Some(f)) => {
+                assert!(f.addrs.iter().all(|a| a.port() == 4245), "{f:?}");
+                // It is not announced as an ordinary device.
+                let also = tokio::time::timeout(Duration::from_millis(800), async {
+                    while let Some(f) = plain.next().await {
+                        if f.token == token {
+                            return true;
+                        }
+                    }
+                    false
+                })
+                .await;
+                assert!(!matches!(also, Ok(true)));
+            }
+            _ => eprintln!("note: skipped, no multicast on this machine (nothing heard in 5 s)"),
+        }
+        announcer.stop_announcing_pairing(token);
         announcer.shutdown();
         browser.shutdown();
     }

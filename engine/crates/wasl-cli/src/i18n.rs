@@ -435,8 +435,9 @@ messages! {
     ListeningOn => "Other devices reach this computer on port {0}.", "تصل الأجهزة الأخرى إلى هذا الحاسوب على المنفذ {0}.";
     OnlyThisDevice => "No other device yet. Add one with: wasl device add",
         "لا يوجد جهاز آخر بعد. أضف جهازًا بالأمر: wasl device add";
-    PairShowCode => "On the new device, scan this code in Wasl, or run: wasl device join <code>",
-        "على الجهاز الجديد، امسح هذا الرمز في وصل، أو نفّذ: wasl device join <الرمز>";
+    PairShowCode => "On the new device, open Wasl and type this code (or run: wasl device join <code>):",
+        "على الجهاز الجديد، افتح وصل واكتب هذا الرمز (أو نفّذ: wasl device join <الرمز>):";
+    PairShowQr => "Or scan this code as a QR:", "أو امسح هذا الرمز على هيئة QR:";
     PairCodeNext => "The code works once, for 10 minutes. Waiting for the other device…",
         "يعمل الرمز مرة واحدة لمدة 10 دقائق. بانتظار الجهاز الآخر…";
     PairReaching => "Reaching the other device…", "جارٍ الوصول إلى الجهاز الآخر…";

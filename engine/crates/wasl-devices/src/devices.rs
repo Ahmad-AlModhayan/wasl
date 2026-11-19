@@ -173,6 +173,9 @@ pub struct Devices {
     on_change: Mutex<Option<OnChange>>,
 }
 
+/// The store setting set when a member of the group refused this device's key as removed.
+const REMOVED_SETTING: &str = "device_removed";
+
 /// The zstd level to ask a peer for over `path` (docs/COMPRESSION.md §2.3).
 pub fn compression_level(path: LinkPath, metered: bool) -> u8 {
     match (path, metered) {
@@ -202,13 +205,25 @@ impl Devices {
         // Removed from its group while it was away: a removed key is never a member again, so
         // this device takes a new key, starts a group of its own and forgets the old group's
         // members. It can be invited again as a new device (wasl#13).
-        let group = if group.state().trusts_key(&key.public()) {
+        // A device that was told it is removed (a peer refused its old key, see
+        // [`Devices::note_removed`]) takes the same way out at its next start.
+        let told_removed = store
+            .lock()
+            .setting(REMOVED_SETTING)
+            .ok()
+            .flatten()
+            .is_some_and(|v| !v.is_empty());
+        let group = if group.state().trusts_key(&key.public()) && !told_removed {
             group
         } else {
             key = DeviceKey::generate().map_err(|e| e.to_string())?;
             key_store.save(&key.seed()).map_err(|e| e.to_string())?;
             let fresh = fresh_group(&key, device_name, &group_path)?;
             store.lock().forget_all_devices().map_err(|e| e.to_string())?;
+            store
+                .lock()
+                .set_setting(REMOVED_SETTING, "")
+                .map_err(|e| e.to_string())?;
             fresh
         };
         let group = Arc::new(Mutex::new(group));
@@ -312,9 +327,47 @@ impl Devices {
         &self.key
     }
 
-    /// Lets `host` answer pairing rounds on this device's endpoint until [`Devices::close_pairing`].
+    /// Lets `host` answer pairing rounds on this device's endpoint until [`Devices::close_pairing`],
+    /// and announces on the local network that a pairing is open here: a random token and the port,
+    /// nothing derived from the code (`wasl_net::discover::PAIRING_SERVICE_TYPE`).
     pub fn open_pairing(&self, host: Arc<dyn PeerService>) {
         *self.pairing.lock().unwrap_or_else(|p| p.into_inner()) = Some(host);
+        if let (Some(lan), Ok(addr)) = (
+            self.lan.lock().unwrap_or_else(|p| p.into_inner()).as_ref(),
+            self.endpoint.local_addr(),
+        ) {
+            let _ = lan.announce_pairing(self.token, addr.port());
+        }
+    }
+
+    /// Looks for devices on this network with a pairing open. `None` when LAN discovery is off.
+    pub fn browse_pairing(&self) -> Option<wasl_net::discover::Browser> {
+        self.lan
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .as_ref()?
+            .browse_pairing()
+            .ok()
+    }
+
+    /// This device's own token, to skip its own announcements.
+    pub fn token(&self) -> Token {
+        self.token
+    }
+
+    /// Whether the group this device holds lists `id` as removed.
+    pub fn group_removed(&self, id: &DeviceId) -> bool {
+        self.group().state().removed().contains(id)
+    }
+
+    /// A member of this device's group refused its key as a removed one: remember it, so the
+    /// next start gives it a new key and a clean group ([`Devices::open`]). The caller checks that
+    /// the refusing device is a member.
+    pub fn note_removed(&self) -> Result<(), String> {
+        self.store
+            .lock()
+            .set_setting(REMOVED_SETTING, "1")
+            .map_err(|e| e.to_string())
     }
 
     /// Whether `host` is the one answering pairing rounds now.
@@ -328,6 +381,9 @@ impl Devices {
 
     pub fn close_pairing(&self) {
         *self.pairing.lock().unwrap_or_else(|p| p.into_inner()) = None;
+        if let Some(lan) = self.lan.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
+            lan.stop_announcing_pairing(self.token);
+        }
         self.drop_untrusted();
     }
 

@@ -491,6 +491,85 @@ pub const ENTRIES: &[Entry] = &[
         &[Device],
         "Status of a device that was never reached from here, or not for more than 30 days.",
     ),
+    // ---- pairing a device
+    e(
+        "pair.bad_code",
+        Forms::single("That isn't a pairing code. It is 8 letters and numbers, like K7QM-2XNP."),
+        Forms::single("هذا ليس رمز اقتران. هو 8 أحرف وأرقام، مثل K7QM-2XNP."),
+        None,
+        &[],
+        "The person typed something that isn't an 8-character pairing code (or a scanned code). Case, spaces and dashes don't matter. Shown beside the code field.",
+    ),
+    e(
+        "pair.wrong_code",
+        Forms::single(
+            "That code didn't match. Check the 8 characters, or make a new code on the other device and try again.",
+        ),
+        Forms::single(
+            "لم يتطابق هذا الرمز. تحقق من الأحرف الثمانية، أو أنشئ رمزًا جديدًا على الجهاز الآخر وحاول مجددًا.",
+        ),
+        None,
+        &[],
+        "The other device did not prove it knows the code: a typo. A mistyped code is used up, so the person makes a new one.",
+    ),
+    e(
+        "pair.code_expired",
+        Forms::single("That code has expired. Make a new code on the other device and try again."),
+        Forms::single("انتهت صلاحية هذا الرمز. أنشئ رمزًا جديدًا على الجهاز الآخر وحاول مجددًا."),
+        None,
+        &[],
+        "A pairing code works for 10 minutes. Shown on either device.",
+    ),
+    e(
+        "pair.code_used",
+        Forms::single("That code was already used. Make a new code on the other device and try again."),
+        Forms::single("استُخدم هذا الرمز من قبل. أنشئ رمزًا جديدًا على الجهاز الآخر وحاول مجددًا."),
+        None,
+        &[],
+        "A pairing code works once, even when the first try failed.",
+    ),
+    e(
+        "pair.not_found",
+        Forms::single(
+            "Couldn't find a device showing that code. Check that both devices are on the same network and the code is still on its screen.",
+        ),
+        Forms::single(
+            "تعذّر العثور على جهاز يعرض هذا الرمز. تأكد أن الجهازين على الشبكة نفسها وأن الرمز لا يزال ظاهرًا على شاشته.",
+        ),
+        None,
+        &[],
+        "The device typing the code found nobody open for pairing, or could not reach who it found.",
+    ),
+    e(
+        "pair.device_removed",
+        Forms::single(
+            "This device was removed from your group. Restart Wasl on it, then pair it again as a new device.",
+        ),
+        Forms::single("أُزيل هذا الجهاز من مجموعتك. أعد تشغيل وصل عليه، ثم اقترنه من جديد كجهاز جديد."),
+        None,
+        &[],
+        "A removed device tried to pair with its old identity. Nothing was used up on the other device. It starts clean on restart.",
+    ),
+    e(
+        "pair.cancelled",
+        Forms::single(
+            "Pairing was stopped on one of the devices. A mistyped code stops it too. Make a new code to try again.",
+        ),
+        Forms::single(
+            "أُوقف الاقتران على أحد الجهازين. وإدخال رمز خاطئ يوقفه أيضًا. أنشئ رمزًا جديدًا للمحاولة مجددًا.",
+        ),
+        None,
+        &[],
+        "The person said the words don't match, cancelled, or the other device stopped pairing.",
+    ),
+    e(
+        "pair.other",
+        Forms::single("Pairing didn't work. Make a new code and try again."),
+        Forms::single("لم ينجح الاقتران. أنشئ رمزًا جديدًا وحاول مجددًا."),
+        None,
+        &[],
+        "Catch-all for a pairing that ended for a reason the catalogue doesn't name (the other device went quiet, the network broke).",
+    ),
     e(
         "folder.needs_you",
         Forms::single("{folder} needs you."),
