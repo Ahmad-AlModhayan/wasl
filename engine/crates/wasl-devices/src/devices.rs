@@ -193,24 +193,24 @@ impl Devices {
         device_name: &str,
         cfg: &DeviceConfig,
     ) -> Result<(Arc<Devices>, mpsc::UnboundedReceiver<String>), String> {
-        let key = DeviceKey::load_or_create(key_store).map_err(|e| e.to_string())?;
+        let mut key = DeviceKey::load_or_create(key_store).map_err(|e| e.to_string())?;
         let group_path = data_dir.join("group.json");
         let group = match load_group(&group_path)? {
             Some(g) => g,
-            None => {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_or(0, |d| d.as_secs());
-                let (g, _) = GroupOps::create(&key, device_name, now).map_err(|e| e.to_string())?;
-                save_group(&group_path, &g)?;
-                g
-            }
+            None => fresh_group(&key, device_name, &group_path)?,
         };
-        if !group.state().trusts_key(&key.public()) {
-            return Err(
-                "This computer was removed from its device group. Pair it again to sync with devices.".into(),
-            );
-        }
+        // Removed from its group while it was away: a removed key is never a member again, so
+        // this device takes a new key, starts a group of its own and forgets the old group's
+        // members. It can be invited again as a new device (wasl#13).
+        let group = if group.state().trusts_key(&key.public()) {
+            group
+        } else {
+            key = DeviceKey::generate().map_err(|e| e.to_string())?;
+            key_store.save(&key.seed()).map_err(|e| e.to_string())?;
+            let fresh = fresh_group(&key, device_name, &group_path)?;
+            store.lock().forget_all_devices().map_err(|e| e.to_string())?;
+            fresh
+        };
         let group = Arc::new(Mutex::new(group));
         let pairing: PairingHost = Arc::new(Mutex::new(None));
         let (g, open) = (group.clone(), pairing.clone());
@@ -758,8 +758,16 @@ impl Devices {
             save_group(&self.group_path, &g)?;
             op
         };
+        self.forget_device(id);
         self.announce_group(None);
         Ok(op)
+    }
+
+    /// Clears everything the store keeps about a device the group removed: its note, when it was
+    /// last seen, the folders shared with it and offered by it (wasl#13). A store that cannot do
+    /// it leaves the rows; every list filters by the group, so they stay out of sight.
+    fn forget_device(&self, id: DeviceId) {
+        let _ = self.store.lock().forget_device(&id.to_string());
     }
 
     /// Takes in operations another member sent or a member's group file held (each screened by
@@ -800,8 +808,12 @@ impl Devices {
             // New operations, counting or waiting for their parents: kept across restarts.
             save_group(&self.group_path, &g)?;
         }
+        let after: HashSet<DeviceId> = g.state().devices().iter().map(|d| d.id).collect();
         drop(g);
         if changed {
+            for gone in before.devices().iter().filter(|d| !after.contains(&d.id)) {
+                self.forget_device(gone.id);
+            }
             // A member that arrived through another device is new here (§3.1).
             if self.note_members() {
                 self.changed();
@@ -1538,6 +1550,16 @@ fn failed(e: EngineError) -> RunOutcome {
 }
 
 /// `group.json`: `{"genesis": <op id hex>, "ops": [...]}`.
+/// A group of this device alone, saved as the group file.
+fn fresh_group(key: &DeviceKey, device_name: &str, path: &Path) -> Result<GroupOps, String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let (g, _) = GroupOps::create(key, device_name, now).map_err(|e| e.to_string())?;
+    save_group(path, &g)?;
+    Ok(g)
+}
+
 fn load_group(path: &Path) -> Result<Option<GroupOps>, String> {
     let bytes = match std::fs::read(path) {
         Ok(b) => b,

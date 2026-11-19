@@ -287,6 +287,41 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Forgets everything keyed to `device`: its note, when it was last seen, the folders shared
+    /// with it by name, the folders it offered and how far its indexes were read. For a device
+    /// the group removed (wasl#13): nothing about it may resurface in a list. One transaction.
+    pub fn forget_device(&mut self, device: &str) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        for sql in [
+            "DELETE FROM device_notes WHERE device_id = ?1",
+            "DELETE FROM device_seen WHERE device_id = ?1",
+            "DELETE FROM pair_share_devices WHERE device_id = ?1",
+            "DELETE FROM received_offers WHERE from_device = ?1",
+            "DELETE FROM peer_progress WHERE peer = ?1",
+        ] {
+            tx.execute(sql, [device])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Forgets every device ([`Store::forget_device`] for all of them): this device was removed
+    /// from its group, or reset, and starts a group of its own.
+    pub fn forget_all_devices(&mut self) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        for sql in [
+            "DELETE FROM device_notes",
+            "DELETE FROM device_seen",
+            "DELETE FROM pair_share_devices",
+            "DELETE FROM received_offers",
+            "DELETE FROM peer_progress",
+        ] {
+            tx.execute(sql, [])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Every offer received, oldest first.
     pub fn received_offers(&self) -> Result<Vec<ReceivedOffer>> {
         let mut stmt = self.conn.prepare_cached(
