@@ -21,7 +21,7 @@ use wasl_core::{
 use wasl_fs::LocalFs;
 use wasl_ignore::legacy::PathFilter;
 use wasl_ignore::{IgnoreRules, Preset};
-use wasl_store::{BinSide, EventLevel, Pair, PairStatus, RunEvent, RunStats, SharedStore};
+use wasl_store::{BinSide, EventLevel, Pair, PairStatus, RunEvent, RunStats, SharedStore, Store};
 
 /// What the platform provides.
 pub trait Environment: Send + Sync {
@@ -158,10 +158,19 @@ impl Drop for Slot<'_> {
     }
 }
 
-/// Why `Engine::update_pair` refuses to point a running pair at other files: one sentence, so the
-/// pair rules (`wasl-pairs`) word the same refusal when they see it first.
-pub fn syncing_refusal(pair_name: &str) -> String {
-    format!("{pair_name} is syncing. Stop it or let it finish, then change its folders.")
+/// Why [`Engine::update_pair_guarded`] saved nothing.
+#[derive(Debug)]
+pub enum Guarded<E> {
+    /// The caller's guard refused.
+    Refused(E),
+    /// The engine refused or failed.
+    Engine(EngineError),
+}
+
+impl<E> From<EngineError> for Guarded<E> {
+    fn from(e: EngineError) -> Self {
+        Guarded::Engine(e)
+    }
 }
 
 /// A pair `Engine::update_pair` is saving, taken under the `active` lock and cleared however the
@@ -393,6 +402,21 @@ impl Engine {
     /// pair (`sync`), the save either finds the pair running or marks it as saving, which a run
     /// start refuses, so the two can't interleave. Returns whether the pair moved.
     pub fn update_pair(&self, pair: &Pair) -> Result<bool> {
+        self.update_pair_guarded(pair, |_| Ok::<(), std::convert::Infallible>(()))
+            .map_err(|e| match e {
+                Guarded::Engine(e) => e,
+                Guarded::Refused(never) => match never {},
+            })
+    }
+
+    /// [`Engine::update_pair`] with `guard` run on the store under the same lock as the save, so a
+    /// rule that reads the store (the pair rules' overlap check, `wasl-pairs`) can't be passed by
+    /// two saves at once (#60). A guard that refuses saves nothing.
+    pub fn update_pair_guarded<E>(
+        &self,
+        pair: &Pair,
+        guard: impl FnOnce(&Store) -> std::result::Result<(), E>,
+    ) -> std::result::Result<bool, Guarded<E>> {
         let reserved = {
             let running = self.active.lock().unwrap_or_else(|p| p.into_inner());
             let free = !running.contains_key(&pair.id);
@@ -410,24 +434,27 @@ impl Engine {
             })
         };
         let s = self.store.lock();
+        guard(&s).map_err(Guarded::Refused)?;
         let moves = s
-            .get_pair(&pair.id)?
+            .get_pair(&pair.id)
+            .map_err(EngineError::from)?
             .is_some_and(|before| wasl_store::repointed(&before, pair));
         if moves && reserved.is_none() {
-            return Err(EngineError::Other(syncing_refusal(&pair.name)));
+            return Err(EngineError::PairSyncing {
+                pair: pair.name.clone(),
+            }
+            .into());
         }
         // Checked under the same store lock as the save, so no changeset can open in between
         // (security review M1, #134).
-        if moves && s.pair_has_agent_changes(&pair.id)? {
-            return Err(EngineError::Store(wasl_store::StoreError::Refused(
-                wasl_store::AGENT_CHANGES_PENDING.into(),
-            )));
+        if moves && s.pair_has_agent_changes(&pair.id).map_err(EngineError::from)? {
+            return Err(EngineError::Store(wasl_store::StoreError::AgentChangesPending).into());
         }
         if moves {
             // A preview of the old folders would show a plan that no longer applies.
             self.cancel_preview(&pair.id);
         }
-        Ok(s.update_pair(pair)?)
+        Ok(s.update_pair(pair).map_err(EngineError::from)?)
     }
 
     /// Stops a pair's preview; it ends with [`EngineError::Cancelled`].

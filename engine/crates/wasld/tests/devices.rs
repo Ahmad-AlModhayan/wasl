@@ -10,6 +10,7 @@ use wasl_devices::DeviceConfig;
 use wasl_drive::DriveEndpoints;
 use wasl_engine::Trigger;
 use wasl_net::ShareId;
+use wasl_proto::Lang;
 use wasl_store::Pair;
 use wasld::daemon::{Daemon, DaemonConfig};
 use wasld::oauth::OAuthConfig;
@@ -1250,7 +1251,37 @@ async fn a_folder_is_offered_declined_withdrawn_and_accepted() {
         from: da.id().to_string(),
         local_root: here.to_string_lossy().into_owned(),
         name,
+        lang: None,
     };
+    // The pair rules are wasl-pairs' here too (wasl#60): a folder on Wasl's own data or on
+    // another pair's files is refused with the same typed words as a new pair, in
+    // the caller's language, and nothing is saved.
+    let before = b.daemon.store.lock().list_pairs().unwrap().len();
+    for (key, root) in [
+        ("pair.own_data", b.data.join("bin")),
+        ("pair.overlaps", b.root.join("inside")),
+    ] {
+        let refused = b
+            .daemon
+            .handle(Request::AcceptOffer {
+                share: share.clone(),
+                from: da.id().to_string(),
+                local_root: root.to_string_lossy().into_owned(),
+                name: None,
+                lang: Some(Lang::Ar),
+            })
+            .await
+            .unwrap_err();
+        let words = *refused.pair_rule.expect("typed words");
+        assert_eq!(key, words.key);
+        assert!(
+            words.text.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c)),
+            "{}",
+            words.text
+        );
+        assert!(!root.exists(), "a refused folder isn't made: {}", root.display());
+    }
+    assert_eq!(before, b.daemon.store.lock().list_pairs().unwrap().len());
     let made: Pair = serde_json::from_value(b.daemon.handle(accept(None)).await.unwrap()).unwrap();
     assert_eq!(("Projects", Route::Devices), (made.name.as_str(), made.route));
     assert!(made.status.hold_for_preview);

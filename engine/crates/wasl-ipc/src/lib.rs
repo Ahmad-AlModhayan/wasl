@@ -23,6 +23,7 @@ pub fn ok<T: serde::Serialize>(value: T) -> Result<serde_json::Value, RemoteErro
         kind: ErrorKind::Other,
         message: e.to_string(),
         needs_update: None,
+        pair_rule: None,
     })
 }
 
@@ -41,6 +42,7 @@ pub fn ok_within<T: serde::Serialize>(
             kind: ErrorKind::Other,
             message: too_big(bytes),
             needs_update: None,
+            pair_rule: None,
         });
     }
     Ok(v)

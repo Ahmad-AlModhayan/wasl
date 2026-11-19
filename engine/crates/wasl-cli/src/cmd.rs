@@ -87,6 +87,12 @@ impl From<ClientError> for Fail {
                     words::say(n.behind.key(), &Values::default().device(shown), Some(&message)),
                 )
             }
+            // A folder change a pair rule refused (wasl#61): the catalogue's entry, worded here in
+            // the CLI's language from its key and values (an older daemon sends none, and its
+            // English answer reads as the invalid request below).
+            ClientError::Remote(RemoteError {
+                pair_rule: Some(w), ..
+            }) => Fail::said(USAGE, words::say(&w.key, &w.values, None)),
             ClientError::Remote(r) => {
                 let code = match r.kind {
                     ErrorKind::NotFound => NOT_FOUND,

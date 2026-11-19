@@ -21,6 +21,8 @@ use zeroize::Zeroizing;
 use crate::{WaslEngine, WaslError, other};
 
 /// Why [`WaslDevices::connect_typed`] didn't connect.
+// A uniffi error enum can't box a record, and the refusal is returned once per tap.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum ConnectError {
     /// The device and this one share no protocol version: one of them needs an update. The words

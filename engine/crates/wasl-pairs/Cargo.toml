@@ -11,6 +11,7 @@ publish.workspace = true
 wasl-core.workspace = true
 wasl-store.workspace = true
 wasl-engine.workspace = true
+wasl-proto.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 

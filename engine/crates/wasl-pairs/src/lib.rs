@@ -3,54 +3,91 @@
 //!
 //! The desktop service and the phone used to keep their own copies, and they drifted: the phone
 //! saved a pair without checking it, the desktop checked it and held it for its preview. Apps now
-//! call [`Pairs`] and only translate its answers into their transport and language. What differs
-//! between apps (where it keeps its own data, how it finds a vault) comes in through [`PairsEnv`].
+//! call [`Pairs`] and only translate its answers into their transport. A broken rule comes back
+//! typed ([`Problem`]); the engine's catalogue words it in the caller's language
+//! ([`Problem::words`], ADR-0003), so no app keeps wording of its own. What differs between apps
+//! (where it keeps its own data, how it finds a vault) comes in through [`PairsEnv`].
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use wasl_core::Route;
-use wasl_engine::{Engine, EngineError};
-use wasl_store::{AGENT_CHANGES_PENDING, Pair, SharedStore, StoreError};
+use wasl_engine::{Engine, EngineError, Guarded};
+use wasl_proto::words::{self, Lang, Rendered, Values};
+use wasl_store::{Pair, SharedStore, Store, StoreError};
 
-/// Why a pair breaks the pair rules. A typed reason, never a sentence: each app words it in its
-/// own language (Wasl is English first; [`Problem`]'s `Display` is the English).
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+/// Why a pair breaks the pair rules. A typed reason, never a sentence: the catalogue words it
+/// ([`Problem::words`]: a stable key, the folders as values, English and Arabic). Its `Display` is
+/// the English.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Problem {
     /// The pair's ID isn't one plain name.
-    #[error("A pair id is one plain name")]
     InvalidId,
     /// No folder on this device was chosen (neither a full path nor a folder picked with the
     /// system's folder picker).
-    #[error("Choose the folder on this device by its full path")]
     NoFolder,
     /// A pair that syncs with Drive needs its account and Drive folder.
-    #[error("Choose a Google account and a Drive folder")]
     NoDriveFolder,
     /// The folder is in or around one where Wasl keeps its own data (its database, key files,
-    /// staged files): syncing it would upload them, and downloads could overwrite them.
-    #[error(
-        "{folder} is in or around {own}, where Wasl keeps its own data (its database and private key files). Choose another folder."
-    )]
+    /// staged files): syncing it would upload them, and downloads could overwrite them. `own` is
+    /// the data folder in the way; the words don't show it (a path the person has no use for).
     OwnData { folder: String, own: String },
     /// The folder is in or around a view's folder, which is read-only.
-    #[error("{folder} is in or around the view {view}, which is read-only. Choose another folder.")]
     AroundView { folder: String, view: String },
     /// The folder is another pair's, or in or around it: two pairs on the same files undo each
-    /// other's work.
-    #[error(
-        "{folder} is already synced by the pair {pair}, or is in or around its folder. Two pairs on the same files can undo each other. Choose another folder."
-    )]
+    /// other's work. `pair` is the other pair's name.
     Overlaps { folder: String, pair: String },
     /// The change points the pair at other files while it syncs: the run would write the old
-    /// files' state back after the reset. (The word "folders" is the person's: Drive folder or
-    /// local folder.)
-    #[error("{}", wasl_engine::syncing_refusal(pair))]
+    /// files' state back after the reset. `pair` is the pair's name.
     Syncing { pair: String },
     /// An agent's changes on the pair wait for review: the pair can't be removed or pointed at
     /// other files until they are accepted or reverted.
-    #[error("{}", AGENT_CHANGES_PENDING)]
     AgentChanges,
 }
+
+impl Problem {
+    /// The catalogue entry that words it (`pair.*`, `docs/STATUS_WORDS.md`): stable, for scripts
+    /// and agents.
+    pub fn key(&self) -> &'static str {
+        match self {
+            Problem::InvalidId => "pair.invalid_id",
+            Problem::NoFolder => "pair.no_folder",
+            Problem::NoDriveFolder => "pair.no_drive_folder",
+            Problem::OwnData { .. } => "pair.own_data",
+            Problem::AroundView { .. } => "pair.around_view",
+            Problem::Overlaps { .. } => "pair.overlaps",
+            Problem::Syncing { .. } => "pair.syncing",
+            Problem::AgentChanges => "pair.agent_changes",
+        }
+    }
+
+    /// The folders the words name, typed: the folder the person chose (or the pair being changed)
+    /// and the pair or view in the way.
+    pub fn values(&self) -> Values {
+        match self {
+            Problem::InvalidId | Problem::NoFolder | Problem::NoDriveFolder | Problem::AgentChanges => {
+                Values::default()
+            }
+            Problem::OwnData { folder, .. } => Values::default().folder(folder),
+            Problem::AroundView { folder, view } => Values::default().folder(folder).other(view),
+            Problem::Overlaps { folder, pair } => Values::default().folder(folder).other(pair),
+            Problem::Syncing { pair } => Values::default().folder(pair),
+        }
+    }
+
+    /// The refusal for a person in `lang`: the key, the sentence, the values and the fix.
+    pub fn words(&self, lang: Lang) -> Rendered {
+        words::render(self.key(), &self.values(), lang, None, &[], &mut |_| {})
+    }
+}
+
+impl std::fmt::Display for Problem {
+    /// The English words.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.words(Lang::En).text)
+    }
+}
+
+impl std::error::Error for Problem {}
 
 /// Why an operation on a pair didn't happen.
 #[derive(Debug, thiserror::Error)]
@@ -62,8 +99,7 @@ pub enum PairError {
     /// whole so the app answers as it always has (its kind, its words).
     #[error("{0}")]
     Vault(Box<dyn std::error::Error + Send + Sync>),
-    /// The engine or the store refused in a way no rule above names (a change that raced with a
-    /// run starting): their words, kept whole.
+    /// The engine or the store refused in a way no rule above names: their words, kept whole.
     #[error("{0}")]
     Refused(String),
     /// Any other failure of the engine's save, kept whole so the app answers as it always has.
@@ -71,6 +107,17 @@ pub enum PairError {
     Engine(EngineError),
     #[error(transparent)]
     Store(#[from] StoreError),
+}
+
+impl PairError {
+    /// The words for a broken rule in `lang`; `None` for any other failure, which has no entry
+    /// of its own and keeps the words it came with.
+    pub fn words(&self, lang: Lang) -> Option<Rendered> {
+        match self {
+            PairError::Rule(p) => Some(p.words(lang)),
+            _ => None,
+        }
+    }
 }
 
 /// What differs between the apps in front of the module.
@@ -98,64 +145,28 @@ impl Pairs {
     }
 
     /// Whether `pair` keeps the pair rules on this device, as it would be saved: the first rule
-    /// it breaks. The same answer a save gives, so an editor can warn before saving.
+    /// it breaks. The same answer a save gives, so an editor can warn before saving. A save
+    /// checks the rules that read the store again under the lock it saves with, so a pair made a
+    /// moment ago by another caller is caught too (#60).
     pub fn check(&self, pair: &Pair) -> Result<(), PairError> {
-        if pair.id.is_empty() || pair.id.contains(['/', '\\', ':']) || pair.id == "." || pair.id == ".." {
-            return Err(Problem::InvalidId.into());
-        }
-        let Some(root) = comparable(&pair.local_root) else {
-            return Err(Problem::NoFolder.into());
-        };
-        let has_drive =
-            !pair.drive_folder_id.as_deref().unwrap_or("").is_empty() && pair.account_id.is_some();
-        if pair.route != Route::Devices && !has_drive {
-            return Err(Problem::NoDriveFolder.into());
-        }
-        let near = |a: &Path, b: &Path| contains(a, b) || contains(b, a);
-        for own in self.env.own_dirs() {
-            for own_form in forms(&own) {
-                for root_form in forms(&root) {
-                    if near(&own_form, &root_form) {
-                        return Err(Problem::OwnData {
-                            folder: pair.local_root.clone(),
-                            own: own.display().to_string(),
-                        }
-                        .into());
-                    }
-                }
-            }
-        }
-        let s = self.store.lock();
-        for v in s.views()? {
-            if comparable(&v.local_path).is_some_and(|view| near(&view, &root)) {
-                return Err(Problem::AroundView {
-                    folder: pair.local_root.clone(),
-                    view: v.name,
-                }
-                .into());
-            }
-        }
-        for other in s.list_pairs()? {
-            if other.id != pair.id && comparable(&other.local_root).is_some_and(|theirs| near(&theirs, &root))
-            {
-                return Err(Problem::Overlaps {
-                    folder: pair.local_root.clone(),
-                    pair: other.name,
-                }
-                .into());
-            }
-        }
-        Ok(())
+        check_without_store(pair, &self.env.own_dirs())?;
+        check_in_store(&self.store.lock(), pair)
     }
 
     /// Records a new pair: checked against the pair rules, linked to its vault when its folder is
     /// one, and held for its first preview (nothing moves until the person has seen the first plan
     /// and started it), whichever app made it. Returns the pair as recorded.
     pub async fn create(&self, mut pair: Pair) -> Result<Pair, PairError> {
+        // Advisory, ahead of the vault's remote call: a refusal afterwards would leave a vault
+        // linked on Drive.
         self.check(&pair)?;
         self.env.link_vault(&mut pair).await.map_err(PairError::Vault)?;
         pair.status.hold_for_preview = true;
-        self.store.lock().create_pair(&pair)?;
+        // The rules that read the store are checked again under the lock the pair is saved with:
+        // another create or edit may have landed while the vault was linked (#60).
+        let s = self.store.lock();
+        check_in_store(&s, &pair)?;
+        s.create_pair(&pair)?;
         Ok(pair)
     }
 
@@ -189,17 +200,20 @@ impl Pairs {
             }
             self.env.link_vault(&mut pair).await.map_err(PairError::Vault)?;
         }
-        let name = pair.name.clone();
-        engine.update_pair(&pair).map_err(|e| refused(e, &name))
+        // The rules that read the store run again under the lock the save takes (#60).
+        engine
+            .update_pair_guarded(&pair, |s| check_in_store(s, &pair))
+            .map_err(|e| match e {
+                Guarded::Refused(e) => e,
+                Guarded::Engine(e) => refused(e),
+            })
     }
 
     /// Removes a pair and everything that belongs to it, whichever app asks. Refused while an
     /// agent's changes on it wait; a running sync is stopped only once the pair is gone.
     pub fn delete(&self, engine: &Engine, id: &str) -> Result<(), PairError> {
         match self.store.lock().delete_pair(id) {
-            Err(StoreError::Refused(m)) if m == AGENT_CHANGES_PENDING => {
-                return Err(Problem::AgentChanges.into());
-            }
+            Err(StoreError::AgentChangesPending) => return Err(Problem::AgentChanges.into()),
             other => other?,
         }
         engine.cancel(id);
@@ -207,18 +221,69 @@ impl Pairs {
     }
 }
 
-/// What the engine's own refusal of a save is, in this module's terms. The engine words the two
-/// it can give (a run in the way, agent changes waiting); they are recognised by those words,
-/// which [`Problem`] takes from the same places.
-fn refused(e: EngineError, pair_name: &str) -> PairError {
+/// The rules that don't read the store: the ID, the folder, the Drive folder, Wasl's own data.
+fn check_without_store(pair: &Pair, own_dirs: &[PathBuf]) -> Result<(), Problem> {
+    if pair.id.is_empty() || pair.id.contains(['/', '\\', ':']) || pair.id == "." || pair.id == ".." {
+        return Err(Problem::InvalidId);
+    }
+    let Some(root) = comparable(&pair.local_root) else {
+        return Err(Problem::NoFolder);
+    };
+    let has_drive = !pair.drive_folder_id.as_deref().unwrap_or("").is_empty() && pair.account_id.is_some();
+    if pair.route != Route::Devices && !has_drive {
+        return Err(Problem::NoDriveFolder);
+    }
+    for own in own_dirs {
+        for own_form in forms(own) {
+            for root_form in forms(&root) {
+                if near(&own_form, &root_form) {
+                    return Err(Problem::OwnData {
+                        folder: pair.local_root.clone(),
+                        own: own.display().to_string(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The rules that read the store: no view and no other pair in or around the folder. Run on the
+/// store a save writes to, under its lock, so the answer is still true when the pair is saved.
+fn check_in_store(s: &Store, pair: &Pair) -> Result<(), PairError> {
+    let Some(root) = comparable(&pair.local_root) else {
+        return Err(Problem::NoFolder.into());
+    };
+    for v in s.views()? {
+        if comparable(&v.local_path).is_some_and(|view| near(&view, &root)) {
+            return Err(Problem::AroundView {
+                folder: pair.local_root.clone(),
+                view: v.name,
+            }
+            .into());
+        }
+    }
+    for other in s.list_pairs()? {
+        if other.id != pair.id && comparable(&other.local_root).is_some_and(|theirs| near(&theirs, &root)) {
+            return Err(Problem::Overlaps {
+                folder: pair.local_root.clone(),
+                pair: other.name,
+            }
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn near(a: &Path, b: &Path) -> bool {
+    contains(a, b) || contains(b, a)
+}
+
+/// What the engine's refusal of a save is, in this module's terms.
+fn refused(e: EngineError) -> PairError {
     match e {
-        EngineError::Other(m) if m == wasl_engine::syncing_refusal(pair_name) => Problem::Syncing {
-            pair: pair_name.into(),
-        }
-        .into(),
-        EngineError::Store(StoreError::Refused(m)) if m == AGENT_CHANGES_PENDING => {
-            Problem::AgentChanges.into()
-        }
+        EngineError::PairSyncing { pair } => Problem::Syncing { pair }.into(),
+        EngineError::Store(StoreError::AgentChangesPending) => Problem::AgentChanges.into(),
         EngineError::Store(StoreError::Refused(m)) | EngineError::Other(m) => PairError::Refused(m),
         other => PairError::Engine(other),
     }
