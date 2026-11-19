@@ -492,6 +492,22 @@ pub const ENTRIES: &[Entry] = &[
         "Status of a device that was never reached from here, or not for more than 30 days.",
     ),
     e(
+        "device.this_needs_update",
+        Forms::single("This device needs an update to sync with {device}. Update Wasl on this device."),
+        Forms::single("يحتاج هذا الجهاز إلى تحديث للمزامنة مع {device}. حدّث وصل على هذا الجهاز."),
+        Some(UpdateWasl),
+        &[Device],
+        "A connection to another device was refused because this device's Wasl is too old for it. {device} is the other device's name, or its ID when this device has no name for it.",
+    ),
+    e(
+        "device.peer_needs_update",
+        Forms::single("{device} needs an update to sync with this device. Update Wasl on {device}."),
+        Forms::single("يحتاج {device} إلى تحديث للمزامنة مع هذا الجهاز. حدّث وصل على {device}."),
+        None,
+        &[Device],
+        "A connection to another device was refused because that device's Wasl is too old for this one. {device} is its name, or its ID when this device has no name for it. No fix here: the update happens on the other device.",
+    ),
+    e(
         "folder.needs_you",
         Forms::single("{folder} needs you."),
         Forms::single("{folder} يحتاج إليك."),

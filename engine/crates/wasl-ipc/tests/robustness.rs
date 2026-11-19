@@ -42,6 +42,7 @@ impl Handler for Counting {
             _ => Err(RemoteError {
                 kind: ErrorKind::Unsupported,
                 message: "not in this test".into(),
+                needs_update: None,
             }),
         }
     }
@@ -103,6 +104,7 @@ fn frames() -> Vec<String> {
             err: RemoteError {
                 kind: ErrorKind::Locked,
                 message: "Vault is locked.".into(),
+                needs_update: None,
             },
         })
         .unwrap(),

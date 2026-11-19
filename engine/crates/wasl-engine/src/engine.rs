@@ -158,6 +158,12 @@ impl Drop for Slot<'_> {
     }
 }
 
+/// Why `Engine::update_pair` refuses to point a running pair at other files: one sentence, so the
+/// pair rules (`wasl-pairs`) word the same refusal when they see it first.
+pub fn syncing_refusal(pair_name: &str) -> String {
+    format!("{pair_name} is syncing. Stop it or let it finish, then change its folders.")
+}
+
 /// A pair `Engine::update_pair` is saving, taken under the `active` lock and cleared however the
 /// save ends; a run doesn't start while it is held.
 struct Saving<'a> {
@@ -406,10 +412,7 @@ impl Engine {
             .get_pair(&pair.id)?
             .is_some_and(|before| wasl_store::repointed(&before, pair));
         if moves && reserved.is_none() {
-            return Err(EngineError::Other(format!(
-                "{} is syncing. Stop it or let it finish, then change its folders.",
-                pair.name
-            )));
+            return Err(EngineError::Other(syncing_refusal(&pair.name)));
         }
         // Checked under the same store lock as the save, so no changeset can open in between
         // (security review M1, #134).

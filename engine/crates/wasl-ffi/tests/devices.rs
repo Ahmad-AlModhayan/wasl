@@ -392,3 +392,134 @@ async fn a_folder_waits_for_a_device_that_went_away_and_the_app_is_told() {
     a.engine.unwatch_status();
     a.devices.shutdown();
 }
+
+/// Answers nothing: a device here only to be dialled.
+struct Nothing;
+
+#[async_trait::async_trait]
+impl wasl_net::PeerService for Nothing {
+    async fn shared(&self, _: wasl_net::DeviceId) -> Vec<wasl_net::ShareId> {
+        Vec::new()
+    }
+    async fn changes_since(
+        &self,
+        _: wasl_net::DeviceId,
+        _: wasl_net::ShareId,
+        _: u64,
+        _: usize,
+    ) -> wasl_net::PeerResult<wasl_net::IndexPage> {
+        Err(wasl_net::PeerError::NotShared)
+    }
+    async fn chunk_list(
+        &self,
+        _: wasl_net::DeviceId,
+        _: wasl_net::ShareId,
+        _: &str,
+        _: wasl_chunk::Hash,
+    ) -> wasl_net::PeerResult<wasl_chunk::ChunkList> {
+        Err(wasl_net::PeerError::NotShared)
+    }
+    async fn chunk(
+        &self,
+        _: wasl_net::DeviceId,
+        _: wasl_net::ShareId,
+        _: wasl_chunk::Hash,
+    ) -> wasl_net::PeerResult<Vec<u8>> {
+        Err(wasl_net::PeerError::NotShared)
+    }
+    async fn notify(&self, _: wasl_net::DeviceId, _: wasl_net::ShareId, _: u64) {}
+}
+
+/// wasl#36: a device that needs an update reaches the app typed, with the same words as the
+/// desktop; the old `connect` still answers with a plain network failure.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_needing_an_update_comes_back_typed_through_the_binding() {
+    use wasl_devices::PairingStage::*;
+    use wasl_mobile::ConnectError;
+    use wasl_net::proto::VersionRange;
+    use wasl_proto::{Lang, UpdateSide};
+
+    let (a, b) = (phone("Pixel").await, phone("Galaxy").await);
+    let inviter = a.devices.clone();
+    let code = std::thread::spawn(move || inviter.invite().unwrap().code.unwrap())
+        .join()
+        .unwrap();
+    b.devices.join(code).unwrap();
+    assert_eq!(Confirm, until(&a, Confirm).await.stage);
+    assert_eq!(Confirm, until(&b, Confirm).await.stage);
+    a.devices.confirm_pairing(true).unwrap();
+    b.devices.confirm_pairing(true).unwrap();
+    assert_eq!(Paired, until(&a, Paired).await.stage);
+    let b_id = b
+        .devices
+        .info()
+        .devices
+        .iter()
+        .find(|d| d.this_device)
+        .unwrap()
+        .id
+        .clone();
+    b.devices.shutdown();
+
+    // The Galaxy again, as it would be after a Wasl update (or before one): the same key, another
+    // protocol range.
+    let seed: [u8; 32] = b.keys.0.lock().unwrap().clone().unwrap().try_into().unwrap();
+    let serve = |range: VersionRange| {
+        let ep = wasl_net::Endpoint::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &wasl_net::DeviceKey::from_seed(&seed),
+            Arc::new(|_: &[u8; 32]| true),
+        )
+        .unwrap()
+        .with_protocol_range(range);
+        ep.serve(Arc::new(Nothing));
+        ep
+    };
+
+    let newer = serve(VersionRange { min: 2, max: 3 });
+    let addr = newer.local_addr().unwrap().to_string();
+    let Err(ConnectError::NeedsUpdate { update }) = a.devices.connect_typed(addr.clone(), Lang::En).await
+    else {
+        panic!("a typed reason");
+    };
+    assert_eq!(UpdateSide::This, update.behind);
+    assert_eq!(b_id, update.device);
+    assert_eq!(Some("Galaxy"), update.name.as_deref());
+    assert_eq!("device.this_needs_update", update.words.key);
+    assert_eq!(
+        "This device needs an update to sync with Galaxy. Update Wasl on this device.",
+        update.words.text
+    );
+    let Err(ConnectError::NeedsUpdate { update }) = a.devices.connect_typed(addr.clone(), Lang::Ar).await
+    else {
+        panic!("a typed reason");
+    };
+    assert!(update.words.text.contains("Galaxy"), "{}", update.words.text);
+    assert_ne!(
+        "This device needs an update to sync with Galaxy. Update Wasl on this device.", update.words.text,
+        "in Arabic"
+    );
+    // The call from before keeps answering with a plain network failure.
+    assert!(matches!(
+        a.devices.connect(addr).await,
+        Err(WaslError::Network { .. })
+    ));
+
+    let older = serve(VersionRange { min: 0, max: 0 });
+    let Err(ConnectError::NeedsUpdate { update }) = a
+        .devices
+        .connect_typed(older.local_addr().unwrap().to_string(), Lang::En)
+        .await
+    else {
+        panic!("a typed reason");
+    };
+    assert_eq!(UpdateSide::Peer, update.behind);
+    assert_eq!("device.peer_needs_update", update.words.key);
+
+    // Any other failure stays a plain one.
+    assert!(matches!(
+        a.devices.connect_typed("127.0.0.1:9".into(), Lang::En).await,
+        Err(ConnectError::Failed { .. })
+    ));
+    a.devices.shutdown();
+}

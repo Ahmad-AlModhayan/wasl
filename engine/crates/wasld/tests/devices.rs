@@ -1721,3 +1721,86 @@ async fn a_device_that_goes_away_is_last_seen_just_now() {
     assert_eq!(FolderState::Waiting, folder.state);
     assert_eq!("Shared will sync when Desktop is back online.", folder.words.text);
 }
+
+/// A member of A's group that speaks `range`, as a device from another release would.
+fn peer_speaking(range: wasl_net::proto::VersionRange, seed: u8) -> (wasl_net::Endpoint, [u8; 32]) {
+    let key = wasl_net::DeviceKey::from_seed(&[seed; 32]);
+    let ep = wasl_net::Endpoint::bind(
+        "127.0.0.1:0".parse().unwrap(),
+        &key,
+        Arc::new(|_: &[u8; 32]| true),
+    )
+    .unwrap()
+    .with_protocol_range(range);
+    ep.serve(Arc::new(Nothing));
+    (ep, key.public())
+}
+
+/// wasl#36: a device on another protocol version is refused with a typed reason that says which
+/// side is behind and names the device, through the library and through the daemon's answer.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_on_another_protocol_version_is_refused_with_a_typed_reason() {
+    use wasl_devices::ConnectError;
+    use wasl_ipc::{ErrorKind, Request};
+    use wasl_net::proto::VersionRange;
+    use wasl_proto::UpdateSide;
+
+    let a = node("Laptop");
+    let da = a.daemon.devices.clone().unwrap();
+
+    // A device that speaks only newer versions: this one is behind.
+    let (newer, newer_pk) = peer_speaking(VersionRange { min: 2, max: 3 }, 71);
+    da.add_member(newer_pk, "Tablet", 1).unwrap();
+    let newer_addr = newer.local_addr().unwrap();
+    let Err(ConnectError::NeedsUpdate(n)) = da.connect(newer_addr).await else {
+        panic!("a peer that needs a newer version is refused with a reason");
+    };
+    assert_eq!(UpdateSide::This, n.behind);
+    assert_eq!(Some("Tablet"), n.name.as_deref());
+    assert_eq!(
+        wasl_net::DeviceKey::from_seed(&[71; 32]).id().to_string(),
+        n.device
+    );
+    assert_eq!("device.this_needs_update", n.words.key);
+
+    // The daemon's answer keeps the old shape (a network failure) and adds the typed reason.
+    let err = a
+        .daemon
+        .handle(Request::ConnectDevice {
+            address: newer_addr.to_string(),
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(ErrorKind::Network, err.kind);
+    let n = err.needs_update.expect("the typed reason rides along");
+    assert_eq!(UpdateSide::This, n.behind);
+    assert_eq!(Some("Tablet"), n.name.as_deref());
+    assert!(err.message.contains(&n.words.text), "{}", err.message);
+
+    // A device that speaks only older versions: it is the one behind.
+    let (older, older_pk) = peer_speaking(VersionRange { min: 0, max: 0 }, 72);
+    da.add_member(older_pk, "Phone", 2).unwrap();
+    let err = a
+        .daemon
+        .handle(Request::ConnectDevice {
+            address: older.local_addr().unwrap().to_string(),
+        })
+        .await
+        .unwrap_err();
+    let n = err.needs_update.expect("the typed reason rides along");
+    assert_eq!(UpdateSide::Peer, n.behind);
+    assert_eq!(Some("Phone"), n.name.as_deref());
+    assert_eq!("device.peer_needs_update", n.words.key);
+
+    // Anything else stays a plain network failure, with no typed reason.
+    let nobody = "127.0.0.1:9";
+    let err = a
+        .daemon
+        .handle(Request::ConnectDevice {
+            address: nobody.into(),
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(ErrorKind::Network, err.kind);
+    assert!(err.needs_update.is_none());
+}

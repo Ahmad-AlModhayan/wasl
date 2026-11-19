@@ -87,12 +87,13 @@ pub enum QuicError {
     Connect(String),
     #[error("reached {found}, not {expected}")]
     WrongPeer { expected: DeviceId, found: DeviceId },
-    /// The two devices share no protocol version; `behind` is the one that must update.
+    /// The two devices share no protocol version; `behind` is the one that must update, and
+    /// `peer` is the other one, as its certificate named it.
     #[error("{}", match behind {
         Behind::This => "this device needs an update to talk to that one",
         Behind::Peer => "that device needs an update to talk to this one",
     })]
-    NeedsUpdate { behind: Behind },
+    NeedsUpdate { behind: Behind, peer: DeviceId },
     #[error(transparent)]
     Protocol(#[from] ProtoError),
 }
@@ -242,7 +243,7 @@ impl Endpoint {
                 found: peer,
             });
         }
-        match tokio::time::timeout(HELLO_TIMEOUT, hello(&conn, self.versions)).await {
+        match tokio::time::timeout(HELLO_TIMEOUT, hello(&conn, self.versions, peer)).await {
             Ok(Ok(version)) => Ok(QuicLink {
                 conn,
                 peer,
@@ -496,7 +497,7 @@ impl PeerLink for QuicLink {
 
 /// The client side of the hello: says our versions, hears theirs, and settles on the highest
 /// both support.
-async fn hello(conn: &Connection, ours: VersionRange) -> Result<u8, QuicError> {
+async fn hello(conn: &Connection, ours: VersionRange, peer: DeviceId) -> Result<u8, QuicError> {
     let broken = |e: &dyn fmt::Display| QuicError::Connect(e.to_string());
     let (mut send, mut recv) = conn.open_bi().await.map_err(|e| broken(&e))?;
     proto::write_frame(&mut send, &proto::encode(&Hello::offering(ours))).await?;
@@ -519,6 +520,7 @@ async fn hello(conn: &Connection, ours: VersionRange) -> Result<u8, QuicError> {
             conn.close(VarInt::from_u32(CLOSE_VERSION), b"unsupported protocol version");
             Err(QuicError::NeedsUpdate {
                 behind: ours.behind(theirs),
+                peer,
             })
         }
     }
@@ -1160,14 +1162,14 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_peer_that_needs_a_newer_version_is_refused_naming_the_device_that_is_behind() {
+    async fn a_peer_that_needs_a_newer_version_is_refused_naming_the_device_that_is_behind_and_the_peer() {
         // This device speaks [1, 1]; the peer only [2, 3]: this device is behind.
         let peer = ranged(1, VersionRange { min: 2, max: 3 });
         peer.serve(Arc::new(Echo));
         let this = ranged(2, VersionRange { min: 1, max: 1 });
         let err = this.connect(peer.local_addr().unwrap(), None).await.unwrap_err();
         assert!(
-            matches!(err, QuicError::NeedsUpdate { behind: Behind::This }),
+            matches!(err, QuicError::NeedsUpdate { behind: Behind::This, peer: p } if p == peer.id()),
             "{err:?}"
         );
         // And the other way round: the peer is behind.
@@ -1175,7 +1177,7 @@ mod tests {
         old.serve(Arc::new(Echo));
         let err = peer.connect(old.local_addr().unwrap(), None).await.unwrap_err();
         assert!(
-            matches!(err, QuicError::NeedsUpdate { behind: Behind::Peer }),
+            matches!(err, QuicError::NeedsUpdate { behind: Behind::Peer, peer: p } if p == old.id()),
             "{err:?}"
         );
     }
