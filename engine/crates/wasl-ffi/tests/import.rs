@@ -87,6 +87,7 @@ fn run(id: &str, status: RunStatus, started: i64) -> ImportedRun {
                 ..RunStats::default()
             },
             message: None,
+            error_kind: None,
             started_at: started,
             ended_at: (status != RunStatus::Running).then_some(started + 1000),
         },

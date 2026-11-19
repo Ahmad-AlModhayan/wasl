@@ -831,6 +831,9 @@ impl Daemon {
                 .runs(pair_id.as_deref(), limit.min(1000))
                 .map_err(store_err)?),
             Request::RunEvents { run_id } => ok(self.store.lock().run_events(&run_id).map_err(store_err)?),
+            Request::RunItems { run_id, lang } => ok(e
+                .run_items(&run_id, lang.unwrap_or(Lang::En))
+                .map_err(engine_err)?),
             Request::OpenConflicts { pair_id } => ok(self
                 .store
                 .lock()

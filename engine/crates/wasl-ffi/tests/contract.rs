@@ -207,6 +207,19 @@ async fn the_binding_surface_runs_a_pair_end_to_end() {
             .iter()
             .any(|e| e.action == "UPLOAD")
     );
+    // The files a run left out come worded for the screen (issue #56): none here, and a run that
+    // isn't there is an error, not an empty list.
+    assert!(
+        engine
+            .run_items(runs[0].id.clone(), wasl_proto::Lang::Ar)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        engine
+            .run_items("no-such-run".into(), wasl_proto::Lang::En)
+            .is_err()
+    );
     assert_eq!(
         Some(RunStatus::Success),
         engine.pair("p".into()).unwrap().unwrap().status.last_status

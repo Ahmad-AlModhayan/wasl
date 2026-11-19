@@ -73,6 +73,10 @@ pub enum Cmd {
         /// How many runs to show.
         #[arg(long, default_value_t = 20)]
         limit: u32,
+        /// One run, by its ID or the start of it (4+ characters): how it ended and which files it
+        /// left out, and what to do about each.
+        #[arg(long, value_name = "RUN", conflicts_with = "pair")]
+        run: Option<String>,
         #[arg(long)]
         json: bool,
     },

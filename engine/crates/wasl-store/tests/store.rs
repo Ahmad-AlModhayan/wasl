@@ -85,7 +85,7 @@ const TABLES: [&str; 44] = [
 #[test]
 fn migration_creates_every_table_of_the_srs() {
     let s = Store::open_in_memory().unwrap();
-    assert_eq!(13, s.schema_version().unwrap());
+    assert_eq!(14, s.schema_version().unwrap());
     let mut stmt = s
         .connection()
         .prepare(
@@ -110,7 +110,7 @@ fn reopening_a_file_keeps_data_and_does_not_migrate_twice() {
         s.put_baseline("p", &entry("a.txt")).unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(13, s.schema_version().unwrap());
+    assert_eq!(14, s.schema_version().unwrap());
     assert_eq!(Some(&entry("a.txt")), s.load_baseline("p").unwrap().get("a.txt"));
 }
 
@@ -124,7 +124,7 @@ fn a_database_from_a_newer_build_is_refused() {
         conn.pragma_update(None, "user_version", 99).unwrap();
     }
     match Store::open(&path) {
-        Err(StoreError::TooNew { found: 99, known: 13 }) => {}
+        Err(StoreError::TooNew { found: 99, known: 14 }) => {}
         other => panic!("expected TooNew, got {:?}", other.err()),
     }
 }
@@ -378,7 +378,7 @@ fn a_second_store_on_the_same_file_refuses_to_open_and_leaves_the_database_alone
         other => panic!("expected AlreadyOpen, got {:?}", other.err()),
     }
     // The first keeps working.
-    assert_eq!(13, first.schema_version().unwrap());
+    assert_eq!(14, first.schema_version().unwrap());
 }
 
 #[test]

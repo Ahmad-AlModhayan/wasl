@@ -225,6 +225,11 @@ pub struct RunRecord {
     pub status: RunStatus,
     pub stats: RunStats,
     pub message: Option<String>,
+    /// What kind of failure a failed run ended with, so the history can word it from its cause.
+    /// None for a run that did not fail, and for a run stored before runs kept it (issue #57).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ffi", uniffi(default = None))]
+    pub error_kind: Option<crate::run::ErrorKind>,
     pub started_at: i64,
     pub ended_at: Option<i64>,
 }

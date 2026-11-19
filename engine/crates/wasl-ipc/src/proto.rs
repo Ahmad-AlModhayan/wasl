@@ -132,6 +132,14 @@ pub enum Request {
     RunEvents {
         run_id: String,
     },
+    /// The files a run left out or could not sync, worded in `lang` (English without one): each
+    /// with its key, values and fix, and what to do about it. The reply is a list of
+    /// [`wasl_proto::RunItem`], empty for a run that left nothing out.
+    RunItems {
+        run_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lang: Option<Lang>,
+    },
     OpenConflicts {
         pair_id: Option<String>,
     },
@@ -1134,6 +1142,24 @@ mod tests {
                 }
             ),
             "{r:?}"
+        );
+    }
+
+    #[test]
+    fn the_run_items_request_names_a_run_and_may_name_a_language() {
+        let r: Request =
+            serde_json::from_value(serde_json::json!({"op": "run_items", "run_id": "r1"})).unwrap();
+        assert!(
+            matches!(&r, Request::RunItems { run_id, lang: None } if run_id == "r1"),
+            "{r:?}"
+        );
+        assert_eq!(
+            serde_json::json!({"op": "run_items", "run_id": "r1", "lang": "ar"}),
+            serde_json::to_value(Request::RunItems {
+                run_id: "r1".into(),
+                lang: Some(wasl_proto::Lang::Ar)
+            })
+            .unwrap()
         );
     }
 

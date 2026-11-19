@@ -348,6 +348,15 @@ async fn a_pair_runs_end_to_end_through_the_daemon() {
             .iter()
             .any(|e| e.action == "UPLOAD")
     );
+    // The run's files left out are asked for in the caller's language (issue #56): this run left
+    // none, and a run that isn't there is a typed not-found, not a failure of the daemon.
+    for lang in [Lang::En, Lang::Ar] {
+        assert!(c.run_items(&runs[0].id, lang).await.unwrap().is_empty());
+    }
+    assert_eq!(
+        Some(ErrorKind::NotFound),
+        c.run_items("no-such-run", Lang::En).await.unwrap_err().kind()
+    );
 
     c.set_paused("p1", true, Some("by test".into())).await.unwrap();
     assert_eq!(Overall::Paused, c.status().await.unwrap().overall);

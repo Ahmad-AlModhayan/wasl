@@ -84,7 +84,7 @@ fn a_v11_database_keeps_its_agent_changesets_and_their_files_in_v12() {
     let path = dir.path().join("wasl.db");
     v11(&path, "");
     let s = Store::open(&path).unwrap();
-    assert_eq!(13, s.schema_version().unwrap());
+    assert_eq!(14, s.schema_version().unwrap());
     let c = s.connection();
     assert_eq!(
         vec![
@@ -127,7 +127,7 @@ fn a_v11_database_with_an_unrelated_orphan_row_migrates() {
         "INSERT INTO vault_versions (pair_id, file_id, version) VALUES ('gone', 'f', 1);",
     );
     let s = Store::open(&path).unwrap();
-    assert_eq!(13, s.schema_version().unwrap());
+    assert_eq!(14, s.schema_version().unwrap());
     assert_eq!(2, changesets(s.connection()).len());
 }
 

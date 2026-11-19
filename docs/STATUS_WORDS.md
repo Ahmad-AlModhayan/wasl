@@ -634,3 +634,58 @@ falling back to English.
 - English: Lost the connection to Wasl. Try again.
 - Arabic: انقطع الاتصال بوصل. حاول مجددًا.
 
+# Suggested fixes
+
+The words of each `fix` a run item or a status carries (`fix_words` on a run item). The fix
+is typed; an app maps it to a button, and the CLI and agents use these sentences.
+
+## `retry`
+
+- English: Sync again to try once more.
+- Arabic: زامِن مجددًا للمحاولة مرة أخرى.
+
+## `sign_in_again`
+
+- English: Sign in to your Google account again.
+- Arabic: سجّل الدخول إلى حساب Google مجددًا.
+
+## `open_folder`
+
+- English: Open the folder and check it is there.
+- Arabic: افتح المجلد وتأكد من وجوده.
+
+## `open_storage_settings`
+
+- English: Free some space in this device's storage settings.
+- Arabic: حرّر بعض المساحة من إعدادات التخزين في هذا الجهاز.
+
+## `open_drive_storage`
+
+- English: Free some space in your Google Drive.
+- Arabic: حرّر بعض المساحة في Google Drive.
+
+## `open_to_rename`
+
+- English: Rename the file, then sync again. Wasl never renames your files.
+- Arabic: غيّر اسم الملف ثم زامِن مجددًا. لا يغيّر وصل أسماء ملفاتك أبدًا.
+
+## `unlock_vault`
+
+- English: Unlock the vault.
+- Arabic: افتح قفل الخزنة.
+
+## `grant_access_again`
+
+- English: Give Wasl access to the folder again.
+- Arabic: امنح وصل صلاحية الوصول إلى المجلد مجددًا.
+
+## `update_wasl`
+
+- English: Update Wasl.
+- Arabic: حدّث وصل.
+
+## `review`
+
+- English: Review what is waiting for your decision.
+- Arabic: راجع ما ينتظر قرارك.
+
