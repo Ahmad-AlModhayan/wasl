@@ -363,6 +363,7 @@ impl Handler for Fake {
                     return Err(RemoteError {
                         kind: ErrorKind::NotFound,
                         message: format!("run {run_id}"),
+                        needs_update: None,
                     });
                 }
                 ok(wasl_proto::run_items(
