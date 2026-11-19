@@ -476,7 +476,28 @@ async fn status(json: bool) -> R<u8> {
         ]);
     }
     print!("{}", out::table(&rows));
+    let others: Vec<&wasl_proto::DeviceStatus> = st.devices.iter().filter(|d| !d.this_device).collect();
+    if !others.is_empty() {
+        println!();
+        let mut rows = vec![vec![t!(ColName), t!(ColState)]];
+        for d in others {
+            let (words, tone) = device_words(d);
+            rows.push(vec![i18n::clean(&d.name), out::styled(&words, tone)]);
+        }
+        print!("{}", out::table(&rows));
+    }
     Ok(OK)
+}
+
+/// A device's state as the engine worded it, and its tone. Nothing here decides a state.
+fn device_words(d: &wasl_proto::DeviceStatus) -> (String, Tone) {
+    use wasl_proto::DevicePresence as P;
+    let tone = match d.state {
+        P::Online | P::Syncing => Tone::Good,
+        P::LastSeen => Tone::Quiet,
+        P::CantReach => Tone::Bad,
+    };
+    (d.words.text.clone(), tone)
 }
 
 // ------------------------------------------------------------------- sync
@@ -1099,6 +1120,12 @@ async fn device_list(json: bool) -> R<u8> {
     if json {
         return print_json(&info);
     }
+    // The same words the status shows (None from an older daemon: the older labels below).
+    let worded: Vec<wasl_proto::DeviceStatus> = c
+        .status_in(words::lang())
+        .await
+        .map(|st| st.devices)
+        .unwrap_or_default();
     if !info.enabled {
         println!("{}", t!(DevicesOff));
         return Ok(OK);
@@ -1122,6 +1149,15 @@ async fn device_list(json: bool) -> R<u8> {
             out::styled(&t!(DeviceNew), Tone::Bad)
         } else if d.this_device {
             out::styled(&t!(ThisDevice), Tone::Good)
+        } else if let Some(ds) = worded.iter().find(|w| w.id == d.id) {
+            let (words, tone) = device_words(ds);
+            let how = match d.path.filter(|_| d.connected) {
+                Some(wasl_ipc::LinkPath::Lan) => format!(" ({})", t!(PathLan)),
+                Some(wasl_ipc::LinkPath::Direct) => format!(" ({})", t!(PathDirect)),
+                Some(wasl_ipc::LinkPath::Punched) => format!(" ({})", t!(PathPunched)),
+                None => String::new(),
+            };
+            out::styled(&format!("{words}{how}"), tone)
         } else if d.connected {
             let how = match d.path {
                 Some(wasl_ipc::LinkPath::Lan) => t!(PathLan),

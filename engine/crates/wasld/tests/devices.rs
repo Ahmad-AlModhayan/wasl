@@ -78,27 +78,34 @@ fn node(name: &str) -> Node {
 
 /// What a restart sees: the node's data folder as a copy. The running daemon keeps its lock on the
 /// original (one engine per data folder, wasl#21) and a stopped process isn't possible here, so
-/// the "restarted" daemon opens the copy, flushed first.
+/// the "restarted" daemon opens the copy.
+///
+/// The store is copied with SQLite (`VACUUM INTO`), under the store's own lock, so a task that is
+/// still writing (a closing link notes the device, wasl#49) is either in the copy or after it.
+/// Copying the files would not do: on Windows SQLite holds byte-range locks on the file while it
+/// writes, and a copy that meets one fails with "locked a portion of the file".
 fn restart_copy(n: &Node, name: &str) -> PathBuf {
+    let to = n.data.with_file_name(name);
+    std::fs::create_dir_all(&to).unwrap();
     n.daemon
         .store
         .lock()
         .connection()
-        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .execute("VACUUM INTO ?1", [to.join("wasl.db").to_str().unwrap()])
         .unwrap();
     fn copy(from: &std::path::Path, to: &std::path::Path) {
         std::fs::create_dir_all(to).unwrap();
         for e in std::fs::read_dir(from).unwrap() {
             let e = e.unwrap();
             let (src, dst) = (e.path(), to.join(e.file_name()));
+            let name = e.file_name().to_string_lossy().into_owned();
             if e.file_type().unwrap().is_dir() {
                 copy(&src, &dst);
-            } else if src.extension().is_none_or(|x| x != "lock") {
+            } else if !name.starts_with("wasl.db") && src.extension().is_none_or(|x| x != "lock") {
                 std::fs::copy(&src, &dst).unwrap();
             }
         }
     }
-    let to = n.data.with_file_name(name);
     copy(&n.data, &to);
     to
 }
@@ -187,6 +194,41 @@ async fn the_key_and_the_group_survive_a_restart() {
         .replace("Desktop", "Desk top");
     std::fs::write(&path, text).unwrap();
     assert!(Daemon::open(config(damaged.clone(), a.secrets.clone(), "Laptop")).is_err());
+}
+
+/// A task still writes to the store when a restart copy is taken, as the note a closing link
+/// leaves does (wasl#49). The copy must not trip over the writer's lock, and must open as a store.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_restart_copy_is_taken_while_the_store_is_being_written() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let n = node("Laptop");
+    let store = n.daemon.store.clone();
+    // Stops the writer however the test ends, so a failed assertion leaves no thread spinning.
+    struct Stop(Arc<AtomicBool>);
+    impl Drop for Stop {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
+    let stop = Stop(Arc::new(AtomicBool::new(false)));
+    let writer = {
+        let stop = stop.0.clone();
+        std::thread::spawn(move || {
+            let mut at = 0;
+            while !stop.load(Ordering::Relaxed) {
+                at += 1;
+                store.lock().note_device_seen("writer", at).unwrap();
+                std::thread::yield_now();
+            }
+        })
+    };
+    for i in 0..20 {
+        let copy = restart_copy(&n, &format!("data-copy-{i}"));
+        let opened = wasl_store::Store::open(copy.join("wasl.db")).unwrap();
+        assert!(opened.get_pair("p").unwrap().is_some(), "copy {i} has the pair");
+    }
+    drop(stop);
+    writer.join().unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1502,4 +1544,180 @@ async fn a_device_run_dropped_while_it_waits_leaves_nothing_behind() {
         .await
         .unwrap();
     assert_ne!(Some("Already syncing with devices".to_string()), r.message);
+}
+
+// ---- where each device stands, and the folder that waits for one (issue #32)
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
+
+/// Sets when `device` was last seen on `node`, whatever it was (a test's way to age a device).
+fn seen_ago(node: &Node, device: &str, ago_ms: i64) {
+    let s = node.daemon.store.lock();
+    s.connection()
+        .execute(
+            &format!(
+                "INSERT INTO device_seen (device_id, last_seen_at) VALUES ('{device}', {at})
+                 ON CONFLICT(device_id) DO UPDATE SET last_seen_at = {at}",
+                at = now_ms() - ago_ms
+            ),
+            [],
+        )
+        .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_shared_with_an_offline_device_says_which_device_it_waits_for() {
+    use wasl_ipc::Request;
+    use wasl_proto::{DevicePresence, FolderState, Lang, WaitReason};
+    const MIN: i64 = 60_000;
+    const DAY: i64 = 24 * 60 * MIN;
+    let (a, _b) = pair_up().await;
+    let r = a.daemon.run("p", Trigger::Manual).await;
+    assert_eq!(RunStatus::Success, r.status, "{:?}", r.message);
+
+    // B is connected: online, and the folder is up to date.
+    let st = a.daemon.status(Lang::En).unwrap();
+    let b = st.devices.iter().find(|d| !d.this_device).unwrap();
+    assert_eq!(
+        (DevicePresence::Online, "device.online", "Online"),
+        (b.state, b.words.key.as_str(), b.words.text.as_str())
+    );
+    let folder = st.pairs[0].status.clone().unwrap();
+    assert_eq!(FolderState::Synced, folder.state);
+    assert_eq!(1, folder.peers.len());
+    assert_eq!(DevicePresence::Online, folder.peers[0].state);
+
+    // A third device joined the group and was never connected.
+    let tablet = node("Tablet");
+    let dt = tablet.daemon.devices.clone().unwrap();
+    let da = a.daemon.devices.clone().unwrap();
+    da.add_member(dt.public_key(), "Tablet", 2).unwrap();
+    let tablet_id = dt.id().to_string();
+    let status_of = |lang| a.daemon.status(lang).unwrap();
+    let tablet_in =
+        |st: &wasl_ipc::DaemonStatus| st.devices.iter().find(|d| d.id == tablet_id).cloned().unwrap();
+
+    // Never seen: can't reach, and the folder says so by name.
+    let st = status_of(Lang::En);
+    assert_eq!(DevicePresence::CantReach, tablet_in(&st).state);
+    let folder = st.pairs[0].status.clone().unwrap();
+    assert_eq!(
+        (
+            FolderState::Waiting,
+            Some(WaitReason::Device),
+            "folder.cant_reach_device"
+        ),
+        (folder.state, folder.wait, folder.words.key.as_str())
+    );
+    assert_eq!(
+        "Wasl can't reach Tablet, so Shared isn't synced there.",
+        folder.words.text
+    );
+
+    // Offline for 5 minutes: last seen, with the time, and the folder waits for it.
+    seen_ago(&a, &tablet_id, 5 * MIN + 1_000);
+    let st = status_of(Lang::En);
+    let t = tablet_in(&st);
+    assert_eq!(
+        (DevicePresence::LastSeen, "device.last_seen_minutes", Some(5)),
+        (t.state, t.words.key.as_str(), t.words.values.count)
+    );
+    assert_eq!("Last seen 5 minutes ago", t.words.text);
+    assert!(t.last_seen_at.is_some());
+    let folder = st.pairs[0].status.clone().unwrap();
+    assert_eq!("folder.waiting_device", folder.words.key);
+    assert_eq!("Shared will sync when Tablet is back online.", folder.words.text);
+    assert_eq!(Some("Tablet"), folder.words.values.device.as_deref());
+    assert_eq!(
+        wasl_proto::OverallState::Waiting,
+        st.overall_status.unwrap().state
+    );
+
+    // The same state, key and values in Arabic.
+    let ar = status_of(Lang::Ar);
+    let t_ar = tablet_in(&ar);
+    assert_eq!(
+        (t.state, &t.words.key, &t.words.values),
+        (t_ar.state, &t_ar.words.key, &t_ar.words.values)
+    );
+    assert_eq!("آخر ظهور قبل 5 دقائق", t_ar.words.text);
+    let folder_ar = ar.pairs[0].status.clone().unwrap();
+    assert_eq!("folder.waiting_device", folder_ar.words.key);
+    assert_eq!(
+        "ستتم مزامنة Shared عندما يعود Tablet إلى الاتصال.",
+        folder_ar.words.text
+    );
+
+    // Offline for 3 days.
+    seen_ago(&a, &tablet_id, 3 * DAY + 1_000);
+    let t = tablet_in(&status_of(Lang::En));
+    assert_eq!(
+        ("device.last_seen_days", Some(3)),
+        (t.words.key.as_str(), t.words.values.count)
+    );
+    assert_eq!("Last seen 3 days ago", t.words.text);
+    assert_eq!("آخر ظهور قبل 3 أيام", tablet_in(&status_of(Lang::Ar)).words.text);
+
+    // Long gone: can't reach again.
+    seen_ago(&a, &tablet_id, 31 * DAY);
+    assert_eq!(DevicePresence::CantReach, tablet_in(&status_of(Lang::En)).state);
+
+    // A folder that also syncs with Drive stays up to date: its Drive copy is current.
+    seen_ago(&a, &tablet_id, 5 * MIN);
+    a.daemon
+        .store
+        .lock()
+        .set_pair_route("p", Route::DriveAndDevices)
+        .unwrap();
+    let folder = status_of(Lang::En).pairs[0].status.clone().unwrap();
+    assert_eq!(FolderState::Synced, folder.state);
+    assert!(
+        folder
+            .peers
+            .iter()
+            .any(|p| p.name == "Tablet" && p.state == DevicePresence::LastSeen)
+    );
+
+    // `--json` and the protocol carry the same: stable keys and the time as a value.
+    let v = serde_json::to_value(status_of(Lang::En)).unwrap();
+    let keys: Vec<&str> = v["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["words"]["key"].as_str().unwrap())
+        .collect();
+    assert!(keys.contains(&"device.last_seen_minutes"), "{keys:?}");
+    let _ = Request::Status { lang: None };
+}
+
+/// A device that goes away is shown as offline at once, not at the next check.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_that_goes_away_is_last_seen_just_now() {
+    use wasl_proto::{DevicePresence, FolderState, Lang};
+    let (a, b) = pair_up().await;
+    let r = a.daemon.run("p", Trigger::Manual).await;
+    assert_eq!(RunStatus::Success, r.status, "{:?}", r.message);
+    b.daemon.devices.as_ref().unwrap().close();
+    eventually("A sees B go", || {
+        a.daemon
+            .status(Lang::En)
+            .map(|st| {
+                st.devices
+                    .iter()
+                    .any(|d| !d.this_device && d.state == DevicePresence::LastSeen)
+            })
+            .unwrap_or(false)
+    })
+    .await;
+    let st = a.daemon.status(Lang::En).unwrap();
+    let b_status = st.devices.iter().find(|d| !d.this_device).unwrap();
+    assert_eq!("Last seen a moment ago", b_status.words.text);
+    let folder = st.pairs[0].status.clone().unwrap();
+    assert_eq!(FolderState::Waiting, folder.state);
+    assert_eq!("Shared will sync when Desktop is back online.", folder.words.text);
 }

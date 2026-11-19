@@ -140,6 +140,96 @@ falling back to English.
 - English: {folder} is waiting for the right time to sync.
 - Arabic: {folder} ينتظر الوقت المناسب للمزامنة.
 
+## `folder.waiting_device`
+
+- Note: A folder that syncs only between devices waits for a device that is offline now. {device} is that device's name.
+- Values: folder, device
+- Fix: none
+- English: {folder} will sync when {device} is back online.
+- Arabic: ستتم مزامنة {folder} عندما يعود {device} إلى الاتصال.
+
+## `folder.cant_reach_device`
+
+- Note: A folder that syncs only between devices has a device Wasl hasn't reached for a long time (or never). {device} is that device's name.
+- Values: folder, device
+- Fix: none
+- English: Wasl can't reach {device}, so {folder} isn't synced there.
+- Arabic: لا يستطيع وصل الوصول إلى {device}، لذلك لم تتم مزامنة {folder} هناك.
+
+## `device.online`
+
+- Note: Status of a device in the list of the person's devices: connected now and not syncing.
+- Values: device
+- Fix: none
+- English: Online
+- Arabic: متصل
+
+## `device.syncing`
+
+- Note: Status of a device in the list of the person's devices: connected now and a folder is syncing with it.
+- Values: device
+- Fix: none
+- English: Syncing
+- Arabic: تجري المزامنة
+
+## `device.last_seen_now`
+
+- Note: Status of a device that is offline and was connected less than a minute ago.
+- Values: device
+- Fix: none
+- English: Last seen a moment ago
+- Arabic: آخر ظهور قبل لحظات
+
+## `device.last_seen_minutes`
+
+- Note: Status of a device that is offline: when it was last connected, in minutes (1 to 59). {count} is the number of minutes.
+- Values: device, count
+- Fix: none
+- English (one): Last seen {count} minute ago
+- English (other): Last seen {count} minutes ago
+- Arabic (zero): آخر ظهور قبل أقل من دقيقة
+- Arabic (one): آخر ظهور قبل دقيقة واحدة
+- Arabic (two): آخر ظهور قبل دقيقتين
+- Arabic (few): آخر ظهور قبل {count} دقائق
+- Arabic (many): آخر ظهور قبل {count} دقيقة
+- Arabic (other): آخر ظهور قبل {count} دقيقة
+
+## `device.last_seen_hours`
+
+- Note: Status of a device that is offline: when it was last connected, in hours (1 to 23). {count} is the number of hours.
+- Values: device, count
+- Fix: none
+- English (one): Last seen {count} hour ago
+- English (other): Last seen {count} hours ago
+- Arabic (zero): آخر ظهور قبل أقل من ساعة
+- Arabic (one): آخر ظهور قبل ساعة واحدة
+- Arabic (two): آخر ظهور قبل ساعتين
+- Arabic (few): آخر ظهور قبل {count} ساعات
+- Arabic (many): آخر ظهور قبل {count} ساعة
+- Arabic (other): آخر ظهور قبل {count} ساعة
+
+## `device.last_seen_days`
+
+- Note: Status of a device that is offline: when it was last connected, in days (1 to 30). {count} is the number of days.
+- Values: device, count
+- Fix: none
+- English (one): Last seen {count} day ago
+- English (other): Last seen {count} days ago
+- Arabic (zero): آخر ظهور قبل أقل من يوم
+- Arabic (one): آخر ظهور قبل يوم واحد
+- Arabic (two): آخر ظهور قبل يومين
+- Arabic (few): آخر ظهور قبل {count} أيام
+- Arabic (many): آخر ظهور قبل {count} يومًا
+- Arabic (other): آخر ظهور قبل {count} يوم
+
+## `device.cant_reach`
+
+- Note: Status of a device that was never reached from here, or not for more than 30 days.
+- Values: device
+- Fix: none
+- English: Can't reach
+- Arabic: تعذّر الوصول إليه
+
 ## `folder.needs_you`
 
 - Note: Heading of a folder that has needs-you items; each item has its own entry.

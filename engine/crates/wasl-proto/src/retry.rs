@@ -103,6 +103,7 @@ pub fn plan(status: &PairStatus) -> Option<RetryInfo> {
 /// A folder whose last run failed for a passing reason and which the engine will try again. Part of
 /// the folder's status, so an app or an agent reads it instead of counting tries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct RetryInfo {
     /// Runs that have failed in a row (1 after the first failure).
     pub attempt: u32,

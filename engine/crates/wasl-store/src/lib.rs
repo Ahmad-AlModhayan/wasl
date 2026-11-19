@@ -68,6 +68,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0010_introductions.sql"),
     include_str!("../migrations/0011_oplog.sql"),
     include_str!("../migrations/0012_agent_undo.sql"),
+    include_str!("../migrations/0013_device_seen.sql"),
 ];
 
 /// Schema versions whose migration rebuilds a table other tables point at. SQLite's way: foreign

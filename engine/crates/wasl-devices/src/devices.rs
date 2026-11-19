@@ -44,6 +44,7 @@ use wasl_net::{
     DeviceId, DeviceKey, Endpoint, GroupOp, GroupOps, IndexPage, KeyStore, OpId, PairReply, PairRound,
     PeerError, PeerLink, PeerResult, PeerService, QuicLink, ShareId, Trust,
 };
+use wasl_proto::{DeviceFacts, DeviceStatus, FolderPeer, FolderStatus, Lang, device_status};
 use wasl_store::{NewOffer, OfferState, Pair, RunStats, SharedStore};
 
 use crate::status::{DeviceInfo, LinkPath, OfferInfo, OfferStatus, PairSharing};
@@ -143,6 +144,8 @@ impl Default for DeviceConfig {
 
 /// This device in its group.
 pub struct Devices {
+    /// This value, for the tasks that watch links (they must not keep the devices alive).
+    me: Weak<Devices>,
     key: DeviceKey,
     pairing: PairingHost,
     group: Arc<Mutex<GroupOps>>,
@@ -238,7 +241,8 @@ impl Devices {
             pairing: pairing.clone(),
             group_changed: group_tx,
         }));
-        let devices = Arc::new(Devices {
+        let devices = Arc::new_cyclic(|me| Devices {
+            me: me.clone(),
             key,
             pairing,
             group,
@@ -441,6 +445,117 @@ impl Devices {
                 added_by: (m.added_by != m.id).then(|| m.added_by.to_string()),
                 known: m.id == me || notes.get(&m.id.to_string()).copied().unwrap_or(false),
                 name: m.name,
+            })
+            .collect()
+    }
+
+    /// Where every member of the group stands now, in `lang` (issue #32): online, syncing, last
+    /// seen (with the time as a value) or can't reach. A device connected now is seen now; one that
+    /// is not is read from the time it was last seen, kept across restarts.
+    pub fn device_statuses(&self, lang: Lang) -> Vec<DeviceStatus> {
+        let (me, now) = (self.key.id(), now_ms());
+        let connected: HashSet<DeviceId> = self.connected().into_iter().collect();
+        let seen: HashMap<String, i64> = self
+            .store
+            .lock()
+            .devices_seen()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        let syncing = self.syncing_devices();
+        self.members()
+            .into_iter()
+            .map(|m| {
+                let id = m.id.to_string();
+                device_status(
+                    &DeviceFacts {
+                        id: &id,
+                        name: &m.name,
+                        this_device: m.id == me,
+                        connected: connected.contains(&m.id),
+                        syncing: syncing.contains(&m.id),
+                        last_seen_at: seen.get(&id).copied(),
+                        now,
+                    },
+                    lang,
+                )
+            })
+            .collect()
+    }
+
+    /// The connected devices a run is in flight with now: those a running pair is shared with.
+    fn syncing_devices(&self) -> HashSet<DeviceId> {
+        let running: Vec<String> = self
+            .running
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .iter()
+            .cloned()
+            .collect();
+        let mut out = HashSet::new();
+        for pair_id in running {
+            let Ok(Some(sharing)) = self.sharing(&pair_id) else {
+                continue;
+            };
+            for id in self.connected() {
+                if sharing.all_devices || sharing.devices.contains(&id.to_string()) {
+                    out.insert(id);
+                }
+            }
+        }
+        out
+    }
+
+    /// Adds the devices to each folder's status ([`wasl_proto::with_peers`]): every device the
+    /// folder is shared with and where it stands, and, for a folder that syncs through devices only
+    /// and would read "up to date", a wait for the device that is away, named. Both the daemon and
+    /// the phone's binding report folders through this, so an app and an agent get the same words.
+    pub fn with_peers(&self, statuses: Vec<FolderStatus>, lang: Lang) -> Vec<FolderStatus> {
+        let devices = self.device_statuses(lang);
+        let known: HashSet<String> = {
+            let notes: HashMap<String, bool> = self
+                .store
+                .lock()
+                .device_notes()
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+            devices
+                .iter()
+                .filter(|d| !d.this_device && notes.get(&d.id).copied().unwrap_or(false))
+                .map(|d| d.id.clone())
+                .collect()
+        };
+        statuses
+            .into_iter()
+            .map(|status| {
+                let Ok(Some(sharing)) = self.sharing(&status.pair_id) else {
+                    return status;
+                };
+                let route = self
+                    .store
+                    .lock()
+                    .get_pair(&status.pair_id)
+                    .ok()
+                    .flatten()
+                    .map(|p| p.route);
+                let peers: Vec<FolderPeer> = devices
+                    .iter()
+                    .filter(|d| !d.this_device)
+                    .filter(|d| {
+                        if sharing.all_devices {
+                            known.contains(&d.id)
+                        } else {
+                            sharing.devices.contains(&d.id)
+                        }
+                    })
+                    .map(|d| FolderPeer {
+                        device_id: d.id.clone(),
+                        name: d.name.clone(),
+                        state: d.state,
+                    })
+                    .collect();
+                wasl_proto::with_peers(status, peers, route == Some(wasl_core::Route::Devices), lang)
             })
             .collect()
     }
@@ -713,6 +828,7 @@ impl Devices {
 
     /// [`Devices::exchange_group`] with every connected member.
     pub async fn exchange_groups(&self) {
+        self.note_connected_seen();
         let links: Vec<QuicLink> = self.links().values().cloned().collect();
         for link in links {
             let _ = self.exchange_group(&link).await;
@@ -883,7 +999,37 @@ impl Devices {
         if let Some(old) = self.links().insert(link.peer(), link.clone()) {
             old.close();
         }
+        self.note_seen(link.peer());
+        self.watch_link(link);
         true
+    }
+
+    /// Notes that `id` was reachable just now, for "last seen" (issue #32).
+    fn note_seen(&self, id: DeviceId) {
+        let _ = self.store.lock().note_device_seen(&id.to_string(), now_ms());
+    }
+
+    /// Notes the time for every connected device: what a device last seen is read from.
+    fn note_connected_seen(&self) {
+        for id in self.connected() {
+            self.note_seen(id);
+        }
+    }
+
+    /// When `link` closes, notes the device as seen until now, drops the link and tells the app, so
+    /// a device that went away is shown as offline at once and not at the next check.
+    fn watch_link(&self, link: &QuicLink) {
+        let Ok(rt) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let (me, link) = (self.me.clone(), link.clone());
+        rt.spawn(async move {
+            link.closed().await;
+            let Some(d) = me.upgrade() else { return };
+            d.note_seen(link.peer());
+            d.links().retain(|_, l| l.is_open());
+            d.changed();
+        });
     }
 
     /// Tries the addresses of a device found on the LAN, each with a short handshake timeout,
@@ -904,7 +1050,11 @@ impl Devices {
 
     /// Devices connected now.
     pub fn connected(&self) -> Vec<DeviceId> {
-        self.links().keys().copied().collect()
+        self.links()
+            .iter()
+            .filter(|(_, l)| l.is_open())
+            .map(|(id, _)| *id)
+            .collect()
     }
 
     fn start_discovery(self: Arc<Self>) {
