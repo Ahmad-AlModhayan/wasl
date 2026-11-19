@@ -1792,12 +1792,13 @@ async fn a_device_on_another_protocol_version_is_refused_with_a_typed_reason() {
     assert_eq!(Some("Phone"), n.name.as_deref());
     assert_eq!("device.peer_needs_update", n.words.key);
 
-    // Anything else stays a plain network failure, with no typed reason.
-    let nobody = "127.0.0.1:9";
+    // Anything else stays a plain network failure, with no typed reason: here a device that is
+    // not in the group (a closed port would wait out a handshake timeout instead).
+    let (stranger, _) = peer_speaking(VersionRange { min: 2, max: 3 }, 73);
     let err = a
         .daemon
         .handle(Request::ConnectDevice {
-            address: nobody.into(),
+            address: stranger.local_addr().unwrap().to_string(),
         })
         .await
         .unwrap_err();

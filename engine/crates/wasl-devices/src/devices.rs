@@ -63,7 +63,7 @@ pub enum ConnectError {
     /// The device speaks no protocol version this one does: one of the two needs an update
     /// (wasl#34). Typed, so the apps word it and name the device; its words are English until
     /// they ask for their language.
-    NeedsUpdate(DeviceNeedsUpdate),
+    NeedsUpdate(Box<DeviceNeedsUpdate>),
     /// Anything else, in the engine's English.
     Failed(String),
 }
@@ -1025,7 +1025,12 @@ impl Devices {
                     wasl_net::proto::Behind::This => UpdateSide::This,
                     wasl_net::proto::Behind::Peer => UpdateSide::Peer,
                 };
-                ConnectError::NeedsUpdate(DeviceNeedsUpdate::new(behind, peer.to_string(), name, Lang::En))
+                ConnectError::NeedsUpdate(Box::new(DeviceNeedsUpdate::new(
+                    behind,
+                    peer.to_string(),
+                    name,
+                    Lang::En,
+                )))
             }
             other => ConnectError::Failed(other.to_string()),
         }

@@ -516,9 +516,19 @@ async fn a_device_needing_an_update_comes_back_typed_through_the_binding() {
     assert_eq!(UpdateSide::Peer, update.behind);
     assert_eq!("device.peer_needs_update", update.words.key);
 
-    // Any other failure stays a plain one.
+    // Any other failure stays a plain one: here a device that is not in the group (a closed port
+    // would wait out a handshake timeout instead).
+    let stranger = wasl_net::Endpoint::bind(
+        "127.0.0.1:0".parse().unwrap(),
+        &wasl_net::DeviceKey::from_seed(&[99; 32]),
+        Arc::new(|_: &[u8; 32]| true),
+    )
+    .unwrap();
+    stranger.serve(Arc::new(Nothing));
     assert!(matches!(
-        a.devices.connect_typed("127.0.0.1:9".into(), Lang::En).await,
+        a.devices
+            .connect_typed(stranger.local_addr().unwrap().to_string(), Lang::En)
+            .await,
         Err(ConnectError::Failed { .. })
     ));
     a.devices.shutdown();

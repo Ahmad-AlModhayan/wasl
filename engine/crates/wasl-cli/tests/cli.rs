@@ -605,7 +605,7 @@ impl Handler for Fake {
             Request::ConnectDevice { address } => Err(RemoteError {
                 kind: ErrorKind::Network,
                 message: format!("Couldn't reach a device of your group at {address}: boom"),
-                needs_update: Some(wasl_proto::DeviceNeedsUpdate::new(
+                needs_update: Some(Box::new(wasl_proto::DeviceNeedsUpdate::new(
                     if address.starts_with("behind") {
                         wasl_proto::UpdateSide::This
                     } else {
@@ -614,7 +614,7 @@ impl Handler for Fake {
                     "WASL-BBBB",
                     Some("هاتفي".into()),
                     wasl_proto::Lang::En,
-                )),
+                ))),
             }),
             _ => Err(RemoteError {
                 kind: ErrorKind::Unsupported,

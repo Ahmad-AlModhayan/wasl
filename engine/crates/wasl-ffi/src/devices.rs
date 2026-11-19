@@ -279,6 +279,8 @@ impl WaslDevices {
     /// [`ConnectError::NeedsUpdate`], with the device's ID and name, which side is behind, and
     /// the words for a person in `lang` (the same words as the desktop's). Any other failure is
     /// [`ConnectError::Failed`]. Added beside `connect` so existing app code keeps working.
+    // A uniffi error enum can't box a record, and the reason is returned once per tap.
+    #[allow(clippy::result_large_err)]
     pub async fn connect_typed(
         &self,
         address: String,
