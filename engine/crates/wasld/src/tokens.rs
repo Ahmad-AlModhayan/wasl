@@ -459,6 +459,46 @@ mod tests {
         );
     }
 
+    /// A keychain that is only slow (a busy machine) still gives the token up, and the account is
+    /// not marked as needing a sign-in: "unreadable" is for a read that returns nothing, never for
+    /// one that takes long (#65).
+    #[tokio::test]
+    async fn a_slow_keychain_read_is_not_an_unreadable_sign_in() {
+        struct Slow(MemorySecrets);
+        impl Secrets for Slow {
+            fn get(&self, account: &str) -> Option<String> {
+                std::thread::sleep(Duration::from_millis(400));
+                self.0.get(account)
+            }
+            fn set(&self, account: &str, secret: &str) -> Result<(), String> {
+                self.0.set(account, secret)
+            }
+            fn remove(&self, account: &str) {
+                self.0.remove(account)
+            }
+        }
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                r#"{"access_token":"fresh","expires_in":3600}"#,
+                "application/json",
+            ))
+            .mount(&server)
+            .await;
+        let (mut t, _) = tokens(format!("{}/token", server.uri()));
+        let slow = Slow(MemorySecrets::default());
+        slow.set(ME, "refresh-1").unwrap();
+        t.secrets = Arc::new(slow);
+        t.store
+            .lock()
+            .upsert_drive_account(&wasl_drive::AccountState::new(ME))
+            .unwrap();
+        assert_eq!("fresh", t.access_token(ME).await.unwrap());
+        assert_eq!(None, t.store.lock().account_sign_in_cause(ME).unwrap());
+        assert_eq!(None, t.store.lock().account_auth_error(ME).unwrap());
+    }
+
     /// #52: when Google keeps failing (about three syncs in a row), the account asks to be signed in
     /// again, which is what cleared it; a success in between starts the count over.
     #[tokio::test]
