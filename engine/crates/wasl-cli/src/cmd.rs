@@ -2020,7 +2020,10 @@ fn find_run<'a>(runs: &'a [wasl_proto::RunRecord], reference: &str) -> R<&'a was
         0 => Err(Fail::new(NOT_FOUND, t!(NoSuchRun, i18n::clean(reference)))),
         1 => Ok(found[0]),
         _ => {
-            let list: Vec<String> = found.iter().map(|r| format!("  {}", i18n::clean(&r.id))).collect();
+            let list: Vec<String> = found
+                .iter()
+                .map(|r| format!("  {}", i18n::clean(&r.id)))
+                .collect();
             Err(Fail::new(
                 USAGE,
                 t!(AmbiguousRun, i18n::clean(reference), list.join("\n")),

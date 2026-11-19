@@ -1017,7 +1017,10 @@ mod tests {
     fn the_run_items_request_names_a_run_and_may_name_a_language() {
         let r: Request =
             serde_json::from_value(serde_json::json!({"op": "run_items", "run_id": "r1"})).unwrap();
-        assert!(matches!(&r, Request::RunItems { run_id, lang: None } if run_id == "r1"), "{r:?}");
+        assert!(
+            matches!(&r, Request::RunItems { run_id, lang: None } if run_id == "r1"),
+            "{r:?}"
+        );
         assert_eq!(
             serde_json::json!({"op": "run_items", "run_id": "r1", "lang": "ar"}),
             serde_json::to_value(Request::RunItems {

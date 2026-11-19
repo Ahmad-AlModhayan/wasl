@@ -554,7 +554,10 @@ async fn a_name_the_disk_refuses_is_reported_with_its_code() {
     assert_eq!(Some("REPORT~1.DOC"), items[0].words.values.file.as_deref());
     assert_eq!(Some(wasl_proto::Fix::OpenToRename), items[0].words.fix);
     assert!(
-        items[0].fix_words.as_deref().is_some_and(|t| t.contains("Rename")),
+        items[0]
+            .fix_words
+            .as_deref()
+            .is_some_and(|t| t.contains("Rename")),
         "{items:?}"
     );
 }

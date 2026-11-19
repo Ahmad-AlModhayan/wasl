@@ -1307,7 +1307,12 @@ async fn a_file_that_vanishes_between_the_scan_and_the_read_is_skipped_not_faile
     let next = w.sync().await;
     assert_eq!(RunStatus::Success, next.status, "{:?}", next.message);
     // A run that left nothing out lists nothing.
-    assert!(w.engine.run_items(&next.run_id, wasl_proto::Lang::En).unwrap().is_empty());
+    assert!(
+        w.engine
+            .run_items(&next.run_id, wasl_proto::Lang::En)
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(
         "saved again",
         String::from_utf8(w.drive.content("Sync/statements.xlsx").unwrap()).unwrap(),

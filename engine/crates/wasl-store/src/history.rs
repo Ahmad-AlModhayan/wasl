@@ -17,9 +17,7 @@ fn run_from_row(r: &Row<'_>) -> rusqlite::Result<RunRecord> {
         stats: serde_json::from_str(&stats).unwrap_or_default(),
         message: r.get(5)?,
         // A name this build doesn't know (written by a newer one) reads as no kind.
-        error_kind: r
-            .get::<_, Option<String>>(8)?
-            .and_then(|k| ErrorKind::parse(&k)),
+        error_kind: r.get::<_, Option<String>>(8)?.and_then(|k| ErrorKind::parse(&k)),
         started_at: r.get(6)?,
         ended_at: r.get(7)?,
     })

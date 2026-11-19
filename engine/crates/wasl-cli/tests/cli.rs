@@ -1515,19 +1515,31 @@ async fn a_run_says_which_files_it_left_out_and_what_to_do_about_each() {
     // The routine lines are not files left out; the path is not part of the words.
     assert!(!r.stdout.contains("Google Docs"), "{}", r.stdout);
     assert!(!r.stdout.contains("Reports/2024"), "{}", r.stdout);
-    assert_clean("`wasl history --run r2`", &format!("{}{}", r.stdout, r.stderr), true);
+    assert_clean(
+        "`wasl history --run r2`",
+        &format!("{}{}", r.stdout, r.stderr),
+        true,
+    );
 
     // The words come in the caller's language.
     let ar = wasl(d.dir.path(), "ar", &["history", "--run", "r2"]).await;
     assert_eq!(0, ar.code, "{}", ar.stderr);
-    assert!(ar.stdout.contains("budget.xlsx") && ar.stdout.contains("CON.txt"), "{}", ar.stdout);
+    assert!(
+        ar.stdout.contains("budget.xlsx") && ar.stdout.contains("CON.txt"),
+        "{}",
+        ar.stdout
+    );
     assert!(
         ar.stdout.chars().any(|c| ('\u{600}'..='\u{6ff}').contains(&c)),
         "{}",
         ar.stdout
     );
     assert!(!ar.stdout.contains("What to do"), "{}", ar.stdout);
-    assert_clean("`wasl history --run r2` in ar", &format!("{}{}", ar.stdout, ar.stderr), true);
+    assert_clean(
+        "`wasl history --run r2` in ar",
+        &format!("{}{}", ar.stdout, ar.stderr),
+        true,
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1568,8 +1580,17 @@ async fn a_runs_items_in_json_have_stable_keys_and_values_and_no_raw_text() {
     assert_ne!(en["items"][1]["words"]["text"], ar["items"][1]["words"]["text"]);
 
     // With --details the redacted cause shows, still without the secrets.
-    let r = wasl(d.dir.path(), "en", &["--details", "history", "--run", "r2", "--json"]).await;
-    assert_clean("--details history --run --json", &format!("{}{}", r.stdout, r.stderr), false);
+    let r = wasl(
+        d.dir.path(),
+        "en",
+        &["--details", "history", "--run", "r2", "--json"],
+    )
+    .await;
+    assert_clean(
+        "--details history --run --json",
+        &format!("{}{}", r.stdout, r.stderr),
+        false,
+    );
     assert!(r.stdout.contains("\"details\""), "{}", r.stdout);
 }
 
@@ -1621,7 +1642,11 @@ async fn history_words_a_failed_run_from_the_kind_it_kept() {
             .filter(|l| ["r1", "r2", "r3"].iter().any(|id| l.contains(id)))
             .collect();
         assert_eq!(3, rows.len(), "{}", r.stdout);
-        assert!(rows[0] != rows[1] && rows[1] != rows[2] && rows[0] != rows[2], "{lang}: {}", r.stdout);
+        assert!(
+            rows[0] != rows[1] && rows[1] != rows[2] && rows[0] != rows[2],
+            "{lang}: {}",
+            r.stdout
+        );
     }
 }
 
