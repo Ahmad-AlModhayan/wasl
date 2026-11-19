@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use wasl_cli::{i18n, service, t, words};
 use wasl_ipc::{
     Account, Client, ClientError, DaemonStatus, ErrorKind, Event, LocalChangeKind, Overall, PairState, Paths,
+    RemoteError,
 };
 use wasl_proto::{
     Action, BinSide, Pair, Phase, PlanSummary, Progress, RunOutcome, RunStatus, SyncMode, Trigger,
@@ -72,6 +73,20 @@ impl From<ClientError> for Fail {
                 GENERAL,
                 words::say("daemon.connection_lost", &none, Some(&e.to_string())),
             ),
+            // A device that is too old, or this one is: the typed reason, worded here in the
+            // CLI's language with the device's name (an older daemon sends none, and its answer
+            // reads as the network failure below).
+            ClientError::Remote(RemoteError {
+                needs_update: Some(n),
+                message,
+                ..
+            }) => {
+                let shown = n.name.clone().unwrap_or_else(|| n.device.clone());
+                Fail::said(
+                    GENERAL,
+                    words::say(n.behind.key(), &Values::default().device(shown), Some(&message)),
+                )
+            }
             ClientError::Remote(r) => {
                 let code = match r.kind {
                     ErrorKind::NotFound => NOT_FOUND,

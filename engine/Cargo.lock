@@ -4142,6 +4142,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "uniffi",
+ "wasl-chunk",
  "wasl-core",
  "wasl-crypto",
  "wasl-devices",
@@ -4240,6 +4241,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "wasl-core",
+ "wasl-engine",
+ "wasl-fs",
  "wasl-store",
 ]
 

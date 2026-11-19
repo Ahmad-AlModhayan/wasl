@@ -26,6 +26,7 @@ use wasl_net::{
 };
 
 use crate::devices::{Devices, clean_name};
+use wasl_proto::{DeviceNeedsUpdate, Lang, UpdateSide};
 
 /// How often the joiner asks the inviter for news.
 const POLL: Duration = Duration::from_millis(300);
@@ -46,6 +47,9 @@ enum Stop {
     Cancelled,
     /// Ended with the catalogue entry `key`.
     Failed(&'static str),
+    /// A device answered but one of the two is too old for the other (the same typed refusal a
+    /// connection gets, `device.this_needs_update` or `device.peer_needs_update`).
+    Update(Box<DeviceNeedsUpdate>),
 }
 
 fn now() -> u64 {
@@ -243,7 +247,10 @@ impl Pairing {
             match me.run_join(plan, epoch).await {
                 Ok(()) | Err(Stop::Cancelled) => {}
                 Err(Stop::Failed(key)) if me.current(epoch) => me.fail(key),
-                Err(Stop::Failed(_)) => {}
+                Err(Stop::Update(n)) if me.current(epoch) => {
+                    me.fail_with(n.behind.key(), n.words.text.clone())
+                }
+                Err(Stop::Failed(_) | Stop::Update(_)) => {}
             }
         });
         Ok(())
@@ -295,13 +302,15 @@ impl Pairing {
         let mut queue: VecDeque<Vec<SocketAddr>> = hints.into_iter().map(|h| vec![h]).collect();
         let mut seen: HashSet<SocketAddr> = HashSet::new();
         let mut answered: Option<&'static str> = None;
+        // A device too old for this one (or the other way round): said if nothing else answers.
+        let mut outdated: Option<Box<DeviceNeedsUpdate>> = None;
         let result = loop {
             if !self.busy() || !self.current(epoch) {
                 break Err(Stop::Cancelled);
             }
             let Some(addrs) = queue.pop_front() else {
                 let Some(b) = browser.as_mut() else {
-                    break Err(Stop::Failed(answered.unwrap_or("pair.not_found")));
+                    break Err(none_fit(answered, outdated));
                 };
                 match tokio::time::timeout_at(end, b.next()).await {
                     Ok(Some(found)) if found.token != self.devices.token() => {
@@ -312,7 +321,7 @@ impl Pairing {
                         continue;
                     }
                     Ok(Some(_)) => continue,
-                    _ => break Err(Stop::Failed(answered.unwrap_or("pair.not_found"))),
+                    _ => break Err(none_fit(answered, outdated)),
                 }
             };
             if let Err(stop) = self.start_session(&JoinCode::Short(code.clone())) {
@@ -330,6 +339,9 @@ impl Pairing {
                     break Err(Stop::Failed("pair.device_removed"));
                 }
                 Err(Some(Stop::Cancelled)) => break Err(Stop::Cancelled),
+                Err(Some(Stop::Update(n))) => {
+                    outdated.get_or_insert(n);
+                }
                 // A device answered and the code did not fit it: the next may be the right one.
                 Err(Some(Stop::Failed(key))) => {
                     answered.get_or_insert(key);
@@ -354,13 +366,37 @@ impl Pairing {
         budget: Option<Duration>,
     ) -> Result<(), Option<Stop>> {
         let mut link = None;
+        let mut update = None;
         for addr in addrs {
-            if let Ok(l) = endpoint.connect(*addr, pinned).await {
-                link = Some(l);
-                break;
+            match endpoint.connect(*addr, pinned).await {
+                Ok(l) => {
+                    link = Some(l);
+                    break;
+                }
+                Err(wasl_net::QuicError::NeedsUpdate { behind, peer }) => {
+                    let behind = match behind {
+                        wasl_net::proto::Behind::This => UpdateSide::This,
+                        wasl_net::proto::Behind::Peer => UpdateSide::Peer,
+                    };
+                    let name = self
+                        .devices
+                        .members()
+                        .into_iter()
+                        .find(|m| m.id == peer)
+                        .map(|m| m.name);
+                    update = Some(Box::new(DeviceNeedsUpdate::new(
+                        behind,
+                        peer.to_string(),
+                        name,
+                        Lang::En,
+                    )));
+                }
+                Err(_) => {}
             }
         }
-        let Some(link) = link else { return Err(None) };
+        let Some(link) = link else {
+            return Err(update.map(Stop::Update));
+        };
         let result = self.rounds(&link, epoch, budget).await;
         link.close();
         result.map_err(Some)
@@ -536,6 +572,16 @@ impl Pairing {
             failure: Some(key.to_owned()),
             ..idle()
         });
+    }
+}
+
+/// Why a typed code found nobody: a device that answered wrongly says why, else one that is too
+/// old or too new, else that nobody was there.
+fn none_fit(answered: Option<&'static str>, outdated: Option<Box<DeviceNeedsUpdate>>) -> Stop {
+    match (answered, outdated) {
+        (Some(key), _) => Stop::Failed(key),
+        (None, Some(n)) => Stop::Update(n),
+        (None, None) => Stop::Failed("pair.not_found"),
     }
 }
 

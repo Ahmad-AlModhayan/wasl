@@ -310,6 +310,22 @@ falling back to English.
 - English: Pairing didn't work. Make a new code and try again.
 - Arabic: لم ينجح الاقتران. أنشئ رمزًا جديدًا وحاول مجددًا.
 
+## `device.this_needs_update`
+
+- Note: A connection to another device was refused because this device's Wasl is too old for it. {device} is the other device's name, or its ID when this device has no name for it.
+- Values: device
+- Fix: `update_wasl`
+- English: This device needs an update to sync with {device}. Update Wasl on this device.
+- Arabic: يحتاج هذا الجهاز إلى تحديث للمزامنة مع {device}. حدّث وصل على هذا الجهاز.
+
+## `device.peer_needs_update`
+
+- Note: A connection to another device was refused because that device's Wasl is too old for this one. {device} is its name, or its ID when this device has no name for it. No fix here: the update happens on the other device.
+- Values: device
+- Fix: none
+- English: {device} needs an update to sync with this device. Update Wasl on {device}.
+- Arabic: يحتاج {device} إلى تحديث للمزامنة مع هذا الجهاز. حدّث وصل على {device}.
+
 ## `folder.needs_you`
 
 - Note: Heading of a folder that has needs-you items; each item has its own entry.

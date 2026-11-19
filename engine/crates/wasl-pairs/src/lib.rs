@@ -9,7 +9,8 @@
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use wasl_core::Route;
-use wasl_store::{Pair, SharedStore, StoreError};
+use wasl_engine::{Engine, EngineError};
+use wasl_store::{AGENT_CHANGES_PENDING, Pair, SharedStore, StoreError};
 
 /// Why a pair breaks the pair rules. A typed reason, never a sentence: each app words it in its
 /// own language (Wasl is English first; [`Problem`]'s `Display` is the English).
@@ -40,6 +41,15 @@ pub enum Problem {
         "{folder} is already synced by the pair {pair}, or is in or around its folder. Two pairs on the same files can undo each other. Choose another folder."
     )]
     Overlaps { folder: String, pair: String },
+    /// The change points the pair at other files while it syncs: the run would write the old
+    /// files' state back after the reset. (The word "folders" is the person's: Drive folder or
+    /// local folder.)
+    #[error("{}", wasl_engine::syncing_refusal(pair))]
+    Syncing { pair: String },
+    /// An agent's changes on the pair wait for review: the pair can't be removed or pointed at
+    /// other files until they are accepted or reverted.
+    #[error("{}", AGENT_CHANGES_PENDING)]
+    AgentChanges,
 }
 
 /// Why an operation on a pair didn't happen.
@@ -52,6 +62,13 @@ pub enum PairError {
     /// whole so the app answers as it always has (its kind, its words).
     #[error("{0}")]
     Vault(Box<dyn std::error::Error + Send + Sync>),
+    /// The engine or the store refused in a way no rule above names (a change that raced with a
+    /// run starting): their words, kept whole.
+    #[error("{0}")]
+    Refused(String),
+    /// Any other failure of the engine's save, kept whole so the app answers as it always has.
+    #[error(transparent)]
+    Engine(EngineError),
     #[error(transparent)]
     Store(#[from] StoreError),
 }
@@ -140,6 +157,70 @@ impl Pairs {
         pair.status.hold_for_preview = true;
         self.store.lock().create_pair(&pair)?;
         Ok(pair)
+    }
+
+    /// Saves a pair's options, whichever app made the change: checked against the same rules as
+    /// a new pair, and the pair's status stays the engine's. Another folder, Drive folder or vault
+    /// starts the pair over and holds it for its preview; that is refused while the pair syncs
+    /// and while an agent's changes on it wait (`Engine::update_pair`). A pair on a new vault's
+    /// folder is linked first, as when it is created. Returns whether the pair moved.
+    pub async fn update(&self, engine: &Engine, mut pair: Pair) -> Result<bool, PairError> {
+        self.check(&pair)?;
+        let before = self.store.lock().get_pair(&pair.id)?;
+        let moved = before.as_ref().is_none_or(|b| {
+            (&b.account_id, &b.drive_folder_id, &b.drive_id, &b.vault_id)
+                != (
+                    &pair.account_id,
+                    &pair.drive_folder_id,
+                    &pair.drive_id,
+                    &pair.vault_id,
+                )
+        });
+        // Advisory, ahead of the vault's remote call: a move refused afterwards would leave a vault
+        // linked on Drive. `Engine::update_pair` decides under the lock a run takes (#134).
+        if before.as_ref().is_some_and(|b| repointed(b, &pair))
+            && self.store.lock().pair_has_agent_changes(&pair.id)?
+        {
+            return Err(Problem::AgentChanges.into());
+        }
+        if moved {
+            if engine.is_running(&pair.id) {
+                return Err(Problem::Syncing { pair: pair.name }.into());
+            }
+            self.env.link_vault(&mut pair).await.map_err(PairError::Vault)?;
+        }
+        let name = pair.name.clone();
+        engine.update_pair(&pair).map_err(|e| refused(e, &name))
+    }
+
+    /// Removes a pair and everything that belongs to it, whichever app asks. Refused while an
+    /// agent's changes on it wait; a running sync is stopped only once the pair is gone.
+    pub fn delete(&self, engine: &Engine, id: &str) -> Result<(), PairError> {
+        match self.store.lock().delete_pair(id) {
+            Err(StoreError::Refused(m)) if m == AGENT_CHANGES_PENDING => {
+                return Err(Problem::AgentChanges.into());
+            }
+            other => other?,
+        }
+        engine.cancel(id);
+        Ok(())
+    }
+}
+
+/// What the engine's own refusal of a save is, in this module's terms. The engine words the two
+/// it can give (a run in the way, agent changes waiting); they are recognised by those words,
+/// which [`Problem`] takes from the same places.
+fn refused(e: EngineError, pair_name: &str) -> PairError {
+    match e {
+        EngineError::Other(m) if m == wasl_engine::syncing_refusal(pair_name) => Problem::Syncing {
+            pair: pair_name.into(),
+        }
+        .into(),
+        EngineError::Store(StoreError::Refused(m)) if m == AGENT_CHANGES_PENDING => {
+            Problem::AgentChanges.into()
+        }
+        EngineError::Store(StoreError::Refused(m)) | EngineError::Other(m) => PairError::Refused(m),
+        other => PairError::Engine(other),
     }
 }
 
