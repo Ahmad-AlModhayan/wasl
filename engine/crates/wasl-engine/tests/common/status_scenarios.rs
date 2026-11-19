@@ -114,7 +114,9 @@ pub fn scenarios() -> Vec<Scenario> {
             },
         },
         Scenario {
-            name: "a lasting failure",
+            // A passing cause that kept failing past the last try (#30): Wasl stops trying and the
+            // person has something to do, with Retry as the fix.
+            name: "a passing failure that kept failing",
             seed: |s, root| {
                 seed_with(s, root, |p| {
                     p.status.last_status = Some(RunStatus::Failed);
@@ -124,7 +126,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 })
             },
             expect: Expect {
-                state: FolderState::Failed,
+                state: FolderState::NeedsYou,
                 wait: None,
                 key: "error.network",
                 needs_you: &["error.network"],
