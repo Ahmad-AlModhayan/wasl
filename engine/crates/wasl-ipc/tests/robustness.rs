@@ -43,6 +43,7 @@ impl Handler for Counting {
                 kind: ErrorKind::Unsupported,
                 message: "not in this test".into(),
                 needs_update: None,
+                pair_rule: None,
             }),
         }
     }
@@ -105,6 +106,7 @@ fn frames() -> Vec<String> {
                 kind: ErrorKind::Locked,
                 message: "Vault is locked.".into(),
                 needs_update: None,
+                pair_rule: None,
             },
         })
         .unwrap(),

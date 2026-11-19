@@ -52,6 +52,8 @@ struct Fake {
     account_trouble: Mutex<Option<(String, Option<wasl_proto::SignInCause>)>>,
     /// The runs `Request::Runs` returns.
     run_history: Mutex<Vec<wasl_proto::RunRecord>>,
+    /// When set, creating a pair is refused by this pair rule, as the daemon words it.
+    pair_refusal: Mutex<Option<wasl_proto::Rendered>>,
 }
 
 impl Fake {
@@ -364,12 +366,14 @@ impl Handler for Fake {
                     .clone()
                     .unwrap_or_else(|| "boom".into()),
                 needs_update: None,
+                pair_rule: None,
             }),
             Request::Devices if self.devices_fail.load(std::sync::atomic::Ordering::SeqCst) => {
                 Err(RemoteError {
                     kind: ErrorKind::Other,
                     message: "the device list can't be read".into(),
                     needs_update: None,
+                    pair_rule: None,
                 })
             }
             Request::Devices => ok(wasl_ipc::DevicesInfo {
@@ -434,6 +438,7 @@ impl Handler for Fake {
                 from,
                 local_root,
                 name,
+                ..
             } => {
                 self.introductions
                     .lock()
@@ -471,6 +476,7 @@ impl Handler for Fake {
                         kind: ErrorKind::Invalid,
                         message: "Wrong passphrase for this vault.".into(),
                         needs_update: None,
+                        pair_rule: None,
                     })
                 }
             }
@@ -512,7 +518,16 @@ impl Handler for Fake {
                     drive_id: None,
                 })
             }
-            Request::CreatePair { pair } => {
+            Request::CreatePair { .. } if self.pair_refusal.lock().unwrap().is_some() => {
+                let words = self.pair_refusal.lock().unwrap().clone().unwrap();
+                Err(RemoteError {
+                    kind: ErrorKind::Invalid,
+                    message: words.text.clone(),
+                    needs_update: None,
+                    pair_rule: Some(Box::new(words)),
+                })
+            }
+            Request::CreatePair { pair, .. } => {
                 *self.created.lock().unwrap() = Some(pair);
                 ok(())
             }
@@ -574,6 +589,7 @@ impl Handler for Fake {
                     kind: ErrorKind::NotFound,
                     message: format!("{path} isn't in a view. See: wasl view list"),
                     needs_update: None,
+                    pair_rule: None,
                 })
             }
             Request::PinPath { path } => {
@@ -622,6 +638,7 @@ impl Handler for Fake {
                         kind: ErrorKind::NotFound,
                         message: format!("changeset {id}"),
                         needs_update: None,
+                        pair_rule: None,
                     });
                 }
                 ok(oplog_page(true))
@@ -641,11 +658,13 @@ impl Handler for Fake {
                     Some("هاتفي".into()),
                     wasl_proto::Lang::En,
                 ))),
+                pair_rule: None,
             }),
             _ => Err(RemoteError {
                 kind: ErrorKind::Unsupported,
                 message: "not in this test".into(),
                 needs_update: None,
+                pair_rule: None,
             }),
         }
     }
@@ -937,6 +956,44 @@ async fn pair_add_creates_the_pair_it_was_asked_for() {
     .await;
     assert_eq!(4, r.code);
     assert!(r.stderr.contains("you@example.com"), "{}", r.stderr);
+}
+
+/// wasl#61: a folder a pair rule refuses is said in the person's language, from the daemon's key
+/// and values, with the usage exit code.
+#[tokio::test(flavor = "multi_thread")]
+async fn pair_add_says_a_pair_rule_refusal_in_the_persons_language() {
+    let d = start();
+    let local = tempfile::tempdir().unwrap();
+    let folder = local.path().join("Camera");
+    std::fs::create_dir(&folder).unwrap();
+    let values = wasl_proto::Values::default()
+        .folder(folder.display().to_string())
+        .other("Photos");
+    *d.fake.pair_refusal.lock().unwrap() = Some(wasl_proto::words::render(
+        "pair.overlaps",
+        &values,
+        wasl_proto::Lang::En,
+        None,
+        &[],
+        &mut |_| {},
+    ));
+    let args = ["pair", "add", folder.to_str().unwrap(), "Backups/Camera"];
+    let r = wasl(d.dir.path(), "en", &args).await;
+    assert_eq!(2, r.code, "{}", r.stderr);
+    assert!(
+        r.stderr.contains("Photos") && r.stderr.contains("Choose another folder"),
+        "{}",
+        r.stderr
+    );
+    let r = wasl(d.dir.path(), "ar", &args).await;
+    assert_eq!(2, r.code, "{}", r.stderr);
+    assert!(r.stderr.contains("Photos"), "{}", r.stderr);
+    assert!(
+        r.stderr.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c)),
+        "{}",
+        r.stderr
+    );
+    assert!(!r.stderr.contains("Choose another folder"), "{}", r.stderr);
 }
 
 #[tokio::test(flavor = "multi_thread")]

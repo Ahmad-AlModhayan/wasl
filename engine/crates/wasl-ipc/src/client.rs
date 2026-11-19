@@ -202,13 +202,42 @@ impl Client {
         self.call(Request::Pair { id: id.into() }).await
     }
     pub async fn create_pair(&self, pair: Pair) -> Result<(), ClientError> {
-        self.call(Request::CreatePair { pair }).await
+        self.call(Request::CreatePair { pair, lang: None }).await
+    }
+    /// [`Client::create_pair`] with a refusal by a pair rule worded in `lang`
+    /// ([`RemoteError::pair_rule`]).
+    pub async fn create_pair_in(&self, pair: Pair, lang: Lang) -> Result<(), ClientError> {
+        self.call(Request::CreatePair {
+            pair,
+            lang: Some(lang),
+        })
+        .await
     }
     pub async fn update_pair(&self, pair: Pair) -> Result<(), ClientError> {
-        self.call(Request::UpdatePair { pair }).await
+        self.call(Request::UpdatePair { pair, lang: None }).await
+    }
+    /// [`Client::update_pair`] with a refusal by a pair rule worded in `lang`.
+    pub async fn update_pair_in(&self, pair: Pair, lang: Lang) -> Result<(), ClientError> {
+        self.call(Request::UpdatePair {
+            pair,
+            lang: Some(lang),
+        })
+        .await
     }
     pub async fn delete_pair(&self, id: &str) -> Result<(), ClientError> {
-        self.call(Request::DeletePair { id: id.into() }).await
+        self.call(Request::DeletePair {
+            id: id.into(),
+            lang: None,
+        })
+        .await
+    }
+    /// [`Client::delete_pair`] with a refusal by a pair rule worded in `lang`.
+    pub async fn delete_pair_in(&self, id: &str, lang: Lang) -> Result<(), ClientError> {
+        self.call(Request::DeletePair {
+            id: id.into(),
+            lang: Some(lang),
+        })
+        .await
     }
     pub async fn set_paused(
         &self,
@@ -509,6 +538,26 @@ impl Client {
             from: from.into(),
             local_root: local_root.into(),
             name: name.map(Into::into),
+            lang: None,
+        })
+        .await
+    }
+    /// [`Client::accept_offer`] with a refusal by a pair rule worded in `lang`
+    /// ([`RemoteError::pair_rule`]).
+    pub async fn accept_offer_in(
+        &self,
+        share: &str,
+        from: &str,
+        local_root: &str,
+        name: Option<&str>,
+        lang: Lang,
+    ) -> Result<Pair, ClientError> {
+        self.call(Request::AcceptOffer {
+            share: share.into(),
+            from: from.into(),
+            local_root: local_root.into(),
+            name: name.map(Into::into),
+            lang: Some(lang),
         })
         .await
     }

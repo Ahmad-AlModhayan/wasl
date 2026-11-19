@@ -204,6 +204,7 @@ fn err(kind: ErrorKind, message: impl Into<String>) -> RemoteError {
         kind,
         message: message.into(),
         needs_update: None,
+        pair_rule: None,
     }
 }
 

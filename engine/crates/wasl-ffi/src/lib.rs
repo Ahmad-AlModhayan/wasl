@@ -59,9 +59,29 @@ pub enum WaslError {
     /// The pair breaks a pair rule (overlaps another pair, in Wasl's own folders, around a view,
     /// no folder or Drive folder chosen), or the change is refused while the pair syncs or an
     /// agent's changes on it wait; `detail` says which, in English. Creating, editing and deleting
-    /// a pair give the same refusals, in the same words, as the desktop.
+    /// a pair give the same refusals, in the same words, as the desktop. To show it in the
+    /// person's language, with a stable key and the folders as values, call
+    /// `create_pair_typed`, `update_pair_typed` or `delete_pair_typed` ([`PairRuleError`]).
     #[error("{detail}")]
     PairRule { detail: String },
+}
+
+/// Why [`WaslEngine::create_pair_typed`], [`WaslEngine::update_pair_typed`] or
+/// [`WaslEngine::delete_pair_typed`] didn't happen: the same refusals as `create_pair`,
+/// `update_pair` and `delete_pair`, with a pair rule's words typed (wasl#61).
+// A uniffi error enum can't box a record, and the refusal is returned once per tap.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum PairRuleError {
+    /// A pair rule refused the change (a folder that overlaps another pair, is in Wasl's own
+    /// folders or around a view, a sync running, an agent's changes waiting, no folder or Drive
+    /// folder chosen). The catalogue's entry for it: a stable `key`, the folders in `values`, and
+    /// the one plain sentence in the language asked for, the same words the desktop shows.
+    #[error("{}", words.text)]
+    Refused { words: wasl_proto::Rendered },
+    /// Anything else, in English.
+    #[error("{detail}")]
+    Failed { detail: String },
 }
 
 impl From<EngineError> for WaslError {
@@ -618,6 +638,20 @@ impl WaslEngine {
         made
     }
 
+    /// [`WaslEngine::create_pair`] with a refusal by a pair rule typed: its key, its values (the
+    /// folders) and its words in `lang` ([`PairRuleError::Refused`]). Added beside `create_pair`
+    /// so existing app code keeps working.
+    // A uniffi error enum can't box a record, and the refusal is returned once per tap.
+    #[allow(clippy::result_large_err)]
+    pub fn create_pair_typed(&self, pair: Pair, lang: wasl_proto::Lang) -> Result<(), PairRuleError> {
+        let made = right_away(self.pairs.create(pair))
+            .map_err(failed)?
+            .map(|_| ())
+            .map_err(|e| pair_rule_err(e, lang));
+        self.touched();
+        made
+    }
+
     /// Saves the pair's options through the pair rules, as the desktop does (`Pairs::update`,
     /// ADR-0001): a pair that would break a rule is refused as [`WaslError::PairRule`] with the
     /// same words as creating it. Its status stays the engine's. Another folder, Drive folder or
@@ -635,6 +669,32 @@ impl WaslEngine {
     /// changes on it wait ([`WaslError::PairRule`]). A running sync is stopped once it is gone.
     pub fn delete_pair(&self, id: String) -> Result<(), WaslError> {
         let gone = self.pairs.delete(&self.engine, &id).map_err(pair_err);
+        self.touched();
+        gone
+    }
+
+    /// [`WaslEngine::update_pair`] with a refusal by a pair rule typed, as
+    /// [`WaslEngine::create_pair_typed`] does.
+    // A uniffi error enum can't box a record, and the refusal is returned once per tap.
+    #[allow(clippy::result_large_err)]
+    pub fn update_pair_typed(&self, pair: Pair, lang: wasl_proto::Lang) -> Result<(), PairRuleError> {
+        let saved = right_away(self.pairs.update(&self.engine, pair))
+            .map_err(failed)?
+            .map(|_| ())
+            .map_err(|e| pair_rule_err(e, lang));
+        self.touched();
+        saved
+    }
+
+    /// [`WaslEngine::delete_pair`] with a refusal by a pair rule typed, as
+    /// [`WaslEngine::create_pair_typed`] does.
+    // A uniffi error enum can't box a record, and the refusal is returned once per tap.
+    #[allow(clippy::result_large_err)]
+    pub fn delete_pair_typed(&self, id: String, lang: wasl_proto::Lang) -> Result<(), PairRuleError> {
+        let gone = self
+            .pairs
+            .delete(&self.engine, &id)
+            .map_err(|e| pair_rule_err(e, lang));
         self.touched();
         gone
     }
@@ -1051,6 +1111,21 @@ fn pair_err(e: wasl_pairs::PairError) -> WaslError {
         wasl_pairs::PairError::Refused(detail) => WaslError::PairRule { detail },
         wasl_pairs::PairError::Engine(e) => e.into(),
         wasl_pairs::PairError::Store(e) => e.into(),
+    }
+}
+
+/// A pair operation's error with a broken rule typed and worded in `lang`; any other failure
+/// keeps the words and kind `create_pair` gives it, as English.
+fn pair_rule_err(e: wasl_pairs::PairError, lang: wasl_proto::Lang) -> PairRuleError {
+    match e.words(lang) {
+        Some(words) => PairRuleError::Refused { words },
+        None => failed(pair_err(e)),
+    }
+}
+
+fn failed(e: WaslError) -> PairRuleError {
+    PairRuleError::Failed {
+        detail: e.to_string(),
     }
 }
 

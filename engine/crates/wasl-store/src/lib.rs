@@ -49,7 +49,7 @@ pub use oplog::{
     OplogFilter, OplogKey, OplogListed, OplogOp, OplogStatus, check_actor, check_entity_uri, file_uri,
     file_uri_parts, folder_uri,
 };
-pub use pairs::{AGENT_CHANGES_PENDING, Pair, PairStatus, StorageMode, repointed};
+pub use pairs::{Pair, PairStatus, StorageMode, repointed};
 pub use queries::{PairEvent, PairTotals};
 pub use vaults::VaultRecord;
 pub use views::View;
@@ -109,6 +109,11 @@ pub enum StoreError {
     /// damaged data). The message says what to do.
     #[error("{0}")]
     Refused(String),
+    /// An agent's changes on the pair wait for review: it can't be removed or pointed at other
+    /// files until they are accepted or reverted. Typed, so the pair rules (`wasl-pairs`) don't
+    /// recognise it by its words (#60).
+    #[error("{}", wasl_proto::words::english("pair.agent_changes", &Default::default()))]
+    AgentChangesPending,
     /// An op-log write ADR-0002 doesn't allow.
     #[error(transparent)]
     Oplog(#[from] OplogError),

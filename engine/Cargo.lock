@@ -4243,6 +4243,7 @@ dependencies = [
  "wasl-core",
  "wasl-engine",
  "wasl-fs",
+ "wasl-proto",
  "wasl-store",
 ]
 

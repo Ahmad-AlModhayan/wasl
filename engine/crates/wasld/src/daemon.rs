@@ -353,74 +353,8 @@ impl Daemon {
                 kind: ErrorKind::NotFound,
                 message: format!("{path} is not in a folder Wasl syncs"),
                 needs_update: None,
+                pair_rule: None,
             })
-    }
-
-    /// A pair's folder cannot be in or around a view's folder (a view is read-only).
-    fn check_not_a_view(&self, pair: &Pair) -> Result<(), RemoteError> {
-        let root = std::path::Path::new(&pair.local_root);
-        for v in self.store.lock().views().map_err(store_err)? {
-            let view = std::path::Path::new(&v.local_path);
-            if crate::views::relative(view, root).is_some() || crate::views::relative(root, view).is_some() {
-                return Err(invalid(format!(
-                    "{} is in or around the view {}, which is read-only. Choose another folder.",
-                    pair.local_root, v.name
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    /// A pair in or around the daemon's own folders would upload the database, the IPC token and
-    /// staged files, and its downloads could overwrite them (security review 2026-10). Compared
-    /// as given and, where the folders exist, with links and short names resolved.
-    fn check_not_own_dirs(&self, pair: &Pair) -> Result<(), RemoteError> {
-        let forms = |p: &std::path::Path| {
-            let mut v = vec![p.to_path_buf()];
-            if let Ok(c) = std::fs::canonicalize(p) {
-                v.push(c);
-            }
-            v
-        };
-        let roots = forms(std::path::Path::new(&pair.local_root));
-        let dirs = self.own_dirs.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        for dir in dirs {
-            for own in forms(&dir) {
-                for root in &roots {
-                    if crate::views::relative(&own, root).is_some()
-                        || crate::views::relative(root, &own).is_some()
-                    {
-                        return Err(invalid(format!(
-                            "{} is in or around {}, where Wasl keeps its own data (its database and private key files). Choose another folder.",
-                            pair.local_root,
-                            dir.display()
-                        )));
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Two pairs on the same files undo each other's work (one deletes what the other brings), so
-    /// a pair's folder may be neither another pair's folder nor inside or around it.
-    fn check_no_overlap(&self, pair: &Pair) -> Result<(), RemoteError> {
-        let root = std::path::Path::new(&pair.local_root);
-        for other in self.store.lock().list_pairs().map_err(store_err)? {
-            if other.id == pair.id {
-                continue;
-            }
-            let theirs = std::path::Path::new(&other.local_root);
-            if crate::views::relative(theirs, root).is_some()
-                || crate::views::relative(root, theirs).is_some()
-            {
-                return Err(invalid(format!(
-                    "{} is already synced by the pair {}, or is in or around its folder. Two pairs on the same files can undo each other. Choose another folder.",
-                    pair.local_root, other.name
-                )));
-            }
-        }
-        Ok(())
     }
 
     /// A vault was unlocked: its views show their files and its pairs sync, in the background.
@@ -481,6 +415,7 @@ impl Daemon {
             kind: ErrorKind::Unsupported,
             message: "Device sync is off on this computer.".into(),
             needs_update: None,
+            pair_rule: None,
         })
     }
 
@@ -489,6 +424,7 @@ impl Daemon {
             kind: ErrorKind::Unsupported,
             message: "Device sync is off on this computer.".into(),
             needs_update: None,
+            pair_rule: None,
         })
     }
 
@@ -519,12 +455,13 @@ impl Daemon {
     /// Makes a pair for `from`'s offer of `share` (docs/INTRODUCTIONS.md §3.3): synced with
     /// devices only, reach as any new device pair (LAN), under the offered share, and held for its
     /// first-sync preview like every new pair. A share some pair here already syncs is refused.
-    fn accept_offer(
+    async fn accept_offer(
         &self,
         share: &str,
         from: &str,
         local_root: &str,
         name: Option<&str>,
+        lang: Lang,
     ) -> Result<Pair, RemoteError> {
         let d = self.devices_or_off()?;
         let from = device_id(from)?;
@@ -546,24 +483,18 @@ impl Daemon {
                     .into(),
             ));
         }
-        if !std::path::Path::new(local_root).is_absolute() {
-            return Err(invalid(
-                "Choose the folder on this computer by its full path".into(),
-            ));
-        }
         let name = name
             .map(str::trim)
             .filter(|n| !n.is_empty())
             .unwrap_or(&offer.name);
         let mut pair = Pair::new(&crate::views::new_id(), name, local_root);
         pair.route = wasl_core::Route::Devices;
-        self.check_not_own_dirs(&pair)?;
-        self.check_not_a_view(&pair)?;
-        self.check_no_overlap(&pair)?;
-        pair.status.hold_for_preview = true;
+        // The pair rules and the preview hold are wasl-pairs' (ADR-0001), as for every new pair:
+        // the same refusals in the same words. Checked first, so a refused folder isn't made.
+        self.pairs.check(&pair).map_err(|e| pair_err(e, lang))?;
         // The folder the person picked; made when it isn't there yet.
         std::fs::create_dir_all(local_root).map_err(|e| invalid(format!("Can't use {local_root}: {e}")))?;
-        self.store.lock().create_pair(&pair).map_err(store_err)?;
+        let pair = self.pairs.create(pair).await.map_err(|e| pair_err(e, lang))?;
         // Shared with the offering device only (docs/INTRODUCTIONS.md §3.3).
         if let Err(e) = d.accept_offer(&pair.id, &share, from, None) {
             let _ = self.store.lock().delete_pair(&pair.id);
@@ -702,6 +633,7 @@ impl Daemon {
             kind: ErrorKind::Auth,
             message: e.to_string(),
             needs_update: None,
+            pair_rule: None,
         })?;
         let url = pending.url.clone();
         *signing_in = Some(url.clone());
@@ -797,6 +729,7 @@ impl Daemon {
                         kind: ErrorKind::NotFound,
                         message: format!("There is no folder \"{part}\" in {} on Drive", current.name),
                         needs_update: None,
+                        pair_rule: None,
                     });
                 }
             };
@@ -810,22 +743,28 @@ impl Daemon {
             Request::Status { lang } => ok(self.status(lang.unwrap_or(Lang::En))?),
             Request::Pairs => ok(self.pairs()?),
             Request::Pair { id } => ok(self.store.lock().get_pair(&id).map_err(store_err)?),
-            Request::CreatePair { pair } => {
+            Request::CreatePair { pair, lang } => {
                 // The pair rules and the preview hold live in wasl-pairs (ADR-0001).
-                self.pairs.create(pair).await.map_err(pair_err)?;
+                let lang = lang.unwrap_or(Lang::En);
+                self.pairs.create(pair).await.map_err(|e| pair_err(e, lang))?;
                 self.emit(Event::Changed);
                 ok(())
             }
-            Request::UpdatePair { pair } => {
+            Request::UpdatePair { pair, lang } => {
                 // The same pair rules and the same save as the phone's (ADR-0001, wasl#12).
-                self.pairs.update(e, pair).await.map_err(pair_err)?;
+                let lang = lang.unwrap_or(Lang::En);
+                self.pairs
+                    .update(e, pair)
+                    .await
+                    .map_err(|err| pair_err(err, lang))?;
                 self.emit(Event::Changed);
                 ok(())
             }
-            Request::DeletePair { id } => {
+            Request::DeletePair { id, lang } => {
                 // Refused while an agent's changes on the pair wait (#134); a running sync is
                 // stopped only once the pair is gone.
-                self.pairs.delete(e, &id).map_err(pair_err)?;
+                let lang = lang.unwrap_or(Lang::En);
+                self.pairs.delete(e, &id).map_err(|err| pair_err(err, lang))?;
                 self.emit(Event::Changed);
                 ok(())
             }
@@ -1066,6 +1005,7 @@ impl Daemon {
                             "Agents can't accept changes ({marker} is set). Accept in the Wasl app or your own terminal."
                         ),
                         needs_update: None,
+                        pair_rule: None,
                     });
                 }
                 // Everyone else gets a confirmation shown by the Wasl app, never an accept: any
@@ -1137,6 +1077,7 @@ impl Daemon {
                         kind: ErrorKind::Busy,
                         message: format!("{id} still has views. Remove them first."),
                         needs_update: None,
+                        pair_rule: None,
                     });
                 }
                 let removed = self.store.lock().remove_account(&id).map_err(store_err)?;
@@ -1145,6 +1086,7 @@ impl Daemon {
                         kind: ErrorKind::Busy,
                         message: format!("{id} still has pairs. Remove them first."),
                         needs_update: None,
+                        pair_rule: None,
                     });
                 }
                 self.tokens.forget(&id).await;
@@ -1202,6 +1144,7 @@ impl Daemon {
                     kind: ErrorKind::Network,
                     message: format!("Couldn't reach a device of your group at {address}: {last}"),
                     needs_update,
+                    pair_rule: None,
                 })
             }
             Request::SharePair { id, share } => {
@@ -1283,7 +1226,16 @@ impl Daemon {
                 from,
                 local_root,
                 name,
-            } => ok(self.accept_offer(&share, &from, &local_root, name.as_deref())?),
+                lang,
+            } => ok(self
+                .accept_offer(
+                    &share,
+                    &from,
+                    &local_root,
+                    name.as_deref(),
+                    lang.unwrap_or(Lang::En),
+                )
+                .await?),
             Request::KeepDevice { id } => {
                 let d = self.devices_or_off()?;
                 d.keep_device(device_id(&id)?).map_err(invalid)?;
@@ -1327,6 +1279,7 @@ impl Daemon {
                     kind: ErrorKind::Unsupported,
                     message: "Views aren't File Provider domains on this computer.".into(),
                     needs_update: None,
+                    pair_rule: None,
                 }),
             },
             Request::Vaults => ok(self.vaults.list()?),
@@ -1484,14 +1437,17 @@ impl wasl_pairs::PairsEnv for DesktopPairs {
     }
 }
 
-/// A pair operation's error as the desktop has always answered it: a broken rule is `Invalid`
-/// with the rule's English, a vault that couldn't be linked keeps its own kind.
-fn pair_err(e: wasl_pairs::PairError) -> RemoteError {
+/// A pair operation's error as the desktop answers it: a broken rule is `Invalid` with the
+/// catalogue's entry for it (key, values, and the words in `lang`) beside the English `message`
+/// every client has always read; a vault that couldn't be linked keeps its own kind.
+fn pair_err(e: wasl_pairs::PairError, lang: Lang) -> RemoteError {
     match e {
-        wasl_pairs::PairError::Rule(wasl_pairs::Problem::NoFolder) => {
-            invalid("Choose the folder on this computer by its full path".into())
-        }
-        wasl_pairs::PairError::Rule(p) => invalid(p.to_string()),
+        wasl_pairs::PairError::Rule(p) => RemoteError {
+            kind: ErrorKind::Invalid,
+            message: p.to_string(),
+            needs_update: None,
+            pair_rule: Some(Box::new(p.words(lang))),
+        },
         wasl_pairs::PairError::Vault(e) => e
             .downcast_ref::<RemoteError>()
             .cloned()
@@ -1507,6 +1463,7 @@ fn invalid(message: String) -> RemoteError {
         kind: ErrorKind::Invalid,
         message,
         needs_update: None,
+        pair_rule: None,
     }
 }
 
@@ -1519,6 +1476,7 @@ fn not_found(message: String) -> RemoteError {
         kind: ErrorKind::NotFound,
         message,
         needs_update: None,
+        pair_rule: None,
     }
 }
 
@@ -1527,6 +1485,7 @@ pub fn store_err(e: wasl_store::StoreError) -> RemoteError {
         kind: ErrorKind::Other,
         message: e.to_string(),
         needs_update: None,
+        pair_rule: None,
     }
 }
 
@@ -1550,6 +1509,7 @@ pub fn engine_err(e: EngineError) -> RemoteError {
         kind,
         message: e.to_string(),
         needs_update: None,
+        pair_rule: None,
     }
 }
 
@@ -1564,6 +1524,7 @@ fn drive_err_ref(d: &DriveError, message: String) -> RemoteError {
         kind,
         message,
         needs_update: None,
+        pair_rule: None,
     }
 }
 
@@ -1905,6 +1866,7 @@ impl Daemon {
                           and it isn't installed next to wasld. Install the Wasl app, then try again."
                     .into(),
                 needs_update: None,
+                pair_rule: None,
             });
         }
         let now = Instant::now();
@@ -1925,6 +1887,7 @@ impl Daemon {
                                   Answer that first."
                             .into(),
                         needs_update: None,
+                        pair_rule: None,
                     });
                 }
                 Slot::Free => {}
@@ -1947,6 +1910,7 @@ impl Daemon {
                 kind: ErrorKind::Other,
                 message: m,
                 needs_update: None,
+                pair_rule: None,
             })?;
             *current = Some(p.clone());
             p

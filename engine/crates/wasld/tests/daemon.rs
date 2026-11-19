@@ -795,6 +795,56 @@ async fn a_pair_on_the_daemons_own_folder_is_refused() {
     );
 }
 
+/// wasl#61: a pair-rule refusal is worded by the engine's catalogue in the caller's language,
+/// with the key and the folders as values for a script or an agent, the same as on the phone.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pair_rule_refusal_is_worded_in_the_callers_language_with_its_key_and_values() {
+    let g = google().await;
+    let d = start(&g, true).await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    c.create_pair(pair(&d.root)).await.unwrap();
+    let mut rival = pair(&d.root.join("sub"));
+    rival.id = "rival".into();
+
+    let rule = |e: wasl_ipc::ClientError| match e {
+        wasl_ipc::ClientError::Remote(r) => *r.pair_rule.expect("typed"),
+        other => panic!("not a refusal: {other}"),
+    };
+    let en = rule(c.create_pair_in(rival.clone(), Lang::En).await.unwrap_err());
+    assert_eq!("pair.overlaps", en.key);
+    assert_eq!(Some(rival.local_root.clone()), en.values.folder);
+    assert_eq!(Some("Sync".to_string()), en.values.other);
+    assert!(
+        en.text.starts_with(&rival.local_root) && en.text.contains("Choose another folder"),
+        "{}",
+        en.text
+    );
+
+    let ar = rule(c.create_pair_in(rival.clone(), Lang::Ar).await.unwrap_err());
+    assert_eq!(en.key, ar.key);
+    assert_eq!(en.values, ar.values);
+    assert!(
+        ar.text.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c)),
+        "{}",
+        ar.text
+    );
+
+    // Without a language (an older client) the answer stays English and its message still reads.
+    let old = c.create_pair(rival.clone()).await.unwrap_err();
+    assert_eq!(Some(ErrorKind::Invalid), old.kind());
+    assert_eq!(en.text, old.to_string());
+
+    // An edit is worded the same way.
+    let mut other = pair(&d.root.with_file_name("elsewhere"));
+    other.id = "other".into();
+    other.name = "Elsewhere".into();
+    c.create_pair(other.clone()).await.unwrap();
+    other.local_root = d.root.join("deeper").to_str().unwrap().into();
+    let edit = rule(c.update_pair_in(other, Lang::Ar).await.unwrap_err());
+    assert_eq!("pair.overlaps", edit.key);
+    assert_eq!(Some("Sync".to_string()), edit.values.other);
+}
+
 /// The person in the confirmation tests: answers each dialog by the changeset's label, and
 /// records what each dialog was shown. One for the whole test binary (the confirmer is
 /// process-wide); tests tell their changesets apart by label.

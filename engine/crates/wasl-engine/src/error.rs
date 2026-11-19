@@ -33,6 +33,11 @@ pub enum EngineError {
     /// the file system rejects). Reported as [`NAME_REFUSED`], never retried as a transient failure.
     #[error("{0}")]
     NameRefused(String),
+    /// `Engine::update_pair` won't point a running pair at other files: the run would write the old
+    /// files' state back after the reset. Typed, so the pair rules (`wasl-pairs`) don't
+    /// recognise it by its words (#60); `pair` is the pair's name.
+    #[error("{}", wasl_proto::words::english("pair.syncing", &wasl_proto::words::Values::default().folder(pair)))]
+    PairSyncing { pair: String },
     #[error("cancelled")]
     Cancelled,
     #[error("{0}")]
@@ -101,7 +106,9 @@ impl EngineError {
             EngineError::NotFound(_) => ErrorKind::NotFound,
             EngineError::Integrity(_) => ErrorKind::Integrity,
             EngineError::Locked(_) => ErrorKind::Locked,
-            EngineError::Cancelled | EngineError::Other(_) => ErrorKind::Other,
+            EngineError::Cancelled | EngineError::PairSyncing { .. } | EngineError::Other(_) => {
+                ErrorKind::Other
+            }
         }
     }
 

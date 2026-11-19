@@ -73,6 +73,6 @@ jobs:
         run: |
           cargo build -p wasl-ffi
           cargo run -p wasl-ffi --features bindgen --bin uniffi-bindgen -- generate --library target/debug/libwasl_mobile.so --language kotlin --no-format --out-dir "$RUNNER_TEMP/kotlin"
-          for name in "interface StatusSink" "data class FolderStatus" "data class DeviceStatus" "enum class DevicePresence" "fun \`watchStatus\`" "fun \`deviceStatuses\`"; do
+          for name in "interface StatusSink" "data class FolderStatus" "data class DeviceStatus" "enum class DevicePresence" "fun \`watchStatus\`" "fun \`deviceStatuses\`" "class PairRuleException" "fun \`createPairTyped\`" "fun \`updatePairTyped\`" "fun \`deletePairTyped\`"; do
             grep -rqF -- "$name" "$RUNNER_TEMP/kotlin" || { echo "missing in the Kotlin bindings: $name"; exit 1; }
           done

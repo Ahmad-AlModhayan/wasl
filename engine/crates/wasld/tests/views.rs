@@ -19,6 +19,7 @@ impl ViewRemotes for Drive {
                 kind: ErrorKind::Locked,
                 message: wasld::views::VAULT_LOCKED.into(),
                 needs_update: None,
+                pair_rule: None,
             });
         }
         Ok(ViewRemote::plain(self.0.clone()))

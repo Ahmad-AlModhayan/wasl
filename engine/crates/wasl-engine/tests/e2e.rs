@@ -1081,8 +1081,12 @@ async fn a_folder_change_is_refused_while_the_pair_runs_and_holds_the_next_run()
     );
     let mut moved = w.pair();
     moved.local_root = format!("{}-moved", moved.local_root);
+    // Typed, so the pair rules don't have to recognise it by its words (#60).
     assert!(
-        w.engine.update_pair(&moved).is_err(),
+        matches!(
+            w.engine.update_pair(&moved),
+            Err(wasl_engine::EngineError::PairSyncing { ref pair }) if pair == &renamed.name
+        ),
         "a new folder waits for the run"
     );
     assert_eq!(renamed.local_root, w.pair().local_root);
@@ -1672,7 +1676,7 @@ async fn a_pair_with_agent_changes_waiting_is_not_repointed() {
     assert!(
         matches!(
             e,
-            wasl_engine::EngineError::Store(wasl_store::StoreError::Refused(_))
+            wasl_engine::EngineError::Store(wasl_store::StoreError::AgentChangesPending)
         ),
         "{e}"
     );

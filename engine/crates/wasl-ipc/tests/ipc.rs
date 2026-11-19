@@ -46,6 +46,7 @@ impl Handler for Fake {
                 kind: ErrorKind::NotFound,
                 message: format!("{path} is not in a view"),
                 needs_update: None,
+                pair_rule: None,
             }),
             Request::RemoveView { id, keep_files: true } if id == "v1" => ok(()),
             Request::Vaults => ok(vec![vault_info("vault-1", false)]),
@@ -64,6 +65,7 @@ impl Handler for Fake {
                 kind: ErrorKind::Invalid,
                 message: "Wrong passphrase for this vault.".into(),
                 needs_update: None,
+                pair_rule: None,
             }),
             Request::UnlockVaultFolder { folder, passphrase } => {
                 assert_eq!("correct horse", passphrase.expose());
@@ -77,11 +79,13 @@ impl Handler for Fake {
                 kind: ErrorKind::NotFound,
                 message: format!("No pair {id}"),
                 needs_update: None,
+                pair_rule: None,
             }),
             _ => Err(RemoteError {
                 kind: ErrorKind::Unsupported,
                 message: "not in this test".into(),
                 needs_update: None,
+                pair_rule: None,
             }),
         }
     }

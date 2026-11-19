@@ -358,7 +358,7 @@ fn a_pair_with_an_open_or_held_changeset_is_not_deleted() {
     for status in ["open", "held"] {
         add(status, status);
         let e = s.delete_pair("p").unwrap_err();
-        assert!(matches!(e, StoreError::Refused(_)), "{status}: {e}");
+        assert!(matches!(e, StoreError::AgentChangesPending), "{status}: {e}");
         assert!(s.get_pair("p").unwrap().is_some(), "{status}");
         s.decide_changeset(status, wasl_store::ChangesetStatus::Reverted, 2)
             .unwrap();

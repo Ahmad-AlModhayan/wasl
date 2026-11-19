@@ -58,6 +58,9 @@ pub enum Slot {
     File,
     Device,
     Count,
+    /// A second folder the sentence names: the pair or view that is in the way of the folder the
+    /// sentence is about (`pair.*`).
+    Other,
 }
 
 impl Slot {
@@ -67,6 +70,7 @@ impl Slot {
             Slot::File => "file",
             Slot::Device => "device",
             Slot::Count => "count",
+            Slot::Other => "other",
         }
     }
 }
@@ -84,6 +88,8 @@ pub struct Values {
     pub device: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub count: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub other: Option<String>,
 }
 
 impl Values {
@@ -101,6 +107,10 @@ impl Values {
     }
     pub fn count(mut self, v: u64) -> Values {
         self.count = Some(v);
+        self
+    }
+    pub fn other(mut self, v: impl Into<String>) -> Values {
+        self.other = Some(v.into());
         self
     }
 }
@@ -257,7 +267,7 @@ const fn e(
 }
 
 use Fix::*;
-use Slot::{Count, Device, File, Folder};
+use Slot::{Count, Device, File, Folder, Other};
 
 /// Every entry. Keep the keys unique; `docs/STATUS_WORDS.md` is generated from this table.
 pub const ENTRIES: &[Entry] = &[
@@ -820,6 +830,85 @@ pub const ENTRIES: &[Entry] = &[
         &[Folder],
         "Fallback for any error the catalogue doesn't know. Always has Details; each unknown error is logged.",
     ),
+    // ---- refusing a change to a folder (ADR-0001 pair rules, issue #61): the same sentence on the
+    // phone, the desktop and the command line. `{folder}` is the folder the person chose, or the
+    // folder being changed; `{other}` is the pair or view in the way.
+    e(
+        "pair.invalid_id",
+        Forms::single("A folder's ID must be one plain name, with no slashes or colons. Choose another ID."),
+        Forms::single("يجب أن يكون معرّف المجلد اسمًا واحدًا بسيطًا، دون شرطات مائلة أو نقطتين. اختر معرّفًا آخر."),
+        None,
+        &[],
+        "Refusing to save a folder whose ID isn't one plain name. People never type an ID; scripts and agents do.",
+    ),
+    e(
+        "pair.no_folder",
+        Forms::single("Wasl needs the folder on this device to sync. Choose it by its full path."),
+        Forms::single("يحتاج وصل إلى المجلد على هذا الجهاز ليزامنه. اختره بمساره الكامل."),
+        None,
+        &[],
+        "Refusing to save a folder when none was chosen on this device (empty, or not a full path).",
+    ),
+    e(
+        "pair.no_drive_folder",
+        Forms::single("This folder needs a Google account and a Drive folder to sync with. Choose both."),
+        Forms::single("يحتاج هذا المجلد إلى حساب Google ومجلد على Drive ليزامن معهما. اختر الاثنين."),
+        None,
+        &[],
+        "Refusing to save a folder that syncs with Drive but has no account or no Drive folder.",
+    ),
+    e(
+        "pair.own_data",
+        Forms::single(
+            "{folder} is in or around where Wasl keeps its own data. Syncing it could upload that data or overwrite it. Choose another folder.",
+        ),
+        Forms::single(
+            "{folder} داخل المكان الذي يحفظ فيه وصل بياناته أو حوله. مزامنته قد ترفع تلك البيانات أو تكتب فوقها. اختر مجلدًا آخر.",
+        ),
+        None,
+        &[Folder],
+        "Refusing a folder in or around Wasl's own data (its database, key files, staged files). `{folder}` is the folder the person chose.",
+    ),
+    e(
+        "pair.around_view",
+        Forms::single("{folder} is in or around {other}, a read-only view. Choose another folder."),
+        Forms::single("{folder} داخل {other}، وهو عرض للقراءة فقط، أو حوله. اختر مجلدًا آخر."),
+        None,
+        &[Folder, Other],
+        "Refusing a folder in or around a view's folder (views are read-only). `{folder}` is the folder the person chose; `{other}` is the view's name.",
+    ),
+    e(
+        "pair.overlaps",
+        Forms::single(
+            "{folder} is the same as, inside or around the folder Wasl already syncs as {other}. Two synced folders on the same files can undo each other's changes. Choose another folder.",
+        ),
+        Forms::single(
+            "{folder} هو نفسه المجلد الذي يزامنه وصل باسم {other} أو داخله أو حوله. قد يتعارض مجلدان متزامنان على الملفات نفسها فيلغي أحدهما عمل الآخر. اختر مجلدًا آخر.",
+        ),
+        None,
+        &[Folder, Other],
+        "Refusing a folder that overlaps another synced folder. `{folder}` is the folder the person chose; `{other}` is the other pair's name.",
+    ),
+    e(
+        "pair.syncing",
+        Forms::single("{folder} is syncing right now. Let it finish or stop it, then change its folders."),
+        Forms::single("{folder} قيد المزامنة الآن. دعها تنتهِ أو أوقفها، ثم غيّر مجلداتها."),
+        None,
+        &[Folder],
+        "Refusing to point a folder at other files (another device folder, Drive folder or vault) while it syncs. `{folder}` is the pair's name. The words say \"folders\" because the change is to its device folder or its Drive folder.",
+    ),
+    e(
+        "pair.agent_changes",
+        Forms::single(
+            "This folder has an agent's changes waiting for your review. Accept or revert them in the Wasl app first.",
+        ),
+        Forms::single(
+            "لدى هذا المجلد تغييرات من وكيل بانتظار مراجعتك. اقبلها أو تراجع عنها في تطبيق وصل أولًا.",
+        ),
+        Some(Review),
+        &[],
+        "Refusing to remove a folder, or point it at other files, while an agent's changes on it wait. Review is where the person accepts or reverts them.",
+    ),
     // ---- reaching the engine (the CLI and apps talk to a background program)
     e(
         "daemon.not_running",
@@ -1057,6 +1146,13 @@ pub fn render_event(
     Some(render_with(key, &values, lang, raw, roots, secrets, &mut |_| {}))
 }
 
+/// The English words of `key` with `values`, for the places that must print a sentence without a
+/// language to ask for (an error's `Display`, a log line). Apps and the CLI render in the
+/// caller's language with [`render`].
+pub fn english(key: &str, values: &Values) -> String {
+    render(key, values, Lang::En, None, &[], &mut |_| {}).text
+}
+
 /// The entry with this key.
 pub fn entry(key: &str) -> Option<&'static Entry> {
     ENTRIES.iter().find(|e| e.key == key)
@@ -1091,6 +1187,8 @@ fn stand_in(slot: Slot, lang: Lang) -> &'static str {
         (Slot::File, Lang::Ar) => "ملف",
         (Slot::Device, Lang::En) => "another device",
         (Slot::Device, Lang::Ar) => "جهاز آخر",
+        (Slot::Other, Lang::En) => "another folder",
+        (Slot::Other, Lang::Ar) => "مجلد آخر",
         (Slot::Count, _) => "0",
     }
 }
@@ -1101,7 +1199,7 @@ fn fill(template: &str, values: &Values, lang: Lang) -> String {
     'scan: while let Some(open) = rest.find('{') {
         out.push_str(&rest[..open]);
         let after = &rest[open..];
-        for slot in [Slot::Folder, Slot::File, Slot::Device, Slot::Count] {
+        for slot in [Slot::Folder, Slot::File, Slot::Device, Slot::Count, Slot::Other] {
             let tag = format!("{{{}}}", slot.name());
             if after.starts_with(&tag) {
                 let v = match slot {
@@ -1109,6 +1207,7 @@ fn fill(template: &str, values: &Values, lang: Lang) -> String {
                     Slot::File => values.file.clone(),
                     Slot::Device => values.device.clone(),
                     Slot::Count => values.count.map(|c| c.to_string()),
+                    Slot::Other => values.other.clone(),
                 };
                 out.push_str(&v.unwrap_or_else(|| stand_in(slot, lang).to_owned()));
                 rest = &after[tag.len()..];
@@ -1381,7 +1480,7 @@ mod tests {
                 assert!(!forms.other.trim().is_empty(), "{} lacks {lang} text", ent.key);
                 for t in forms.all() {
                     assert!(!t.trim().is_empty(), "{} has an empty {lang} form", ent.key);
-                    for slot in [Slot::Folder, Slot::File, Slot::Device, Slot::Count] {
+                    for slot in [Slot::Folder, Slot::File, Slot::Device, Slot::Count, Slot::Other] {
                         if t.contains(&format!("{{{}}}", slot.name())) {
                             assert!(
                                 ent.slots.contains(&slot),
@@ -2259,6 +2358,42 @@ mod tests {
                 .other
                 .contains("encrypted and locked")
         );
+    }
+
+    /// Issue #61: a refusal of a folder change names both folders in either language, and the
+    /// values ride beside the words for an agent.
+    #[test]
+    fn a_folder_refusal_names_both_folders_in_either_language() {
+        let values = Values::default().folder("/home/me/Photos").other("Camera");
+        for key in ["pair.overlaps", "pair.around_view"] {
+            for lang in [Lang::En, Lang::Ar] {
+                let r = render(key, &values, lang, None, &[], &mut quiet());
+                assert_eq!(key, r.key);
+                assert!(
+                    r.text.contains("/home/me/Photos") && r.text.contains("Camera"),
+                    "{key} {lang:?}: {}",
+                    r.text
+                );
+                assert_eq!(values, r.values);
+            }
+        }
+        let ar = render("pair.overlaps", &values, Lang::Ar, None, &[], &mut quiet());
+        assert!(
+            ar.text.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c)),
+            "{}",
+            ar.text
+        );
+        // A sentence that takes no value reads whole without one.
+        let r = render(
+            "pair.agent_changes",
+            &Values::default(),
+            Lang::En,
+            None,
+            &[],
+            &mut quiet(),
+        );
+        assert_eq!(Some(Fix::Review), r.fix);
+        assert!(!r.text.contains('{'), "{}", r.text);
     }
 
     #[test]
