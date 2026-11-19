@@ -1,0 +1,4 @@
+# The mixed-version test reads these on every platform: LF, so a Windows checkout can still apply the patch and run the scripts.
+engine/scripts/*.sh text eol=lf
+engine/PREVIOUS_RELEASE text eol=lf
+engine/PREVIOUS_RELEASE.patch text eol=lf
