@@ -32,6 +32,12 @@ required-features = ["miqyas"]
 name = "two_daemons"
 required-features = ["miqyas"]
 
+# The previous release's daemon next to this one (wasl#27), which `engine/scripts/mixed-version-test.sh`
+# builds and runs: pairs, syncs both ways and removes, in both roles; the previous command line too.
+[[test]]
+name = "mixed_version"
+required-features = ["miqyas"]
+
 [features]
 # A test build for Miqyas: test folder only, secrets in a file, loopback, no Google, and the
 # `wasl-miqyas` harness, which pairs two test devices without a person. Off in release builds.
