@@ -78,14 +78,25 @@ pub enum Request {
     Pair {
         id: String,
     },
+    /// With a `lang`, a refusal by a pair rule carries its words in that language
+    /// ([`RemoteError::pair_rule`]); English without one. The key and values are the same in
+    /// every language.
     CreatePair {
         pair: Pair,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lang: Option<Lang>,
     },
+    /// As [`Request::CreatePair`] for the `lang`.
     UpdatePair {
         pair: Pair,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lang: Option<Lang>,
     },
+    /// As [`Request::CreatePair`] for the `lang`.
     DeletePair {
         id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lang: Option<Lang>,
     },
     SetPaused {
         id: String,
@@ -120,6 +131,14 @@ pub enum Request {
     },
     RunEvents {
         run_id: String,
+    },
+    /// The files a run left out or could not sync, worded in `lang` (English without one): each
+    /// with its key, values and fix, and what to do about it. The reply is a list of
+    /// [`wasl_proto::RunItem`], empty for a run that left nothing out.
+    RunItems {
+        run_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lang: Option<Lang>,
     },
     OpenConflicts {
         pair_id: Option<String>,
@@ -240,6 +259,10 @@ pub enum Request {
         local_root: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         name: Option<String>,
+        /// The language a refusal by a pair rule is worded in ([`RemoteError::pair_rule`]);
+        /// English without one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lang: Option<Lang>,
     },
     /// Keeps a device another device added (docs/INTRODUCTIONS.md §3.1): it is known on this
     /// computer and gets the folders shared with all devices.
@@ -545,6 +568,15 @@ pub struct RemoteError {
     /// every `ClientError` carries a `RemoteError`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub needs_update: Option<Box<wasl_proto::DeviceNeedsUpdate>>,
+    /// Set when the request was refused by a pair rule (a folder that overlaps another, a view, a
+    /// sync running, an agent's changes waiting; wasl#61): the catalogue's entry for the refusal,
+    /// with its stable `key`, the folders in its `values` and the sentence in the language the
+    /// request asked for (English without one). The `kind` and `message` stay what they have
+    /// always been (`Invalid` and the English words), so a client from before this field still
+    /// reads the answer; a newer one words it again in its own language with
+    /// [`wasl_proto::Rendered::in_lang`]. Boxed so every `ClientError` stays small.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pair_rule: Option<Box<wasl_proto::Rendered>>,
 }
 
 /// A pair as the status line shows it.
@@ -946,7 +978,7 @@ pub enum Frame {
 
 #[cfg(test)]
 mod tests {
-    use super::{DaemonStatus, OPLOG_LIST_MAX, Overall, Request};
+    use super::{DaemonStatus, ErrorKind, OPLOG_LIST_MAX, Overall, RemoteError, Request};
     use wasl_proto::OverallState;
 
     #[test]
@@ -1006,6 +1038,7 @@ mod tests {
             kind: ErrorKind::Network,
             message: "Couldn't reach a device of your group at x: Phone needs an update".into(),
             needs_update: Some(Box::new(n.clone())),
+            pair_rule: None,
         };
         let wire = serde_json::to_value(Frame::Err {
             id: 7,
@@ -1022,6 +1055,7 @@ mod tests {
         // An answer without the reason is the old shape on the wire, and reads back without one.
         let plain = RemoteError {
             needs_update: None,
+            pair_rule: None,
             ..err
         };
         let wire = serde_json::to_value(&plain).unwrap();
@@ -1029,6 +1063,62 @@ mod tests {
         let back: RemoteError =
             serde_json::from_value(serde_json::json!({"kind": "network", "message": "m"})).unwrap();
         assert!(back.needs_update.is_none());
+    }
+
+    /// wasl#61: a pair rule's refusal rides beside the answer an older client reads, and the pair
+    /// requests older clients send (no `lang`) still parse and say nothing more than before.
+    #[test]
+    fn a_pair_rule_refusal_is_typed_beside_the_answer_an_older_client_reads() {
+        use wasl_proto::words::{Lang, Values, render};
+        let words = render(
+            "pair.overlaps",
+            &Values::default().folder("/photos/2026").other("Camera"),
+            Lang::En,
+            None,
+            &[],
+            &mut |_| {},
+        );
+        let err = RemoteError {
+            kind: ErrorKind::Invalid,
+            message: words.text.clone(),
+            needs_update: None,
+            pair_rule: Some(Box::new(words.clone())),
+        };
+        let wire = serde_json::to_value(&err).unwrap();
+        assert_eq!("invalid", wire["kind"]);
+        assert_eq!("pair.overlaps", wire["pair_rule"]["key"]);
+        assert_eq!("Camera", wire["pair_rule"]["values"]["other"]);
+        let back: RemoteError = serde_json::from_value(wire).unwrap();
+        assert_eq!(Some(Box::new(words)), back.pair_rule);
+        // From an older daemon: no field, no words.
+        let old: RemoteError =
+            serde_json::from_value(serde_json::json!({"kind": "invalid", "message": "m"})).unwrap();
+        assert!(old.pair_rule.is_none());
+        assert!(serde_json::to_value(&old).unwrap().get("pair_rule").is_none());
+
+        let r: Request = serde_json::from_value(serde_json::json!({"op": "delete_pair", "id": "p"})).unwrap();
+        assert!(matches!(r, Request::DeletePair { lang: None, .. }), "{r:?}");
+        assert_eq!(
+            serde_json::json!({"op": "delete_pair", "id": "p"}),
+            serde_json::to_value(Request::DeletePair {
+                id: "p".into(),
+                lang: None
+            })
+            .unwrap()
+        );
+        let r: Request =
+            serde_json::from_value(serde_json::json!({"op": "delete_pair", "id": "p", "lang": "ar"}))
+                .unwrap();
+        assert!(
+            matches!(
+                r,
+                Request::DeletePair {
+                    lang: Some(Lang::Ar),
+                    ..
+                }
+            ),
+            "{r:?}"
+        );
     }
 
     #[test]
@@ -1055,6 +1145,24 @@ mod tests {
                 }
             ),
             "{r:?}"
+        );
+    }
+
+    #[test]
+    fn the_run_items_request_names_a_run_and_may_name_a_language() {
+        let r: Request =
+            serde_json::from_value(serde_json::json!({"op": "run_items", "run_id": "r1"})).unwrap();
+        assert!(
+            matches!(&r, Request::RunItems { run_id, lang: None } if run_id == "r1"),
+            "{r:?}"
+        );
+        assert_eq!(
+            serde_json::json!({"op": "run_items", "run_id": "r1", "lang": "ar"}),
+            serde_json::to_value(Request::RunItems {
+                run_id: "r1".into(),
+                lang: Some(wasl_proto::Lang::Ar)
+            })
+            .unwrap()
         );
     }
 

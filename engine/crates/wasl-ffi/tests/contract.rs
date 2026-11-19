@@ -207,6 +207,19 @@ async fn the_binding_surface_runs_a_pair_end_to_end() {
             .iter()
             .any(|e| e.action == "UPLOAD")
     );
+    // The files a run left out come worded for the screen (issue #56): none here, and a run that
+    // isn't there is an error, not an empty list.
+    assert!(
+        engine
+            .run_items(runs[0].id.clone(), wasl_proto::Lang::Ar)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        engine
+            .run_items("no-such-run".into(), wasl_proto::Lang::En)
+            .is_err()
+    );
     assert_eq!(
         Some(RunStatus::Success),
         engine.pair("p".into()).unwrap().unwrap().status.last_status
@@ -348,6 +361,88 @@ async fn editing_a_pair_keeps_the_pair_rules_creating_one_does() {
     renamed.name = "Renamed".into();
     engine.update_pair(renamed).unwrap();
     assert_eq!("Renamed", engine.pair("q".into()).unwrap().unwrap().name);
+}
+
+/// wasl#61: the typed methods give a refusal by a pair rule as the catalogue's entry (key, folders
+/// as values, one sentence in the language asked for), the same sentence on every app, and leave
+/// the old methods and their `WaslError` as they were.
+#[tokio::test]
+async fn the_typed_pair_methods_word_a_refusal_in_the_language_asked_for() {
+    use wasl_mobile::PairRuleError;
+    let server = mock_drive("x").await;
+    let dir = tempfile::tempdir().unwrap();
+    let engine = WaslEngine::new(
+        init(dir.path(), &server),
+        Arc::new(Tokens { asked: Mutex::new(0) }),
+        Arc::new(Device { saf: None }),
+        None,
+    )
+    .unwrap();
+    let (one, two) = (dir.path().join("one"), dir.path().join("two"));
+    std::fs::create_dir_all(one.join("sub")).unwrap();
+    std::fs::create_dir_all(&two).unwrap();
+    engine
+        .create_pair(pair(one.to_str().unwrap(), StorageMode::Files))
+        .unwrap();
+    let mut second = pair(two.to_str().unwrap(), StorageMode::Files);
+    second.id = "q".into();
+    second.name = "Other".into();
+    engine
+        .create_pair_typed(second.clone(), wasl_proto::Lang::En)
+        .unwrap();
+
+    let inside = one.join("sub").to_string_lossy().into_owned();
+    let refused = |e: PairRuleError| match e {
+        PairRuleError::Refused { words } => words,
+        other => panic!("not a pair rule: {other:?}"),
+    };
+    let mut probe = second.clone();
+    probe.id = "probe".into();
+    probe.local_root = inside.clone();
+    let en = refused(
+        engine
+            .create_pair_typed(probe.clone(), wasl_proto::Lang::En)
+            .unwrap_err(),
+    );
+    assert_eq!("pair.overlaps", en.key);
+    assert_eq!(Some(inside.clone()), en.values.folder);
+    assert_eq!(Some("Sync".to_string()), en.values.other);
+    // The same words the old method carries as English.
+    let old = engine.create_pair(probe.clone()).unwrap_err();
+    assert!(matches!(old, WaslError::PairRule { .. }), "{old:?}");
+    assert_eq!(en.text, old.to_string());
+
+    let ar = refused(engine.create_pair_typed(probe, wasl_proto::Lang::Ar).unwrap_err());
+    assert_eq!((en.key.as_str(), &en.values), (ar.key.as_str(), &ar.values));
+    assert!(
+        ar.text.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c)),
+        "{}",
+        ar.text
+    );
+
+    // Editing the second pair onto the first one's files, and onto Wasl's own folders.
+    let mut moved = second.clone();
+    moved.local_root = inside.clone();
+    let edit = refused(engine.update_pair_typed(moved, wasl_proto::Lang::Ar).unwrap_err());
+    assert_eq!("pair.overlaps", edit.key);
+    let mut own = second.clone();
+    own.local_root = dir.path().join("bin").to_string_lossy().into_owned();
+    let edit = refused(engine.update_pair_typed(own, wasl_proto::Lang::En).unwrap_err());
+    assert_eq!("pair.own_data", edit.key);
+    assert_eq!(
+        second.local_root,
+        engine.pair("q".into()).unwrap().unwrap().local_root,
+        "nothing refused was saved"
+    );
+
+    // An edit that keeps the rules saves, and a delete that does so goes through.
+    let mut renamed = second.clone();
+    renamed.name = "Renamed".into();
+    engine.update_pair_typed(renamed, wasl_proto::Lang::En).unwrap();
+    engine
+        .delete_pair_typed("q".into(), wasl_proto::Lang::En)
+        .unwrap();
+    assert!(engine.pair("q".into()).unwrap().is_none());
 }
 
 #[tokio::test]

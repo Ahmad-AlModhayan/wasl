@@ -610,6 +610,70 @@ falling back to English.
 - English: Something went wrong syncing {folder}. Wasl will try again at the next sync.
 - Arabic: حدث خطأ أثناء مزامنة {folder}. سيحاول وصل مجددًا في المزامنة التالية.
 
+## `pair.invalid_id`
+
+- Note: Refusing to save a folder whose ID isn't one plain name. People never type an ID; scripts and agents do.
+- Values: none
+- Fix: none
+- English: A folder's ID must be one plain name, with no slashes or colons. Choose another ID.
+- Arabic: يجب أن يكون معرّف المجلد اسمًا واحدًا بسيطًا، دون شرطات مائلة أو نقطتين رأسيتين. اختر معرّفًا آخر.
+
+## `pair.no_folder`
+
+- Note: Refusing to save a folder when none was chosen on this device (empty, or not a full path).
+- Values: none
+- Fix: none
+- English: Wasl needs the folder on this device to sync. Choose it by its full path.
+- Arabic: يحتاج وصل إلى المجلد على هذا الجهاز ليزامنه. اختره بمساره الكامل.
+
+## `pair.no_drive_folder`
+
+- Note: Refusing to save a folder that syncs with Drive but has no account or no Drive folder.
+- Values: none
+- Fix: none
+- English: This folder needs a Google account and a Drive folder to sync with. Choose both.
+- Arabic: يحتاج هذا المجلد إلى حساب Google ومجلد على Drive ليزامن معهما. اختر الاثنين.
+
+## `pair.own_data`
+
+- Note: Refusing a folder in or around Wasl's own data (its database, key files, staged files). `{folder}` is the folder the person chose.
+- Values: folder
+- Fix: none
+- English: {folder} is in or around where Wasl keeps its own data. Syncing it could upload that data or overwrite it. Choose another folder.
+- Arabic: {folder} داخل المكان الذي يحفظ فيه وصل بياناته أو حوله. مزامنته قد ترفع تلك البيانات أو تكتب فوقها. اختر مجلدًا آخر.
+
+## `pair.around_view`
+
+- Note: Refusing a folder in or around a view's folder (views are read-only). `{folder}` is the folder the person chose; `{other}` is the view's name.
+- Values: folder, other
+- Fix: none
+- English: {folder} is in or around {other}, a read-only view. Choose another folder.
+- Arabic: {folder} داخل {other} أو حوله، وهو مجلد للقراءة فقط. اختر مجلدًا آخر.
+
+## `pair.overlaps`
+
+- Note: Refusing a folder that overlaps another synced folder. `{folder}` is the folder the person chose; `{other}` is the other pair's name.
+- Values: folder, other
+- Fix: none
+- English: {folder} is the same as, inside or around the folder Wasl already syncs as {other}. Two synced folders on the same files can undo each other's changes. Choose another folder.
+- Arabic: {folder} هو نفسه المجلد الذي يزامنه وصل باسم {other} أو داخله أو حوله. قد يتعارض مجلدان متزامنان على الملفات نفسها فيلغي أحدهما عمل الآخر. اختر مجلدًا آخر.
+
+## `pair.syncing`
+
+- Note: Refusing to point a folder at other files (another device folder, Drive folder or vault) while it syncs. `{folder}` is the pair's name. The words say "folders" because the change is to its device folder or its Drive folder.
+- Values: folder
+- Fix: none
+- English: {folder} is syncing right now. Let it finish or stop it, then change its folders.
+- Arabic: {folder} قيد المزامنة الآن. دعها تنتهِ أو أوقفها، ثم غيّر مجلداتها.
+
+## `pair.agent_changes`
+
+- Note: Refusing to remove a folder, or point it at other files, while an agent's changes on it wait. Review is where the person accepts or reverts them.
+- Values: none
+- Fix: `review`
+- English: This folder has an agent's changes waiting for your review. Accept or revert them in the Wasl app first.
+- Arabic: لدى هذا المجلد تغييرات من وكيل بانتظار مراجعتك. اقبلها أو تراجع عنها في تطبيق وصل أولًا.
+
 ## `daemon.not_running`
 
 - Note: The command line couldn't find the background program. The command stays in English.
@@ -649,4 +713,59 @@ falling back to English.
 - Fix: `retry`
 - English: Lost the connection to Wasl. Try again.
 - Arabic: انقطع الاتصال بوصل. حاول مجددًا.
+
+# Suggested fixes
+
+The words of each `fix` a run item or a status carries (`fix_words` on a run item). The fix
+is typed; an app maps it to a button, and the CLI and agents use these sentences.
+
+## `retry`
+
+- English: Sync again to try once more.
+- Arabic: زامِن مجددًا للمحاولة مرة أخرى.
+
+## `sign_in_again`
+
+- English: Sign in to your Google account again.
+- Arabic: سجّل الدخول إلى حساب Google مجددًا.
+
+## `open_folder`
+
+- English: Open the folder and check it is there.
+- Arabic: افتح المجلد وتأكد من وجوده.
+
+## `open_storage_settings`
+
+- English: Free some space in this device's storage settings.
+- Arabic: حرّر بعض المساحة من إعدادات التخزين في هذا الجهاز.
+
+## `open_drive_storage`
+
+- English: Free some space in your Google Drive.
+- Arabic: حرّر بعض المساحة في Google Drive.
+
+## `open_to_rename`
+
+- English: Rename the file, then sync again. Wasl never renames your files.
+- Arabic: غيّر اسم الملف ثم زامِن مجددًا. لا يغيّر وصل أسماء ملفاتك أبدًا.
+
+## `unlock_vault`
+
+- English: Unlock the vault.
+- Arabic: افتح قفل الخزنة.
+
+## `grant_access_again`
+
+- English: Give Wasl access to the folder again.
+- Arabic: امنح وصل صلاحية الوصول إلى المجلد مجددًا.
+
+## `update_wasl`
+
+- English: Update Wasl.
+- Arabic: حدّث وصل.
+
+## `review`
+
+- English: Review what is waiting for your decision.
+- Arabic: راجع ما ينتظر قرارك.
 

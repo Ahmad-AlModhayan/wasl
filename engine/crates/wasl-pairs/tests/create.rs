@@ -231,3 +231,53 @@ async fn check_gives_the_answer_a_save_would() {
     let saved = w.pairs.create(draft).await.unwrap_err();
     assert_eq!(checked.to_string(), saved.to_string());
 }
+
+/// Another caller's pair that lands while this one's vault is being linked, which is after the
+/// advisory check and before the save.
+struct Rival {
+    store: SharedStore,
+    rival: Pair,
+}
+
+#[async_trait::async_trait]
+impl PairsEnv for Rival {
+    fn own_dirs(&self) -> Vec<PathBuf> {
+        Vec::new()
+    }
+    async fn link_vault(&self, _: &mut Pair) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.store.lock().create_pair(&self.rival)?;
+        Ok(())
+    }
+}
+
+/// #60: the overlap check and the save are one step under the store's lock, so two creates can't
+/// both pass the check.
+#[tokio::test]
+async fn a_create_cant_overlap_a_pair_that_was_made_between_the_check_and_the_save() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = |rel: &str| dir.path().join(rel).to_string_lossy().into_owned();
+    let store = SharedStore::new(Store::open_in_memory().unwrap());
+    let pairs = Pairs::new(
+        store.clone(),
+        Arc::new(Rival {
+            store: store.clone(),
+            rival: drive_pair("rival", "Camera", &path("photos")),
+        }),
+    );
+    match rule(
+        pairs
+            .create(drive_pair("mine", "Mine", &path("photos/2026")))
+            .await,
+    ) {
+        Problem::Overlaps { pair, .. } => assert_eq!("Camera", pair),
+        other => panic!("{other:?}"),
+    }
+    let saved: Vec<String> = store
+        .lock()
+        .list_pairs()
+        .unwrap()
+        .into_iter()
+        .map(|p| p.id)
+        .collect();
+    assert_eq!(vec!["rival".to_owned()], saved, "only the first pair was saved");
+}

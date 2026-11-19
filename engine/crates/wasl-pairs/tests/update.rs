@@ -204,11 +204,11 @@ async fn an_agents_waiting_changes_refuse_a_move_and_a_delete_the_same_typed_way
         rule(w.pairs.update(&w.engine, moved).await)
     );
     assert_eq!(Problem::AgentChanges, rule(w.pairs.delete(&w.engine, "p")));
-    assert_eq!(
-        wasl_store::AGENT_CHANGES_PENDING,
-        Problem::AgentChanges.to_string(),
-        "the words are the store's"
-    );
+    // Typed all the way down: the store's own refusal is the variant, not a sentence (#60).
+    assert!(matches!(
+        w.store.lock().delete_pair("p"),
+        Err(wasl_store::StoreError::AgentChangesPending)
+    ));
     assert_eq!(
         Some("folder".into()),
         w.stored("p").drive_folder_id,
@@ -227,4 +227,90 @@ async fn deleting_a_pair_removes_it() {
     w.make("p", "Work", "work").await;
     w.pairs.delete(&w.engine, "p").unwrap();
     assert!(w.store.lock().get_pair("p").unwrap().is_none());
+}
+
+/// Another caller's pair that lands while this edit's vault is being linked, which is after the
+/// advisory check and before the save.
+struct Rival {
+    store: SharedStore,
+    rival: Pair,
+}
+
+#[async_trait::async_trait]
+impl PairsEnv for Rival {
+    fn own_dirs(&self) -> Vec<PathBuf> {
+        Vec::new()
+    }
+    async fn link_vault(&self, _: &mut Pair) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.store.lock().create_pair(&self.rival)?;
+        Ok(())
+    }
+}
+
+/// #60: the overlap check and the save are one step under the store's lock, so two edits can't
+/// both pass the check.
+#[tokio::test]
+async fn an_edit_cant_overlap_a_pair_that_was_made_between_the_check_and_the_save() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = |rel: &str| dir.path().join(rel).to_string_lossy().into_owned();
+    let store = SharedStore::new(Store::open_in_memory().unwrap());
+    let mine = drive_pair("mine", "Mine", &path("photos/2026"));
+    store.lock().create_pair(&mine).unwrap();
+    let rival = drive_pair("rival", "Camera", &path("photos"));
+    let pairs = Pairs::new(
+        store.clone(),
+        Arc::new(Rival {
+            store: store.clone(),
+            rival,
+        }),
+    );
+    let engine = Engine::new(
+        store.clone(),
+        Arc::new(Idle),
+        Arc::new(SystemClock),
+        EngineConfig::default(),
+        None,
+    );
+
+    let mut moved = mine.clone();
+    moved.drive_folder_id = Some("other".into());
+    match rule(pairs.update(&engine, moved).await) {
+        Problem::Overlaps { pair, .. } => assert_eq!("Camera", pair),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        Some("folder".into()),
+        store.lock().get_pair("mine").unwrap().unwrap().drive_folder_id,
+        "nothing was saved"
+    );
+}
+
+/// The refusals are catalogue entries: a stable key, the folders as values, both languages.
+#[tokio::test]
+async fn a_refusal_is_worded_by_the_catalogue_in_either_language() {
+    use wasl_proto::words::Lang;
+    let w = world();
+    w.make("a", "Work", "home/work").await;
+    let mut onto = drive_pair("b", "Play", &w.path("home/work/notes"));
+    onto.id = "b".into();
+    let overlap = w.pairs.check(&onto).unwrap_err();
+    let en = overlap.words(Lang::En).expect("a broken rule has words");
+    assert_eq!("pair.overlaps", en.key);
+    assert_eq!(Some("Work".to_owned()), en.values.other);
+    assert_eq!(Some(w.path("home/work/notes")), en.values.folder);
+    assert!(
+        en.text.contains("Work") && en.text.contains("Choose another folder"),
+        "{}",
+        en.text
+    );
+    assert_eq!(overlap.to_string(), en.text, "Display is the English words");
+    let ar = overlap.words(Lang::Ar).unwrap();
+    assert_eq!((en.key.as_str(), &en.values), (ar.key.as_str(), &ar.values));
+    assert_ne!(en.text, ar.text);
+    assert!(ar.text.contains("Work"), "{}", ar.text);
+
+    let agent = PairError::Rule(Problem::AgentChanges).words(Lang::Ar).unwrap();
+    assert_eq!("pair.agent_changes", agent.key);
+    assert_eq!(Some(wasl_proto::words::Fix::Review), agent.fix);
+    assert!(PairError::Refused("x".into()).words(Lang::En).is_none());
 }

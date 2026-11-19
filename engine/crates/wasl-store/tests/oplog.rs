@@ -257,7 +257,7 @@ fn a_v10_database_migrates_to_v11_with_its_data_unchanged() {
     };
     let (before, changesets_before) = before;
     let s = Store::open(&path).unwrap();
-    assert_eq!(13, s.schema_version().unwrap());
+    assert_eq!(14, s.schema_version().unwrap());
     assert_eq!(changesets_before, changeset_rows(s.connection()));
     let mut after = dump(s.connection());
     let changesets = after.remove("oplog_changesets").unwrap();
@@ -283,6 +283,9 @@ fn a_v10_database_migrates_to_v11_with_its_data_unchanged() {
     let mut before = before;
     before.remove("agent_changesets");
     after.remove("agent_changesets");
+    // Schema v14 adds runs.error_kind (NULL for runs stored before it), so the table's SQL differs.
+    before.remove("runs");
+    after.remove("runs");
     assert_eq!(before, after);
     assert!(changesets.1.is_empty() && ops.1.is_empty());
 }

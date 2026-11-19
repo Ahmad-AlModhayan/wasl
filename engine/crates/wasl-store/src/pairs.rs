@@ -108,10 +108,6 @@ fn from_row(r: &Row<'_>) -> rusqlite::Result<Pair> {
     })
 }
 
-/// Why a pair can't be removed or pointed elsewhere while an agent's changes on it wait.
-pub const AGENT_CHANGES_PENDING: &str =
-    "This pair has agent changes waiting for review. Accept them in the Wasl app or revert them first.";
-
 /// Whether saving `after` over `before` points the pair at other files: another folder on this
 /// device, another Google account, Drive folder or shared drive, or another vault. Such a pair
 /// starts over like a new one: its sync state is dropped and it waits for its preview
@@ -305,7 +301,7 @@ impl Store {
             [pair_id],
         )?;
         if deleted == 0 && self.pair_has_agent_changes(pair_id)? {
-            return Err(StoreError::Refused(AGENT_CHANGES_PENDING.into()));
+            return Err(StoreError::AgentChangesPending);
         }
         Ok(())
     }

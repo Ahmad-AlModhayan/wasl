@@ -512,7 +512,7 @@ fn a_v1_database_upgrades_without_losing_its_baseline() {
         .unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(13, s.schema_version().unwrap());
+    assert_eq!(14, s.schema_version().unwrap());
     let p = s.get_pair("p").unwrap().unwrap();
     assert_eq!(
         ("P", true, StorageMode::Files),
