@@ -16,6 +16,10 @@ pub enum EngineError {
     Permission(String),
     #[error("{0}")]
     NotFound(String),
+    /// The pair's own folder on this device isn't there (a card taken out, the folder deleted or
+    /// moved): the run stops, and the words say so rather than "no permission".
+    #[error("{0}")]
+    FolderMissing(String),
     /// A device file moved or deleted between the scan and the read: skipped, never a failure;
     /// the next run sees what is there (#154).
     #[error("{0}")]
@@ -38,10 +42,16 @@ pub enum EngineError {
 pub type Result<T, E = EngineError> = std::result::Result<T, E>;
 
 /// Run-report code for an item whose name the disk refuses even after mapping.
-pub const NAME_REFUSED: &str = "NAME_REFUSED";
+pub const NAME_REFUSED: &str = wasl_proto::words::EVENT_NAME_REFUSED;
+
+/// Run-event code for a file that vanished between the scan and the read: skipped, never a failure.
+pub const FILE_GONE: &str = wasl_proto::words::EVENT_FILE_GONE;
 
 impl From<std::io::Error> for EngineError {
     fn from(e: std::io::Error) -> Self {
+        if crate::support::is_folder_gone(&e) {
+            return EngineError::FolderMissing(e.to_string());
+        }
         match e.kind() {
             std::io::ErrorKind::PermissionDenied => EngineError::Permission(e.to_string()),
             std::io::ErrorKind::Interrupted => EngineError::Cancelled,
@@ -87,6 +97,7 @@ impl EngineError {
             | EngineError::Vanished(_)
             | EngineError::NameRefused(_) => ErrorKind::Io,
             EngineError::Permission(_) => ErrorKind::Permission,
+            EngineError::FolderMissing(_) => ErrorKind::FolderMissing,
             EngineError::NotFound(_) => ErrorKind::NotFound,
             EngineError::Integrity(_) => ErrorKind::Integrity,
             EngineError::Locked(_) => ErrorKind::Locked,
@@ -127,7 +138,7 @@ impl EngineError {
     pub fn is_fatal(&self) -> bool {
         matches!(
             self.kind(),
-            ErrorKind::Auth | ErrorKind::Permission | ErrorKind::Quota
+            ErrorKind::Auth | ErrorKind::Permission | ErrorKind::Quota | ErrorKind::FolderMissing
         )
     }
 }

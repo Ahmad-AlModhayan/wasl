@@ -3,7 +3,7 @@
 //! then bookkeeping, then transfers in parallel, then deletions deepest first.
 
 use crate::apply::{Apply, BIN_RETENTION_MS, CHANGED_SINCE_PLANNED, CHANGED_SINCE_PLANNED_MESSAGE};
-use crate::error::{EngineError, NAME_REFUSED, Result};
+use crate::error::{EngineError, FILE_GONE, NAME_REFUSED, Result};
 use crate::remote::{Remote, RemoteInfo, UploadSpec};
 use crate::support::{CancelToken, Clock, HashCache, Phase, Tracker, new_id};
 use std::collections::{HashMap, HashSet};
@@ -196,7 +196,7 @@ impl Executor {
         if let Err(EngineError::Vanished(message)) = &result {
             // Moved or deleted on the device since the scan: the next sync sees what is there.
             self.lock(&self.stats).skipped += 1;
-            self.event(EventLevel::Warn, "SKIP", Some(a.key()), message, None, 0);
+            self.event(EventLevel::Warn, FILE_GONE, Some(a.key()), message, None, 0);
         } else if let Err(e) = &result
             && e.is_flagged_by_drive()
         {

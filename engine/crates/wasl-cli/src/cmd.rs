@@ -225,6 +225,14 @@ pub async fn run(cmd: Cmd) -> R<u8> {
     }
 }
 
+/// Prints `value` as `--json`, with every catalogue sentence's Details left out unless `--details`
+/// asked for them.
+fn print_json_safe<T: serde::Serialize>(value: &T) -> R<u8> {
+    let mut v = serde_json::to_value(value).map_err(|e| Fail::new(GENERAL, e.to_string()))?;
+    words::hide_details(&mut v);
+    print_json(&v)
+}
+
 pub(crate) fn print_json<T: serde::Serialize>(value: &T) -> R<u8> {
     let s = serde_json::to_string_pretty(value).map_err(|e| Fail::new(GENERAL, e.to_string()))?;
     println!("{s}");
@@ -446,9 +454,19 @@ async fn status(json: bool) -> R<u8> {
     let c = connect().await?;
     // The daemon words each folder's status in the language this command speaks, so `--json` and the
     // table below carry the same sentences.
-    let st: DaemonStatus = c.status_in(words::lang()).await?;
+    let mut st: DaemonStatus = c.status_in(words::lang()).await?;
     if json {
-        return print_json(&st);
+        // The daemon's value, its raw causes redacted, an account's sign-in problem worded beside
+        // the daemon's own fields, and every sentence's Details behind `--details`.
+        for p in &mut st.pairs {
+            if let Some(e) = &mut p.pair.status.last_error {
+                *e = words::plain(e);
+            }
+        }
+        let mut v = serde_json::to_value(&st).map_err(|e| Fail::new(GENERAL, e.to_string()))?;
+        v["accounts"] = st.accounts.iter().map(words::account_json).collect();
+        words::hide_details(&mut v);
+        return print_json(&v);
     }
     let (overall, tone) = match &st.overall_status {
         Some(o) => (o.words.text.clone(), overall_tone(o.state)),
@@ -1052,23 +1070,32 @@ async fn account_list(json: bool) -> R<u8> {
     let c = connect().await?;
     let accounts = c.accounts().await?;
     if json {
-        return print_json(&accounts);
+        return print_json_safe(&accounts.iter().map(words::account_json).collect::<Vec<_>>());
     }
     if accounts.is_empty() {
         println!("{}", t!(NoAccounts));
         return Ok(OK);
     }
     let mut rows = vec![vec![t!(ColAccount), t!(ColState)]];
+    let mut details = Vec::new();
     for a in &accounts {
         rows.push(vec![
             a.email.clone(),
-            match &a.auth_error {
-                Some(e) => out::styled(&t!(SignInAgain, e), Tone::Bad),
+            match words::account_problem(a) {
+                Some(w) => {
+                    details.extend(w.details.clone().map(|d| (a.email.clone(), d)));
+                    out::styled(&w.text, Tone::Bad)
+                }
                 None => out::styled(&t!(SignedIn), Tone::Good),
             },
         ]);
     }
     print!("{}", out::table(&rows));
+    if words::details_wanted() {
+        for (email, d) in details {
+            eprintln!("{email}: {}", t!(DetailsLine, d));
+        }
+    }
     Ok(OK)
 }
 
@@ -1950,14 +1977,45 @@ async fn history(pair: Option<String>, limit: u32, json: bool) -> R<u8> {
         None => None,
     };
     let runs = c.runs(only.as_deref(), limit).await?;
+    let names: HashMap<&str, &str> = pairs.iter().map(|p| (p.id.as_str(), p.name.as_str())).collect();
+    // The runs the engine has worded itself (its folder statuses keep the latest ones, with their
+    // typed cause); the rest are worded here from what the history holds.
+    let engine_words: HashMap<String, wasl_proto::Rendered> = match c.status_in(words::lang()).await {
+        Ok(st) => st
+            .pairs
+            .into_iter()
+            .filter_map(|p| p.status)
+            .flat_map(|s| s.last_runs)
+            .filter_map(|r| r.words.map(|w| (r.run_id, w)))
+            .collect(),
+        Err(_) => HashMap::new(),
+    };
+    let worded: Vec<(wasl_proto::RunRecord, Option<wasl_proto::Rendered>)> = runs
+        .into_iter()
+        .map(|r| {
+            let name = names.get(r.pair_id.as_str()).copied().unwrap_or(&r.pair_id);
+            let w = run_words(&r, name, engine_words.get(&r.id));
+            (r, w)
+        })
+        .collect();
     if json {
-        return print_json(&runs);
+        return print_json_safe(
+            &worded
+                .into_iter()
+                .map(|(r, words)| HistoryRun {
+                    words,
+                    run: wasl_proto::RunRecord {
+                        message: r.message.as_deref().map(words::plain),
+                        ..r
+                    },
+                })
+                .collect::<Vec<_>>(),
+        );
     }
-    if runs.is_empty() {
+    if worded.is_empty() {
         println!("{}", t!(NoHistory));
         return Ok(OK);
     }
-    let names: HashMap<&str, &str> = pairs.iter().map(|p| (p.id.as_str(), p.name.as_str())).collect();
     let mut rows = vec![vec![
         t!(ColStarted),
         t!(ColPair),
@@ -1965,7 +2023,8 @@ async fn history(pair: Option<String>, limit: u32, json: bool) -> R<u8> {
         t!(ColChanges),
         t!(ColMessage),
     ]];
-    for r in &runs {
+    let mut details = Vec::new();
+    for (r, w) in &worded {
         let (status, tone) = run_status_label(r.status);
         rows.push(vec![
             out::when(r.started_at),
@@ -1980,11 +2039,56 @@ async fn history(pair: Option<String>, limit: u32, json: bool) -> R<u8> {
                 r.stats.downloaded + r.stats.exported,
                 r.stats.deleted_local + r.stats.deleted_remote,
             ),
-            r.message.clone().unwrap_or_default(),
+            w.as_ref().map(|w| w.text.clone()).unwrap_or_default(),
         ]);
+        if let Some(d) = w.as_ref().and_then(|w| w.details.clone()) {
+            details.push((out::when(r.started_at), d));
+        }
     }
     print!("{}", out::table(&rows));
+    if words::details_wanted() {
+        for (when, d) in details {
+            eprintln!("{when}: {}", t!(DetailsLine, d));
+        }
+    }
     Ok(OK)
+}
+
+/// A run as `--json` prints it: the history's fields (the raw message redacted), and beside them
+/// the catalogue's key, words, values and fix for how it ended.
+#[derive(serde::Serialize)]
+struct HistoryRun {
+    #[serde(flatten)]
+    run: wasl_proto::RunRecord,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    words: Option<wasl_proto::Rendered>,
+}
+
+/// How a run ended, in the catalogue's words: a failed or partial one says why (the engine's own
+/// words when its folder status kept them, else the cause the history holds), a stopped one says it
+/// waits for the person. The rest need no sentence; their result column says it.
+fn run_words(
+    r: &wasl_proto::RunRecord,
+    folder: &str,
+    engine: Option<&wasl_proto::Rendered>,
+) -> Option<wasl_proto::Rendered> {
+    let raw = r.message.as_deref().unwrap_or_default();
+    match r.status {
+        RunStatus::Failed => Some(match engine {
+            Some(w) => w.clone(),
+            None => {
+                let key = wasl_proto::words::classify(wasl_proto::ErrorKind::Other, raw);
+                words::say_quiet(key, &Values::default().folder(folder), Some(raw))
+            }
+        }),
+        RunStatus::Partial => Some(words::run_cause(true, None, raw, folder)),
+        RunStatus::Blocked => Some(words::say_quiet(
+            "folder.needs_approval",
+            &Values::default().folder(folder),
+            None,
+        )),
+        _ => None,
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -1992,12 +2096,16 @@ struct PairProblem {
     pair_id: String,
     name: String,
     problem: &'static str,
+    /// The daemon's raw cause, redacted.
     message: Option<String>,
+    /// The catalogue's key, words, values and fix for it (Details only with `--details`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    words: Option<wasl_proto::Rendered>,
 }
 
 #[derive(serde::Serialize)]
 struct Problems {
-    accounts: Vec<Account>,
+    accounts: Vec<serde_json::Value>,
     pairs: Vec<PairProblem>,
     conflicts: Vec<wasl_proto::ConflictRecord>,
     /// Agent changesets waiting for a decision (docs/AGENT_CHANGES.md).
@@ -2032,11 +2140,26 @@ async fn problems(json: bool) -> R<u8> {
             } else {
                 continue;
             };
+        let words = (problem == "failed").then(|| {
+            let raw = p.status.last_error.clone().unwrap_or_default();
+            // A sign-in that can't be read says so, as the account's own line does.
+            let cause = p
+                .account_id
+                .as_ref()
+                .and_then(|id| st.accounts.iter().find(|a| &a.id == id))
+                .and_then(|a| a.sign_in)
+                .filter(|_| p.status.last_error_kind == Some(wasl_proto::ErrorKind::Auth));
+            match cause {
+                Some(c) => words::say(c.folder_key(), &Values::default().folder(&p.name), Some(&raw)),
+                None => words::run_cause(false, p.status.last_error_kind, &raw, &p.name),
+            }
+        });
         pairs.push(PairProblem {
             pair_id: p.id.clone(),
             name: p.name.clone(),
             problem,
-            message: p.status.last_error.clone(),
+            message: p.status.last_error.as_deref().map(words::plain),
+            words,
         });
     }
     let agent_changes: Vec<wasl_proto::Changeset> = c
@@ -2045,14 +2168,18 @@ async fn problems(json: bool) -> R<u8> {
         .into_iter()
         .filter(|cs| cs.status == wasl_proto::ChangesetStatus::Held)
         .collect();
+    let account_words: Vec<(String, Option<wasl_proto::Rendered>)> = accounts
+        .iter()
+        .map(|a| (a.email.clone(), words::account_problem(a)))
+        .collect();
     let found = Problems {
-        accounts,
+        accounts: accounts.iter().map(words::account_json).collect(),
         pairs,
         conflicts,
         agent_changes,
     };
     if json {
-        return print_json(&found);
+        return print_json_safe(&found);
     }
     if found.accounts.is_empty()
         && found.pairs.is_empty()
@@ -2062,15 +2189,27 @@ async fn problems(json: bool) -> R<u8> {
         println!("{}", paint(&t!(NoProblems), Tone::Good));
         return Ok(OK);
     }
-    for a in &found.accounts {
-        println!("{}", t!(AccountNeedsSignIn, a.email));
+    for (email, w) in &account_words {
+        println!("{}", t!(AccountNeedsSignIn, email));
+        if let Some(w) = w {
+            println!("  {}", w.text);
+        }
     }
     for p in &found.pairs {
-        let msg = p.message.clone().unwrap_or_default();
         if p.problem == "blocked" {
             println!("{}", t!(ProblemBlocked, p.name));
         } else {
+            let msg = p.words.as_ref().map(|w| w.text.clone()).unwrap_or_default();
             println!("{}", t!(ProblemFailed, p.name, msg).trim_end_matches([' ', ':']));
+        }
+    }
+    if words::details_wanted() {
+        let shown = account_words
+            .iter()
+            .filter_map(|(_, w)| w.as_ref())
+            .chain(found.pairs.iter().filter_map(|p| p.words.as_ref()));
+        for d in shown.filter_map(|w| w.details.clone()) {
+            eprintln!("{}", t!(DetailsLine, d));
         }
     }
     if !found.agent_changes.is_empty() {

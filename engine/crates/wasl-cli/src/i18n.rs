@@ -311,7 +311,6 @@ messages! {
     IgnoreSource => "From: {0}", "المصدر: {0}";
 
     SignedIn => "Signed in", "مسجّل الدخول";
-    SignInAgain => "Sign in again ({0})", "سجّل الدخول مجددًا ({0})";
     SignInBrowser => "Opening Google sign-in in your browser...", "جارٍ فتح تسجيل الدخول إلى Google في المتصفح...";
     SignInUrl => "If the browser didn't open, visit: {0}", "إن لم يُفتح المتصفح، افتح: {0}";
     AccountAdded => "Added account {0}.", "أُضيف الحساب {0}.";

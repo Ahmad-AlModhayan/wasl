@@ -189,10 +189,30 @@ pub(crate) fn unreadable(rel: &str, e: std::io::Error) -> std::io::Error {
 pub(crate) fn root_gone(fs: &dyn LocalFs) -> Option<std::io::Error> {
     fs.list("").err().map(|e| {
         std::io::Error::new(
-            std::io::ErrorKind::PermissionDenied,
-            format!("The pair's folder on this device isn't there any more ({e}). If it is on a memory card, put the card back; otherwise choose the folder again in the pair's settings"),
+            std::io::ErrorKind::NotFound,
+            FolderGone(format!(
+                "The pair's folder on this device isn't there any more ({e}). If it is on a memory card, put the card back; otherwise choose the folder again in the pair's settings"
+            )),
         )
     })
+}
+
+/// What [`root_gone`] puts inside its `io::Error`: the typed mark that turns it into
+/// [`crate::EngineError::FolderMissing`] wherever it travels as a plain I/O error.
+#[derive(Debug)]
+pub(crate) struct FolderGone(String);
+
+impl std::fmt::Display for FolderGone {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for FolderGone {}
+
+/// Whether `e` is [`root_gone`]'s: the pair's own folder is missing, said by the type, never by the words.
+pub(crate) fn is_folder_gone(e: &std::io::Error) -> bool {
+    e.get_ref().is_some_and(|inner| inner.is::<FolderGone>())
 }
 
 /// Files hashed at once: opening a file on a phone's shared storage costs milliseconds that

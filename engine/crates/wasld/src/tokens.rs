@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use wasl_drive::{DriveError, TokenProvider};
+use wasl_proto::SignInCause;
 use wasl_store::SharedStore;
 
 /// Where refresh tokens are kept. The keychain in the app, a map in tests.
@@ -249,8 +250,13 @@ impl TokenProvider for DesktopTokens {
             return Ok(c.token.clone());
         }
         let Some(refresh) = self.secrets.get(account) else {
+            // Nothing saved on this device to refresh from (the keychain entry is gone, or the
+            // keychain won't give it up): typed, so the words say so and not "Google refused".
             let msg = "Sign in to this Google account again.".to_owned();
-            let _ = self.store.lock().set_account_auth_error(account, Some(&msg));
+            let _ = self
+                .store
+                .lock()
+                .set_account_sign_in_problem(account, SignInCause::Unreadable, &msg);
             return Err(DriveError::Auth {
                 message: msg,
                 user_action_required: true,
@@ -282,10 +288,10 @@ impl TokenProvider for DesktopTokens {
                 if !lasting {
                     return Err(DriveError::SignInUnavailable);
                 }
-                let _ = self
-                    .store
-                    .lock()
-                    .set_account_auth_error(account, Some(KEEPS_FAILING));
+                let _ =
+                    self.store
+                        .lock()
+                        .set_account_sign_in_problem(account, SignInCause::Ended, KEEPS_FAILING);
                 Err(DriveError::Auth {
                     message: KEEPS_FAILING.into(),
                     user_action_required: true,
@@ -293,7 +299,10 @@ impl TokenProvider for DesktopTokens {
             }
             Err(e) => {
                 let msg = e.to_string();
-                let _ = self.store.lock().set_account_auth_error(account, Some(&msg));
+                let _ = self
+                    .store
+                    .lock()
+                    .set_account_sign_in_problem(account, SignInCause::Ended, &msg);
                 Err(DriveError::Auth {
                     message: msg,
                     user_action_required: true,
@@ -426,6 +435,28 @@ mod tests {
         let e = t.access_token(ME).await.unwrap_err();
         assert!(!e.is_transient(), "{e:?}");
         assert!(t.store.lock().account_auth_error(ME).unwrap().is_some());
+        // Google refusing the sign-in is typed as that (issue #33).
+        assert_eq!(
+            Some(SignInCause::Ended),
+            t.store.lock().account_sign_in_cause(ME).unwrap()
+        );
+    }
+
+    /// Issue #33: a refresh token the keychain no longer gives up is not "Google refused": the words
+    /// say the saved sign-in can't be read on this device, from a typed cause.
+    #[tokio::test]
+    async fn a_sign_in_the_keychain_no_longer_holds_is_typed_unreadable() {
+        let (t, _secrets) = tokens("http://127.0.0.1:9/token".into());
+        t.store
+            .lock()
+            .upsert_drive_account(&wasl_drive::AccountState::new(ME))
+            .unwrap();
+        let e = t.access_token(ME).await.unwrap_err();
+        assert!(!e.is_transient(), "{e:?}");
+        assert_eq!(
+            Some(SignInCause::Unreadable),
+            t.store.lock().account_sign_in_cause(ME).unwrap()
+        );
     }
 
     /// #52: when Google keeps failing (about three syncs in a row), the account asks to be signed in
@@ -460,6 +491,10 @@ mod tests {
         assert_eq!(
             Some(KEEPS_FAILING.to_owned()),
             t.store.lock().account_auth_error(ME).unwrap()
+        );
+        assert_eq!(
+            Some(SignInCause::Ended),
+            t.store.lock().account_sign_in_cause(ME).unwrap()
         );
         // The user reads plain words, never Google's raw code.
         assert!(

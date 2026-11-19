@@ -1581,6 +1581,41 @@ async fn a_signed_out_account_needs_you_to_sign_in_again() {
     );
 }
 
+/// Issue #33: a sign-in the keychain can't give up again says so, in the folder's words and in the
+/// account list, from the typed cause; the other cause still reads as Google ending the sign-in.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_sign_in_that_cannot_be_read_says_so_for_the_folder_and_the_account() {
+    let g = google().await;
+    let d = start_seeded(
+        &g,
+        false,
+        None,
+        None,
+        Some(&|store| {
+            store.set_account_email(ME, ME).unwrap();
+            store
+                .set_account_sign_in_problem(
+                    ME,
+                    wasl_proto::SignInCause::Unreadable,
+                    "Sign in to this Google account again.",
+                )
+                .unwrap();
+            let mut p = pair(std::path::Path::new("/seeded"));
+            p.status.hold_for_preview = false;
+            store.create_pair(&p).unwrap();
+        }),
+    )
+    .await;
+    let c = Client::connect(&d.paths).await.unwrap();
+    let s = folder(&c, "p1").await;
+    assert_eq!(FolderState::NeedsYou, s.state, "{s:?}");
+    assert_eq!(vec!["error.sign_in_unreadable"], keys(&s));
+    assert_eq!(Some(wasl_proto::Fix::SignInAgain), s.needs_you[0].fix);
+    let accounts = c.accounts().await.unwrap();
+    assert_eq!(Some(wasl_proto::SignInCause::Unreadable), accounts[0].sign_in);
+    assert!(accounts[0].auth_error.is_some());
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_paused_folder_is_waiting_because_paused() {
     let g = google().await;
