@@ -935,6 +935,8 @@ impl Devices {
             .lock()
             .set_device_known(&DeviceId::from_public_key(peer_pk).to_string(), true)
             .map_err(|e| e.to_string())?;
+        // A new group makes an earlier "you were removed" note moot.
+        let _ = self.store.lock().set_setting(REMOVED_SETTING, "");
         if self.note_members() {
             self.changed();
         }

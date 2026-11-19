@@ -1364,6 +1364,10 @@ fn pairing_failure(s: &wasl_ipc::PairingStatus) -> Fail {
 
 async fn device_pair(code: Option<&str>, addresses: &[String], yes: bool, json: bool) -> R<u8> {
     use wasl_ipc::PairingStage;
+    // A JSON stream has no room for a question: the agent says yes up front.
+    if json && !yes {
+        return Err(Fail::new(USAGE, t!(NeedsYes)));
+    }
     let c = connect().await?;
     match code {
         None => {

@@ -123,7 +123,14 @@ impl Lan {
 
     fn announce_as(&self, service_type: &str, token: Token, port: u16) -> Result<(), DiscoverError> {
         let name = token.to_hex();
-        let info = ServiceInfo::new(service_type, &name, &format!("{name}.local."), (), port, None)
+        // Each service gets its own host name: withdrawing one must not pull the address
+        // records the other relies on.
+        let host = if service_type == PAIRING_SERVICE_TYPE {
+            format!("{name}-pair.local.")
+        } else {
+            format!("{name}.local.")
+        };
+        let info = ServiceInfo::new(service_type, &name, &host, (), port, None)
             .map_err(mdns_error)?
             .enable_addr_auto();
         self.daemon.register(info).map_err(mdns_error)
@@ -413,7 +420,6 @@ mod tests {
             None,
             instance_token(&format!("{}.{SERVICE_TYPE}", t.to_hex()), PAIRING_SERVICE_TYPE)
         );
-        {}
     }
     use proptest::prelude::*;
 

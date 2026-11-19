@@ -194,8 +194,9 @@ async fn a_wrong_short_code_fails_in_plain_words_on_both_devices() {
     cb.join_device_at("hello", &[]).await.unwrap();
     let junk = failed(&cb, &b).await;
     assert_eq!(Some("pair.bad_code"), junk.failure.as_deref());
-    // Two devices that never met share nothing.
+    // Two devices that never met share nothing, on either side.
     assert_eq!(1, ca.devices().await.unwrap().devices.len());
+    assert_eq!(1, cb.devices().await.unwrap().devices.len());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -246,4 +247,19 @@ async fn a_removed_device_that_never_heard_of_it_pairs_again_as_a_new_one() {
         .collect();
     assert!(ids.contains(&new_b), "A lists the new B: {ids:?}");
     assert!(!ids.contains(&old_b), "A does not list the old B: {ids:?}");
+
+    // The new B is a full member: a shared folder syncs both ways.
+    let cb = b.client().await;
+    let (la, lb) = (
+        ca.devices().await.unwrap().listen.unwrap(),
+        cb.devices().await.unwrap().listen.unwrap(),
+    );
+    ca.connect_device(&lb).await.unwrap();
+    cb.connect_device(&la).await.unwrap();
+    share_folder(&a, &b).await;
+    let both = [&a, &b];
+    std::fs::write(a.path("again-from-a.txt"), "welcome back").unwrap();
+    expect_file(&b, &both, "again-from-a.txt", Some("welcome back")).await;
+    std::fs::write(b.path("again-from-b.txt"), "thanks").unwrap();
+    expect_file(&a, &both, "again-from-b.txt", Some("thanks")).await;
 }

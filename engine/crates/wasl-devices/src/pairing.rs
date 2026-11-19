@@ -13,6 +13,7 @@
 
 use std::collections::{HashSet, VecDeque};
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -30,6 +31,8 @@ use crate::devices::{Devices, clean_name};
 const POLL: Duration = Duration::from_millis(300);
 /// How long a joiner holding a typed code looks for a device with a pairing open.
 const FIND_WAIT: Duration = Duration::from_secs(20);
+/// How long one device found for a typed code gets to show the words.
+const CANDIDATE_WAIT: Duration = Duration::from_secs(15);
 
 /// The catalogue words of a pairing failure, in English: what `PairingStatus::message` carries.
 fn words_en(key: &str) -> String {
@@ -77,6 +80,9 @@ pub struct Pairing {
     /// Messages produced here (the local confirmation) waiting for the next round.
     outbox: Arc<Mutex<Vec<wasl_net::pairing::Message>>>,
     on_change: Arc<dyn Fn() + Send + Sync>,
+    /// Counts pairings started and cancelled, so a join task that was cancelled never touches the
+    /// pairing that came after it.
+    epoch: AtomicU64,
 }
 
 impl Pairing {
@@ -88,11 +94,17 @@ impl Pairing {
             session: Arc::new(Mutex::new(None)),
             outbox: Arc::new(Mutex::new(Vec::new())),
             on_change,
+            epoch: AtomicU64::new(0),
         }
     }
 
     pub fn status(&self) -> PairingStatus {
         self.status.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    /// Whether the join started as `epoch` is still the pairing in charge.
+    fn current(&self, epoch: u64) -> bool {
+        self.epoch.load(Ordering::SeqCst) == epoch
     }
 
     fn busy(&self) -> bool {
@@ -104,6 +116,7 @@ impl Pairing {
         if self.busy() {
             return Err("A pairing is already open. Finish or cancel it first.".into());
         }
+        self.epoch.fetch_add(1, Ordering::SeqCst);
         let bound = self.devices.local_addr().map_err(|e| e.to_string())?;
         // Listening everywhere: every LAN address; listening on one address: that one.
         let addrs = if bound.ip().is_unspecified() {
@@ -209,8 +222,10 @@ impl Pairing {
         if let Plan::Qr(c) = &plan
             && c.device_id == self.devices.id()
         {
-            return Err("That code was made on this computer.".into());
+            self.fail("pair.own_code");
+            return Ok(());
         }
+        let epoch = self.epoch.fetch_add(1, Ordering::SeqCst) + 1;
         let peer_id = match &plan {
             Plan::Qr(c) => Some(c.device_id.to_string()),
             Plan::Short(..) => None,
@@ -225,9 +240,10 @@ impl Pairing {
         });
         let me = self.clone();
         tokio::spawn(async move {
-            match me.run_join(plan).await {
+            match me.run_join(plan, epoch).await {
                 Ok(()) | Err(Stop::Cancelled) => {}
-                Err(Stop::Failed(key)) => me.fail(key),
+                Err(Stop::Failed(key)) if me.current(epoch) => me.fail(key),
+                Err(Stop::Failed(_)) => {}
             }
         });
         Ok(())
@@ -244,7 +260,7 @@ impl Pairing {
         Ok(())
     }
 
-    async fn run_join(&self, plan: Plan) -> Result<(), Stop> {
+    async fn run_join(&self, plan: Plan, epoch: u64) -> Result<(), Stop> {
         match plan {
             Plan::Qr(code) => {
                 self.start_session(&JoinCode::Qr(code.clone()))?;
@@ -253,11 +269,13 @@ impl Pairing {
                 let trust: Trust = Arc::new(move |pk| DeviceId::from_public_key(pk) == inviter);
                 let endpoint = Endpoint::bind(SocketAddr::from(([0, 0, 0, 0], 0)), self.devices.key(), trust)
                     .map_err(|_| Stop::Failed("pair.other"))?;
-                let result = self.try_inviter(&endpoint, &code.addrs, Some(inviter)).await;
+                let result = self
+                    .try_inviter(&endpoint, &code.addrs, Some(inviter), epoch, None)
+                    .await;
                 endpoint.close();
                 result.map_err(|e| e.unwrap_or(Stop::Failed("pair.not_found")))
             }
-            Plan::Short(code, hints) => self.run_short(code, hints).await,
+            Plan::Short(code, hints) => self.run_short(code, hints, epoch).await,
         }
     }
 
@@ -265,7 +283,7 @@ impl Pairing {
     /// pairing, each with a fresh session. A device that answers wrongly costs only its own
     /// invitation, and nothing the joiner sends before the inviter proves itself depends on the
     /// code.
-    async fn run_short(&self, code: ShortCode, hints: Vec<SocketAddr>) -> Result<(), Stop> {
+    async fn run_short(&self, code: ShortCode, hints: Vec<SocketAddr>, epoch: u64) -> Result<(), Stop> {
         let endpoint = Endpoint::bind(
             SocketAddr::from(([0, 0, 0, 0], 0)),
             self.devices.key(),
@@ -278,7 +296,7 @@ impl Pairing {
         let mut seen: HashSet<SocketAddr> = HashSet::new();
         let mut answered: Option<&'static str> = None;
         let result = loop {
-            if !self.busy() {
+            if !self.busy() || !self.current(epoch) {
                 break Err(Stop::Cancelled);
             }
             let Some(addrs) = queue.pop_front() else {
@@ -300,7 +318,10 @@ impl Pairing {
             if let Err(stop) = self.start_session(&JoinCode::Short(code.clone())) {
                 break Err(stop);
             }
-            match self.try_inviter(&endpoint, &addrs, None).await {
+            match self
+                .try_inviter(&endpoint, &addrs, None, epoch, Some(CANDIDATE_WAIT))
+                .await
+            {
                 Ok(()) => break Ok(()),
                 // Nobody answered there: look on.
                 Err(None) => {}
@@ -329,6 +350,8 @@ impl Pairing {
         endpoint: &Endpoint,
         addrs: &[SocketAddr],
         pinned: Option<DeviceId>,
+        epoch: u64,
+        budget: Option<Duration>,
     ) -> Result<(), Option<Stop>> {
         let mut link = None;
         for addr in addrs {
@@ -338,15 +361,32 @@ impl Pairing {
             }
         }
         let Some(link) = link else { return Err(None) };
-        let result = self.rounds(&link).await;
+        let result = self.rounds(&link, epoch, budget).await;
         link.close();
         result.map_err(Some)
     }
 
-    async fn rounds(&self, link: &wasl_net::QuicLink) -> Result<(), Stop> {
+    /// `budget`: how long a device may keep this join waiting before it has shown the words. A
+    /// device that answers and never proves itself must not hold up the one that would.
+    async fn rounds(
+        &self,
+        link: &wasl_net::QuicLink,
+        epoch: u64,
+        budget: Option<Duration>,
+    ) -> Result<(), Stop> {
         let inviter = link.peer();
         let deadline = now() + wasl_net::pairing::CODE_TTL_SECS;
+        let started = tokio::time::Instant::now();
         loop {
+            if !self.current(epoch) {
+                return Err(Stop::Cancelled);
+            }
+            if let Some(b) = budget
+                && started.elapsed() > b
+                && self.status().stage != PairingStage::Confirm
+            {
+                return Err(Stop::Failed("pair.timed_out"));
+            }
             let msgs = std::mem::take(&mut *self.outbox.lock().unwrap_or_else(|p| p.into_inner()));
             let reply = match link
                 .pair(PairRound {
@@ -458,6 +498,7 @@ impl Pairing {
 
     /// Closes any open invitation or join.
     pub fn cancel(&self) {
+        self.epoch.fetch_add(1, Ordering::SeqCst);
         if let Some(s) = self.session.lock().unwrap_or_else(|p| p.into_inner()).as_mut() {
             let abort = s.reject();
             self.outbox
@@ -517,7 +558,10 @@ fn remote_key(e: &PeerError) -> &'static str {
         "pair.device_removed"
     } else if text.contains("expired") {
         "pair.code_expired"
-    } else if text.contains("already used") {
+    } else if text.contains("already used")
+        || text.contains("not shared")
+        || text.contains("belongs to another")
+    {
         "pair.code_used"
     } else {
         "pair.other"
@@ -548,6 +592,7 @@ fn abort_key(reason: wasl_net::pairing::AbortReason) -> &'static str {
         Expired => "pair.code_expired",
         ProofFailed | WrongDevice => "pair.wrong_code",
         Rejected | PeerAborted => "pair.cancelled",
+        Timeout => "pair.timed_out",
         _ => "pair.other",
     }
 }
@@ -716,6 +761,8 @@ mod tests {
             "pair.not_found",
             "pair.device_removed",
             "pair.cancelled",
+            "pair.timed_out",
+            "pair.own_code",
             "pair.other",
         ] {
             let e = entry(key).unwrap_or_else(|| panic!("{key} is not in the catalogue"));
@@ -733,10 +780,16 @@ mod tests {
             "pair.device_removed",
             remote(&format!("this {REMOVED} from the group"))
         );
+        // A pairing that is closed, or taken by another device, is a used code.
+        assert_eq!(
+            "pair.code_used",
+            remote("this pair is not shared with that device")
+        );
+        assert_eq!("pair.code_used", remote("this pairing belongs to another device"));
         assert_eq!("pair.other", remote("disk on fire"));
         assert_eq!("pair.wrong_code", abort_key(AbortReason::ProofFailed));
         assert_eq!("pair.code_expired", abort_key(AbortReason::Expired));
         assert_eq!("pair.cancelled", abort_key(AbortReason::PeerAborted));
-        assert_eq!("pair.other", abort_key(AbortReason::Timeout));
+        assert_eq!("pair.timed_out", abort_key(AbortReason::Timeout));
     }
 }

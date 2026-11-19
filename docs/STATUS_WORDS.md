@@ -276,7 +276,7 @@ falling back to English.
 - Values: none
 - Fix: none
 - English: This device was removed from your group. Restart Wasl on it, then pair it again as a new device.
-- Arabic: أُزيل هذا الجهاز من مجموعتك. أعد تشغيل وصل عليه، ثم اقترنه من جديد كجهاز جديد.
+- Arabic: أُزيل هذا الجهاز من مجموعتك. أعد تشغيل وصل عليه، ثم أضِفه من جديد كجهاز جديد.
 
 ## `pair.cancelled`
 
@@ -285,6 +285,22 @@ falling back to English.
 - Fix: none
 - English: Pairing was stopped on one of the devices. A mistyped code stops it too. Make a new code to try again.
 - Arabic: أُوقف الاقتران على أحد الجهازين. وإدخال رمز خاطئ يوقفه أيضًا. أنشئ رمزًا جديدًا للمحاولة مجددًا.
+
+## `pair.timed_out`
+
+- Note: A device answered a typed code but never got as far as showing the words, or the pairing ran out of time.
+- Values: none
+- Fix: none
+- English: No device answered in time. Check that both are on the same network and the code is still showing, then try again.
+- Arabic: لم يردّ أي جهاز في الوقت المناسب. تأكد أن الجهازين على الشبكة نفسها وأن الرمز ما زال ظاهرًا، ثم حاول مرة أخرى.
+
+## `pair.own_code`
+
+- Note: The person scanned or typed a QR code that this very device made.
+- Values: none
+- Fix: none
+- English: That code was made on this device. Type the code shown on the other device.
+- Arabic: هذا الرمز أُنشئ على هذا الجهاز. اكتب الرمز الظاهر على الجهاز الآخر.
 
 ## `pair.other`
 
