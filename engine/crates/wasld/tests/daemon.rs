@@ -1628,6 +1628,14 @@ async fn a_signed_out_account_needs_you_to_sign_in_again() {
                 .unwrap();
             let mut p = pair(std::path::Path::new("/seeded"));
             p.status.hold_for_preview = false;
+            // Just run, so the folder isn't due at the first tick (#65). A run asks the token
+            // source for the token, finds the keychain empty and files the cause as unreadable,
+            // which is right for a real sync and not what this test seeds: a loaded machine read
+            // the status after that run, not before it.
+            p.status.last_run_at = Some({
+                use wasl_engine::Clock as _;
+                wasl_engine::SystemClock.now_ms()
+            });
             store.create_pair(&p).unwrap();
         }),
     )
@@ -1974,19 +1982,35 @@ async fn the_daemon_retries_a_passing_failure_on_the_policys_clock_and_it_never_
 async fn nothing_but_the_policy_starts_a_folder_that_is_waiting_to_retry() {
     let g = google().await;
     let seed = failed_just_now(wasl_proto::ErrorKind::Server, 2, true);
+    // When the pause ends: the seeded run's time and the policy's pause after two failures. The
+    // proof is the run's own start time against it, not how long the test waited (#65): a loaded
+    // machine can take longer than the pause to start the daemon, and then no pause is left to
+    // break, but the run still must not start before it ends.
+    let pause_ends = Arc::new(std::sync::atomic::AtomicI64::new(0));
+    let ends = pause_ends.clone();
+    let seeded = move |store: &wasl_store::Store, root: &std::path::Path| {
+        seed(store, root);
+        let ran_at = store
+            .get_pair("p1")
+            .unwrap()
+            .and_then(|p| p.status.last_run_at)
+            .expect("the seeded folder has run");
+        let pause = FAST_RETRY.delay_after_ms(2).expect("a pause after two failures");
+        ends.store(
+            ran_at + i64::try_from(pause).unwrap(),
+            std::sync::atomic::Ordering::SeqCst,
+        );
+    };
     let timing = Timing {
         retry: FAST_RETRY,
         ..test_timing()
     };
-    let d = start_timed(&g, true, None, None, Some(&seed), timing).await;
+    let d = start_timed(&g, true, None, None, Some(&seeded), timing).await;
     let c = Client::connect(&d.paths).await.unwrap();
     // A change in the folder would run it within a moment on any other day (it syncs on change).
     std::fs::write(d.root.join("new.txt"), "n").unwrap();
-    tokio::time::sleep(Duration::from_millis(1_000)).await;
-    assert_eq!(0, runs(&c).await, "a change doesn't cut the pause short");
-    assert!(g.uploads.lock().unwrap().is_empty());
-    // After the pause the policy starts the folder, on its own schedule trigger.
-    let started = tokio::time::timeout(Duration::from_secs(15), async {
+    // The folder's first run comes when the policy says; the long guard is for a hang only.
+    let started = tokio::time::timeout(Duration::from_secs(120), async {
         while runs(&c).await == 0 {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
@@ -1994,6 +2018,12 @@ async fn nothing_but_the_policy_starts_a_folder_that_is_waiting_to_retry() {
     .await;
     assert!(started.is_ok(), "the retry never started");
     let first = c.runs(Some("p1"), 50).await.unwrap().pop().unwrap();
+    let pause_ends = pause_ends.load(std::sync::atomic::Ordering::SeqCst);
+    assert!(
+        first.started_at >= pause_ends,
+        "a change cut the pause short: the run started {} ms before it ended",
+        pause_ends - first.started_at
+    );
     assert_eq!("schedule", first.trigger);
 }
 
