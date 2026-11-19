@@ -51,6 +51,12 @@ else
   git -C "$root" cat-file -e "$commit^{commit}" 2>/dev/null \
     || git -C "$root" fetch --quiet --depth 1 origin "$commit" \
     || fail "$commit is not in this clone and origin does not have it"
+  # A checkout left by an earlier run is reused only while git still knows it (a cache restore
+  # brings back the folder, not the worktree entry in .git).
+  if [ -e "$src" ] && ! git -C "$src" rev-parse --git-dir >/dev/null 2>&1; then
+    rm -rf "$src"
+    git -C "$root" worktree prune
+  fi
   if [ -e "$src/.git" ]; then
     git -C "$src" checkout --quiet --force --detach "$commit" || fail "cannot check out $commit in $src"
     git -C "$src" clean --quiet -fd -e target
@@ -73,5 +79,8 @@ else
   echo "$built" > "$stamp"
 fi
 
-echo "WASL_PREVIOUS_WASLD=$bin/wasld$exe"
-echo "WASL_PREVIOUS_WASL=$bin/wasl$exe"
+# Native Windows tools (cargo, the test) need C:/... paths, not Git Bash's /c/... ones.
+out="$bin"
+command -v cygpath >/dev/null 2>&1 && out="$(cygpath -m "$bin")"
+echo "WASL_PREVIOUS_WASLD=$out/wasld$exe"
+echo "WASL_PREVIOUS_WASL=$out/wasl$exe"

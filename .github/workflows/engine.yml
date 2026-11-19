@@ -74,7 +74,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: engine/target/previous-release/bin
-          key: previous-release-${{ runner.os }}-${{ hashFiles('engine/PREVIOUS_RELEASE', 'engine/PREVIOUS_RELEASE.patch', 'engine/rust-toolchain.toml') }}
+          key: previous-release-${{ runner.os }}-${{ hashFiles('engine/PREVIOUS_RELEASE', 'engine/PREVIOUS_RELEASE.patch', 'engine/scripts/build-previous-release.sh', 'engine/rust-toolchain.toml') }}
       - name: Mixed-version test
         if: runner.os == 'Linux'
         run: scripts/mixed-version-test.sh

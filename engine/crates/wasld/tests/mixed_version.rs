@@ -12,8 +12,9 @@
 //! fail and say so; they never skip.
 //!
 //! If the current protocol range is narrowed on purpose so that the previous release is out of it,
-//! pairing must be refused with the "needs update" reason (`QuicError::NeedsUpdate`), and these
-//! tests then expect that refusal instead of a pair.
+//! pairing is refused (the "needs update" reason, `QuicError::NeedsUpdate`) and these tests fail.
+//! That is the signal: change `engine/PREVIOUS_RELEASE`, or make the narrowing deliberate by
+//! changing the tests to expect the refusal.
 
 mod support;
 use std::path::PathBuf;
