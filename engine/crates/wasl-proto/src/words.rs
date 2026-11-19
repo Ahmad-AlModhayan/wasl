@@ -836,7 +836,9 @@ pub const ENTRIES: &[Entry] = &[
     e(
         "pair.invalid_id",
         Forms::single("A folder's ID must be one plain name, with no slashes or colons. Choose another ID."),
-        Forms::single("يجب أن يكون معرّف المجلد اسمًا واحدًا بسيطًا، دون شرطات مائلة أو نقطتين. اختر معرّفًا آخر."),
+        Forms::single(
+            "يجب أن يكون معرّف المجلد اسمًا واحدًا بسيطًا، دون شرطات مائلة أو نقطتين رأسيتين. اختر معرّفًا آخر.",
+        ),
         None,
         &[],
         "Refusing to save a folder whose ID isn't one plain name. People never type an ID; scripts and agents do.",
@@ -872,7 +874,7 @@ pub const ENTRIES: &[Entry] = &[
     e(
         "pair.around_view",
         Forms::single("{folder} is in or around {other}, a read-only view. Choose another folder."),
-        Forms::single("{folder} داخل {other}، وهو عرض للقراءة فقط، أو حوله. اختر مجلدًا آخر."),
+        Forms::single("{folder} داخل {other} أو حوله، وهو مجلد للقراءة فقط. اختر مجلدًا آخر."),
         None,
         &[Folder, Other],
         "Refusing a folder in or around a view's folder (views are read-only). `{folder}` is the folder the person chose; `{other}` is the view's name.",

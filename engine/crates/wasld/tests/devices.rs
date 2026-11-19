@@ -1253,8 +1253,8 @@ async fn a_folder_is_offered_declined_withdrawn_and_accepted() {
         name,
         lang: None,
     };
-    // The pair rules are wasl-pairs' here too (wasl#60): a folder on Wasl's own data, in a view's
-    // folder or on another pair's files is refused with the same typed words as a new pair, in
+    // The pair rules are wasl-pairs' here too (wasl#60): a folder on Wasl's own data or on
+    // another pair's files is refused with the same typed words as a new pair, in
     // the caller's language, and nothing is saved.
     let before = b.daemon.store.lock().list_pairs().unwrap().len();
     for (key, root) in [

@@ -536,7 +536,7 @@ falling back to English.
 - Values: none
 - Fix: none
 - English: A folder's ID must be one plain name, with no slashes or colons. Choose another ID.
-- Arabic: يجب أن يكون معرّف المجلد اسمًا واحدًا بسيطًا، دون شرطات مائلة أو نقطتين. اختر معرّفًا آخر.
+- Arabic: يجب أن يكون معرّف المجلد اسمًا واحدًا بسيطًا، دون شرطات مائلة أو نقطتين رأسيتين. اختر معرّفًا آخر.
 
 ## `pair.no_folder`
 
@@ -568,7 +568,7 @@ falling back to English.
 - Values: folder, other
 - Fix: none
 - English: {folder} is in or around {other}, a read-only view. Choose another folder.
-- Arabic: {folder} داخل {other}، وهو عرض للقراءة فقط، أو حوله. اختر مجلدًا آخر.
+- Arabic: {folder} داخل {other} أو حوله، وهو مجلد للقراءة فقط. اختر مجلدًا آخر.
 
 ## `pair.overlaps`
 
