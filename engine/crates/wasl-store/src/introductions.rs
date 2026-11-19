@@ -268,6 +268,25 @@ impl Store {
         )? > 0)
     }
 
+    /// Notes that a connection to `device` was open at `at` (Unix ms). Never moves a time back.
+    pub fn note_device_seen(&self, device: &str, at: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO device_seen (device_id, last_seen_at) VALUES (?1, ?2)
+             ON CONFLICT (device_id) DO UPDATE SET last_seen_at = MAX(last_seen_at, excluded.last_seen_at)",
+            params![device, at],
+        )?;
+        Ok(())
+    }
+
+    /// When each device was last connected: (device, Unix ms).
+    pub fn devices_seen(&self) -> Result<Vec<(String, i64)>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT device_id, last_seen_at FROM device_seen ORDER BY device_id")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// Every offer received, oldest first.
     pub fn received_offers(&self) -> Result<Vec<ReceivedOffer>> {
         let mut stmt = self.conn.prepare_cached(

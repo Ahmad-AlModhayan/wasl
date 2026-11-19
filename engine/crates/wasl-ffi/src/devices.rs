@@ -126,8 +126,15 @@ impl WaslDevices {
         // The phone's Drive call and device call take one lock per pair (wasl#20).
         devices.set_pair_locks(engine.engine.pair_locks());
         // Arrivals and offers change on their own (docs/INTRODUCTIONS.md).
-        let ev = events.clone();
-        devices.on_change(Arc::new(move || ev.changed()));
+        // A device coming or going moves the statuses of the folders shared with it (issue #32).
+        engine.set_devices(Some(devices.clone()));
+        let (ev, status) = (events.clone(), Arc::downgrade(&engine));
+        devices.on_change(Arc::new(move || {
+            ev.changed();
+            if let Some(engine) = status.upgrade() {
+                engine.poke_status();
+            }
+        }));
         let ev = events.clone();
         let pairing = Arc::new(Pairing::new(
             devices.clone(),
@@ -170,6 +177,14 @@ impl WaslDevices {
             tasks: Mutex::new(tasks),
             rt: tokio::runtime::Handle::current(),
         }))
+    }
+
+    /// Where each device of the group stands in `lang`: online, syncing, last seen (the time is a
+    /// value of the words, and `last_seen_at` is the moment) or can't reach, with a stable key. The
+    /// same states the desktop's `wasl status --json` gives.
+    pub fn device_statuses(&self, lang: wasl_proto::Lang) -> Vec<wasl_proto::DeviceStatus> {
+        let _rt = self.rt.enter();
+        self.devices.device_statuses(lang)
     }
 
     /// This phone and the group's devices, with who is connected and how.
@@ -398,5 +413,7 @@ impl WaslDevices {
             t.abort();
         }
         self.devices.close();
+        self.engine.set_devices(None);
+        self.engine.poke_status();
     }
 }

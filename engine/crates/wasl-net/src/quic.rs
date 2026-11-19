@@ -302,6 +302,16 @@ pub struct WireStats {
 }
 
 impl QuicLink {
+    /// Whether the connection is still open (the peer has not gone away).
+    pub fn is_open(&self) -> bool {
+        self.conn.close_reason().is_none()
+    }
+
+    /// Resolves when the connection closes, for any reason.
+    pub async fn closed(&self) {
+        self.conn.closed().await;
+    }
+
     /// Sets the zstd level asked for chunks from now on (0: raw bytes only).
     pub fn set_compression(&self, level: u8) {
         self.level

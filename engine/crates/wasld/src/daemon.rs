@@ -645,6 +645,11 @@ impl Daemon {
             accounts,
             pairs: states,
             agent_changes,
+            devices: self
+                .devices
+                .as_ref()
+                .map(|d| d.device_statuses(lang))
+                .unwrap_or_default(),
         })
     }
 
@@ -652,13 +657,19 @@ impl Daemon {
     /// logged (once per distinct line) so it can be added.
     pub fn folder_statuses(&self, lang: Lang) -> Result<Vec<FolderStatus>, RemoteError> {
         let mut logged = self.unnamed_logged.lock().unwrap_or_else(|p| p.into_inner());
-        self.engine
+        let statuses = self
+            .engine
             .folder_statuses(lang, &|p| crate::disk::free_bytes(&p.local_root), &mut |line| {
                 if logged.insert(line.clone()) {
                     eprintln!("{line}");
                 }
             })
-            .map_err(engine_err)
+            .map_err(engine_err)?;
+        // The devices a folder is shared with, and where each stands (issue #32).
+        Ok(match &self.devices {
+            Some(d) => d.with_peers(statuses, lang),
+            None => statuses,
+        })
     }
 
     /// The other devices a pair is shared with (every known member for "All my devices"), by

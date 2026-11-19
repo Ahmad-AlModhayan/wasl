@@ -67,6 +67,25 @@ impl Fake {
 }
 
 /// The statuses the daemon would send: Photos waits for its first preview, the rest are synced.
+/// A device offline for three days and this one, as the daemon's catalogue words them.
+fn canned_devices(lang: wasl_proto::Lang) -> Vec<wasl_proto::DeviceStatus> {
+    let now = 1_800_000_000_000;
+    let facts = |id, name, this, seen: Option<i64>| wasl_proto::DeviceFacts {
+        id,
+        name,
+        this_device: this,
+        connected: false,
+        syncing: false,
+        last_seen_at: seen.map(|ago| now - ago),
+        now,
+    };
+    let day = 24 * 3600 * 1000;
+    vec![
+        wasl_proto::device_status(&facts("WASL-ME", "Desk", true, None), lang),
+        wasl_proto::device_status(&facts("WASL-LAPTOP", "Laptop", false, Some(3 * day)), lang),
+    ]
+}
+
 fn canned_status(id: &str, name: &str, lang: wasl_proto::Lang) -> wasl_proto::FolderStatus {
     use wasl_proto::{FolderCounts, FolderState, FolderStatus, Values, words::render};
     let v = Values::default().folder(name);
@@ -96,6 +115,7 @@ fn canned_status(id: &str, name: &str, lang: wasl_proto::Lang) -> wasl_proto::Fo
         counts: FolderCounts::default(),
         last_synced_at: None,
         last_runs: Vec::new(),
+        peers: Vec::new(),
     }
 }
 
@@ -253,6 +273,11 @@ impl Handler for Fake {
                 };
                 ok(DaemonStatus {
                     agent_changes: 0,
+                    devices: if with_status {
+                        canned_devices(words_lang)
+                    } else {
+                        Vec::new()
+                    },
                     version: "test".into(),
                     protocol: wasl_ipc::PROTOCOL_VERSION,
                     accounts,
@@ -715,6 +740,8 @@ async fn status_draws_what_the_daemon_decided_in_the_clis_language() {
     );
     let work = r.stdout.lines().find(|l| l.starts_with("Work")).unwrap();
     assert!(work.contains("Work is up to date."), "{work}");
+    let laptop = r.stdout.lines().find(|l| l.starts_with("Laptop")).unwrap();
+    assert!(laptop.contains("Last seen 3 days ago"), "{laptop}");
     assert_eq!(
         Some(&Some(wasl_proto::Lang::En)),
         d.fake.status_langs.lock().unwrap().last(),
@@ -728,6 +755,7 @@ async fn status_draws_what_the_daemon_decided_in_the_clis_language() {
         d.fake.status_langs.lock().unwrap().last()
     );
     assert!(r.stdout.contains("يحتاج إليك"), "{}", r.stdout);
+    assert!(r.stdout.contains("آخر ظهور قبل 3 أيام"), "{}", r.stdout);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -746,6 +774,11 @@ async fn status_json_gives_an_agent_exactly_what_the_daemon_decided() {
     assert_eq!("folder.first_preview", photos["needs_you"][0]["key"]);
     assert_eq!("review", photos["needs_you"][0]["fix"]);
     assert_eq!("synced", v["pairs"][1]["status"]["state"]);
+    // The devices come with it: a stable key and the time as a value, for an agent.
+    let laptop = &v["devices"][1];
+    assert_eq!("last_seen", laptop["state"]);
+    assert_eq!("device.last_seen_days", laptop["words"]["key"]);
+    assert_eq!(3, laptop["words"]["values"]["count"]);
     // The same value the daemon sent, not a CLI reading of it.
     let sent = canned_status(PHOTOS, "Photos", wasl_proto::Lang::En);
     assert_eq!(serde_json::to_value(&sent).unwrap(), *photos);

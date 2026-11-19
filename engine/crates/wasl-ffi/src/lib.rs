@@ -7,6 +7,7 @@ uniffi::setup_scaffolding!();
 mod devices;
 mod on_demand;
 mod saf;
+mod status;
 mod vaults;
 
 pub use devices::{DeviceEvents, DeviceKeyStore, DevicesInit, WaslDevices};
@@ -15,12 +16,13 @@ pub use on_demand::{
     VaultItem, VaultLocks,
 };
 pub use saf::{SafBridge, SafEntry};
+pub use status::StatusSink;
 pub use vaults::{NewVault, vault_v2_create, vault_v2_unlock, vault_version};
 
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use wasl_core::BaselineEntry;
 use wasl_core::conditions::DeviceState;
 use wasl_core::{PlanSummary, RunStatus};
@@ -315,6 +317,10 @@ pub struct WaslEngine {
     bin_dir: PathBuf,
     /// On-demand readers by cache folder: one per folder, shared by every caller.
     readers: Mutex<HashMap<PathBuf, Arc<OnDemandReader>>>,
+    /// The device group this phone is in while it takes part, so statuses name the devices.
+    devices: Mutex<Option<Weak<wasl_devices::Devices>>>,
+    /// Who watches folder statuses ([`StatusSink`]).
+    watch: Arc<status::StatusWatch>,
 }
 
 /// One run of Drive Sync's history with its events, for the import (FR-K2).
@@ -400,9 +406,15 @@ impl WaslEngine {
             cache,
             remotes: Mutex::new(HashMap::new()),
         });
-        let listener = progress.map(|sink| -> wasl_engine::ProgressListener {
-            Arc::new(move |p: &Progress| sink.on_progress(p.clone()))
-        });
+        // A run's progress also moves its folder's status (syncing), so it wakes the status watch.
+        let watch = Arc::new(status::StatusWatch::default());
+        let w = watch.clone();
+        let listener: Option<wasl_engine::ProgressListener> = Some(Arc::new(move |p: &Progress| {
+            if let Some(sink) = &progress {
+                sink.on_progress(p.clone());
+            }
+            w.poke();
+        }));
         let engine = Engine::new(
             store,
             env.clone(),
@@ -426,13 +438,17 @@ impl WaslEngine {
                 ],
             }),
         );
-        Ok(Arc::new(WaslEngine {
+        let this = Arc::new(WaslEngine {
             engine,
             env,
             pairs,
             bin_dir,
             readers: Mutex::new(HashMap::new()),
-        }))
+            devices: Mutex::new(None),
+            watch,
+        });
+        this.watch.bind(&this);
+        Ok(this)
     }
 
     // ---------------------------------------------------------------- files on demand
@@ -595,7 +611,9 @@ impl WaslEngine {
     /// Records a new pair through the pair rules (ADR-0001): checked like on the desktop and held
     /// for its first preview. A broken rule is [`WaslError::PairRule`].
     pub fn create_pair(&self, pair: Pair) -> Result<(), WaslError> {
-        right_away(self.pairs.create(pair))?.map(|_| ()).map_err(pair_err)
+        let made = right_away(self.pairs.create(pair))?.map(|_| ()).map_err(pair_err);
+        self.touched();
+        made
     }
 
     /// Saves the pair's options; its status stays the engine's. Another folder, Drive folder or
@@ -603,20 +621,25 @@ impl WaslEngine {
     /// syncs (`Engine::update_pair`, the same path as the desktop's, #94).
     pub fn update_pair(&self, pair: Pair) -> Result<(), WaslError> {
         self.engine.update_pair(&pair)?;
+        self.touched();
         Ok(())
     }
 
     pub fn delete_pair(&self, id: String) -> Result<(), WaslError> {
         self.engine.cancel(&id);
-        Ok(self.engine.store().lock().delete_pair(&id)?)
+        let gone = self.engine.store().lock().delete_pair(&id);
+        self.touched();
+        Ok(gone?)
     }
 
     pub fn set_paused(&self, id: String, paused: bool, reason: Option<String>) -> Result<(), WaslError> {
-        Ok(self
+        let set = self
             .engine
             .store()
             .lock()
-            .set_paused(&id, paused, reason.as_deref())?)
+            .set_paused(&id, paused, reason.as_deref());
+        self.touched();
+        Ok(set?)
     }
 
     /// Records why a pair did not run (its conditions), in the user's language, for its card. The
@@ -633,14 +656,18 @@ impl WaslEngine {
     }
 
     pub fn set_account_email(&self, account: String, email: String) -> Result<(), WaslError> {
-        Ok(self.engine.store().lock().set_account_email(&account, &email)?)
+        let set = self.engine.store().lock().set_account_email(&account, &email);
+        self.touched();
+        Ok(set?)
     }
 
     // ---------------------------------------------------------------- running
 
     /// The dry run (FR-F1). Dropping the call (leaving the preview screen) stops its work.
     pub async fn preview(&self, id: String) -> Result<Preview, WaslError> {
-        Ok(self.engine.preview(&id).await?)
+        let preview = self.engine.preview(&id).await;
+        self.touched();
+        Ok(preview?)
     }
 
     /// Live progress of a pair's preview: its step and the files checked so far. Not a run, so
@@ -655,7 +682,9 @@ impl WaslEngine {
     }
 
     pub async fn sync(&self, id: String, trigger: Trigger) -> RunOutcome {
-        self.engine.sync(&id, trigger).await
+        let outcome = self.engine.sync(&id, trigger).await;
+        self.touched();
+        outcome
     }
 
     /// Runs every enabled pair in turn; returns each outcome.
@@ -672,16 +701,19 @@ impl WaslEngine {
         let mut out = Vec::new();
         for id in ids {
             out.push(self.engine.sync(&id, trigger).await);
+            self.touched();
         }
         Ok(out)
     }
 
     pub fn cancel(&self, id: String) {
         self.engine.cancel(&id);
+        self.poke_status();
     }
 
     pub fn cancel_all(&self) {
         self.engine.cancel_all();
+        self.poke_status();
     }
 
     pub fn is_running(&self, id: String) -> bool {
@@ -694,7 +726,9 @@ impl WaslEngine {
 
     /// The user approved a stopped plan, or started from the preview.
     pub fn approve_once(&self, id: String) -> Result<(), WaslError> {
-        Ok(self.engine.approve_once(&id)?)
+        let set = self.engine.approve_once(&id);
+        self.touched();
+        Ok(set?)
     }
 
     pub fn blocked_plan(&self, id: String) -> Result<Option<BlockedPlan>, WaslError> {
@@ -742,7 +776,9 @@ impl WaslEngine {
 
     /// Copies everything a stopped plan would delete back to the side that lost it.
     pub async fn restore_deletions(&self, pair_id: String) -> Result<u32, WaslError> {
-        Ok(self.engine.restore_deletions(&pair_id).await?)
+        let restored = self.engine.restore_deletions(&pair_id).await;
+        self.touched();
+        Ok(restored?)
     }
 
     pub async fn conflict_details(&self, conflict_id: String) -> Result<Option<ConflictDetails>, WaslError> {
@@ -754,11 +790,15 @@ impl WaslEngine {
         conflict_id: String,
         choice: ConflictChoice,
     ) -> Result<ConflictUndo, WaslError> {
-        Ok(self.engine.resolve_conflict(&conflict_id, choice).await?)
+        let undo = self.engine.resolve_conflict(&conflict_id, choice).await;
+        self.touched();
+        Ok(undo?)
     }
 
     pub async fn undo_conflict(&self, undo: ConflictUndo) -> Result<(), WaslError> {
-        Ok(self.engine.undo_conflict(&undo).await?)
+        let undone = self.engine.undo_conflict(&undo).await;
+        self.touched();
+        Ok(undone?)
     }
 
     pub async fn file_versions(&self, pair_id: String, key: String) -> Result<FileVersions, WaslError> {
@@ -842,27 +882,32 @@ impl WaslEngine {
         pending_approval: Option<bool>,
         hold_for_preview: Option<bool>,
     ) -> Result<(), WaslError> {
-        let s = self.engine.store().lock();
-        if let Some(p) = s.get_pair(&id)? {
-            let mut st = p.status;
-            if let Some(v) = approve_once {
-                st.approve_once = v;
+        {
+            let s = self.engine.store().lock();
+            if let Some(p) = s.get_pair(&id)? {
+                let mut st = p.status;
+                if let Some(v) = approve_once {
+                    st.approve_once = v;
+                }
+                if let Some(v) = pending_approval {
+                    st.pending_approval = v;
+                }
+                if let Some(v) = hold_for_preview {
+                    st.hold_for_preview = v;
+                }
+                s.set_pair_status(&id, &st)?;
             }
-            if let Some(v) = pending_approval {
-                st.pending_approval = v;
-            }
-            if let Some(v) = hold_for_preview {
-                st.hold_for_preview = v;
-            }
-            s.set_pair_status(&id, &st)?;
         }
+        self.touched();
         Ok(())
     }
 
     /// Forgets a stopped plan (the user dealt with it another way).
     pub fn clear_blocked_plan(&self, id: String) -> Result<(), WaslError> {
         self.set_pair_flags(id.clone(), None, Some(false), None)?;
-        Ok(self.engine.store().lock().delete_blocked_plan(&id)?)
+        let gone = self.engine.store().lock().delete_blocked_plan(&id);
+        self.touched();
+        Ok(gone?)
     }
 
     pub fn baseline(&self, pair_id: String) -> Result<Vec<BaselineEntry>, WaslError> {
@@ -943,7 +988,9 @@ impl WaslEngine {
     }
 
     pub fn unresolve_conflict(&self, id: String) -> Result<(), WaslError> {
-        Ok(self.engine.store().lock().unresolve_conflict(&id)?)
+        let set = self.engine.store().lock().unresolve_conflict(&id);
+        self.touched();
+        Ok(set?)
     }
 
     pub fn account_auth_error(&self, account: String) -> Result<Option<String>, WaslError> {

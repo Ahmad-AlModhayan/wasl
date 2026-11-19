@@ -36,6 +36,7 @@ pub const LAST_RUNS: usize = 3;
 /// A folder's state: one closed set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 pub enum FolderState {
     Synced,
     Syncing,
@@ -53,6 +54,7 @@ pub enum FolderState {
 /// Why a [`FolderState::Waiting`] folder waits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 pub enum WaitReason {
     /// The device is offline, or the last run couldn't reach Google Drive.
     NoNetwork,
@@ -63,10 +65,14 @@ pub enum WaitReason {
     Paused,
     /// Google was busy or had a problem; the run tries again on its own.
     Retrying,
+    /// A folder that syncs only between devices waits for a device that is offline
+    /// ([`FolderStatus::peers`] says which).
+    Device,
 }
 
 /// Numbers a screen draws beside the words.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct FolderCounts {
     /// Files changed in two places and waiting for the person.
     pub conflicts: u32,
@@ -79,6 +85,7 @@ pub struct FolderCounts {
 
 /// One of the folder's latest runs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct LastRun {
     pub run_id: String,
     pub status: RunStatus,
@@ -94,6 +101,7 @@ pub struct LastRun {
 
 /// A folder's status: the state, why, what needs the person, and the numbers and runs behind it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct FolderStatus {
     pub pair_id: String,
     /// The folder's name, as the words use it.
@@ -122,6 +130,10 @@ pub struct FolderStatus {
     /// The latest runs, newest first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub last_runs: Vec<LastRun>,
+    /// The other devices the folder is shared with, and where each stands now. Empty for a folder
+    /// that isn't shared. Added by [`with_peers`], never by [`folder_status`] (which knows no devices).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub peers: Vec<FolderPeer>,
 }
 
 impl FolderStatus {
@@ -195,6 +207,7 @@ pub fn folder_status_for(
         },
         last_synced_at: st.last_success_at,
         last_runs: Vec::new(),
+        peers: Vec::new(),
     };
     let raw = st.last_error.as_deref();
     let ran = st.last_status;
@@ -410,6 +423,7 @@ fn partial_words(
 /// The whole app's state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 pub enum OverallState {
     /// No folders yet.
     Idle,
@@ -423,6 +437,7 @@ pub enum OverallState {
 
 /// The whole app's status, worked out from the folder statuses.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct OverallStatus {
     pub state: OverallState,
     /// The short status words (`overall.*`).
@@ -494,6 +509,167 @@ pub fn overall_status(folders: &[FolderStatus], other_items: u32, lang: Lang) ->
         needs_you,
         needs_you_words,
     }
+}
+
+// ---------------------------------------------------------------- devices (issue #32)
+
+/// An offline device reads "last seen" until it has been out of reach this long (30 days), and
+/// "can't reach" after; a device never reached from here reads "can't reach" at once. Milliseconds.
+pub const CANT_REACH_AFTER_MS: i64 = 30 * 24 * 3600 * 1000;
+
+/// A device's state: one closed set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+pub enum DevicePresence {
+    /// Connected now (this device is always online to itself).
+    Online,
+    /// Connected now, and a folder is syncing with it.
+    Syncing,
+    /// Offline, but seen recently: [`DeviceStatus::last_seen_at`] says when.
+    LastSeen,
+    /// Never reached from here, or not for more than [`CANT_REACH_AFTER_MS`].
+    CantReach,
+}
+
+/// One device in "my devices", its state decided once (docs/STATUS_WORDS.md, `device.*`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct DeviceStatus {
+    /// `WASL-XXXX-…`.
+    pub id: String,
+    pub name: String,
+    pub this_device: bool,
+    pub state: DevicePresence,
+    /// One catalogue entry for the state: the key is stable, the time is in its values.
+    pub words: Rendered,
+    /// When this device last saw it, Unix milliseconds. For a device online now, when it was
+    /// decided. None for a device never reached from here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_seen_at: Option<i64>,
+}
+
+impl DeviceStatus {
+    /// The same status in another language: the key, values and state stay.
+    pub fn in_lang(&self, lang: Lang) -> DeviceStatus {
+        DeviceStatus {
+            words: self.words.in_lang(lang),
+            ..self.clone()
+        }
+    }
+}
+
+/// What the engine knows about one device when it decides.
+pub struct DeviceFacts<'a> {
+    pub id: &'a str,
+    pub name: &'a str,
+    pub this_device: bool,
+    /// A connection to it is open now.
+    pub connected: bool,
+    /// A folder is syncing with it now.
+    pub syncing: bool,
+    /// When it was last connected, Unix milliseconds; None when never.
+    pub last_seen_at: Option<i64>,
+    /// Now, Unix milliseconds.
+    pub now: i64,
+}
+
+/// Decides one device's status in `lang`.
+pub fn device_status(facts: &DeviceFacts, lang: Lang) -> DeviceStatus {
+    let (state, key, count, last_seen_at) = if facts.this_device || facts.connected {
+        let state = if facts.syncing {
+            DevicePresence::Syncing
+        } else {
+            DevicePresence::Online
+        };
+        let key = if facts.syncing {
+            "device.syncing"
+        } else {
+            "device.online"
+        };
+        (state, key, None, Some(facts.now))
+    } else {
+        match facts.last_seen_at {
+            None => (DevicePresence::CantReach, "device.cant_reach", None, None),
+            Some(seen) => {
+                let age = (facts.now - seen).max(0);
+                let (min, hour, day) = (60_000, 3_600_000, 86_400_000);
+                let (key, count) = if age > CANT_REACH_AFTER_MS {
+                    ("device.cant_reach", None)
+                } else if age < min {
+                    ("device.last_seen_now", None)
+                } else if age < hour {
+                    ("device.last_seen_minutes", Some(age / min))
+                } else if age < day {
+                    ("device.last_seen_hours", Some(age / hour))
+                } else {
+                    ("device.last_seen_days", Some(age / day))
+                };
+                let state = if key == "device.cant_reach" {
+                    DevicePresence::CantReach
+                } else {
+                    DevicePresence::LastSeen
+                };
+                (state, key, count, Some(seen))
+            }
+        }
+    };
+    let mut values = Values::default().device(facts.name);
+    if let Some(n) = count {
+        values = values.count(n as u64);
+    }
+    DeviceStatus {
+        id: facts.id.to_owned(),
+        name: facts.name.to_owned(),
+        this_device: facts.this_device,
+        state,
+        words: words::render(key, &values, lang, None, &[], &mut |_| {}),
+        last_seen_at,
+    }
+}
+
+/// A device a folder is shared with, and where it stands. Only the state: the words with the time
+/// are the device's own ([`DeviceStatus`]), so a folder's status doesn't change every minute.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct FolderPeer {
+    pub device_id: String,
+    pub name: String,
+    pub state: DevicePresence,
+}
+
+/// Adds the devices a folder is shared with to its status. A folder that syncs only between
+/// devices (`only_devices`: no Drive copy keeps it current) and would read synced waits instead
+/// for a device that is offline, and says which one: the one last seen recently first, then one
+/// that can't be reached. A folder that also syncs with Drive stays synced: its Drive copy is
+/// current, and the device catches up when it is back. Either way [`FolderStatus::peers`] lists
+/// every device, so a screen can show each one's state.
+pub fn with_peers(
+    mut status: FolderStatus,
+    peers: Vec<FolderPeer>,
+    only_devices: bool,
+    lang: Lang,
+) -> FolderStatus {
+    status.peers = peers;
+    if status.state == FolderState::Synced && only_devices {
+        let named = [DevicePresence::LastSeen, DevicePresence::CantReach]
+            .iter()
+            .find_map(|s| status.peers.iter().find(|p| p.state == *s));
+        if let Some(p) = named {
+            let key = if p.state == DevicePresence::CantReach {
+                "folder.cant_reach_device"
+            } else {
+                "folder.waiting_device"
+            };
+            let values = Values::default()
+                .folder(status.name.clone())
+                .device(p.name.clone());
+            status.words = words::render(key, &values, lang, None, &[], &mut |_| {});
+            status.state = FolderState::Waiting;
+            status.wait = Some(WaitReason::Device);
+        }
+    }
+    status
 }
 
 impl Rendered {
@@ -1056,5 +1232,285 @@ mod tests {
         assert_eq!(retry::MAX_TRIES, v["retry"]["max_tries"]);
         assert_eq!(5_000 + 120_000, v["retry"]["next_at"]);
         assert_eq!(0, v["needs_you"].as_array().map_or(0, Vec::len));
+    }
+
+    // ---- devices (issue #32)
+
+    const NOW: i64 = 1_800_000_000_000;
+    const MIN: i64 = 60_000;
+    const HOUR: i64 = 60 * MIN;
+    const DAY: i64 = 24 * HOUR;
+
+    fn device(connected: bool, syncing: bool, seen_ago: Option<i64>, lang: Lang) -> DeviceStatus {
+        device_status(
+            &DeviceFacts {
+                id: "WASL-AAAA",
+                name: "Laptop",
+                this_device: false,
+                connected,
+                syncing,
+                last_seen_at: seen_ago.map(|a| NOW - a),
+                now: NOW,
+            },
+            lang,
+        )
+    }
+
+    #[test]
+    fn a_device_is_online_syncing_last_seen_or_unreachable() {
+        use DevicePresence::*;
+        let cases = [
+            (
+                device(true, false, None, Lang::En),
+                Online,
+                "device.online",
+                "Online",
+            ),
+            (
+                device(true, true, None, Lang::En),
+                Syncing,
+                "device.syncing",
+                "Syncing",
+            ),
+            (
+                device(false, false, Some(20_000), Lang::En),
+                LastSeen,
+                "device.last_seen_now",
+                "Last seen a moment ago",
+            ),
+            (
+                device(false, false, Some(5 * MIN), Lang::En),
+                LastSeen,
+                "device.last_seen_minutes",
+                "Last seen 5 minutes ago",
+            ),
+            (
+                device(false, false, Some(3 * HOUR + 5 * MIN), Lang::En),
+                LastSeen,
+                "device.last_seen_hours",
+                "Last seen 3 hours ago",
+            ),
+            (
+                device(false, false, Some(3 * DAY), Lang::En),
+                LastSeen,
+                "device.last_seen_days",
+                "Last seen 3 days ago",
+            ),
+            (
+                device(false, false, Some(31 * DAY), Lang::En),
+                CantReach,
+                "device.cant_reach",
+                "Can't reach",
+            ),
+            (
+                device(false, false, None, Lang::En),
+                CantReach,
+                "device.cant_reach",
+                "Can't reach",
+            ),
+        ];
+        for (got, state, key, text) in cases {
+            assert_eq!(
+                (state, key, text),
+                (got.state, got.words.key.as_str(), got.words.text.as_str()),
+                "{got:?}"
+            );
+            assert_eq!(Some("Laptop"), got.words.values.device.as_deref());
+        }
+    }
+
+    #[test]
+    fn last_seen_carries_its_time_as_a_value_and_as_a_timestamp() {
+        let d = device(false, false, Some(5 * MIN), Lang::En);
+        assert_eq!(Some(5), d.words.values.count);
+        assert_eq!(Some(NOW - 5 * MIN), d.last_seen_at);
+        let on = device(true, false, Some(5 * MIN), Lang::En);
+        assert_eq!(Some(NOW), on.last_seen_at, "online now means seen now");
+        let never = device(false, false, None, Lang::En);
+        assert_eq!(None, never.last_seen_at);
+    }
+
+    #[test]
+    fn an_offline_device_stops_being_last_seen_after_thirty_days() {
+        let edge = device(false, false, Some(CANT_REACH_AFTER_MS), Lang::En);
+        assert_eq!(DevicePresence::LastSeen, edge.state);
+        assert_eq!(Some(30), edge.words.values.count);
+        let past = device(false, false, Some(CANT_REACH_AFTER_MS + 1), Lang::En);
+        assert_eq!(DevicePresence::CantReach, past.state);
+        assert_eq!(
+            Some(NOW - CANT_REACH_AFTER_MS - 1),
+            past.last_seen_at,
+            "the time stays for an agent"
+        );
+        // A clock that moved back never makes a device "seen in the future".
+        assert_eq!(
+            "device.last_seen_now",
+            device(false, false, Some(-5 * MIN), Lang::En).words.key
+        );
+    }
+
+    #[test]
+    fn last_seen_plurals_read_right_in_english() {
+        let t = |ago| device(false, false, Some(ago), Lang::En).words.text;
+        assert_eq!("Last seen 1 minute ago", t(MIN));
+        assert_eq!("Last seen 2 minutes ago", t(2 * MIN + 30_000));
+        assert_eq!("Last seen 1 hour ago", t(HOUR));
+        assert_eq!("Last seen 23 hours ago", t(23 * HOUR + 59 * MIN));
+        assert_eq!("Last seen 1 day ago", t(DAY));
+        assert_eq!("Last seen 2 days ago", t(2 * DAY));
+    }
+
+    #[test]
+    fn last_seen_plurals_and_time_words_read_right_in_arabic() {
+        let t = |ago| device(false, false, Some(ago), Lang::Ar).words.text;
+        assert_eq!("آخر ظهور قبل لحظات", t(10_000));
+        assert_eq!("آخر ظهور قبل دقيقة واحدة", t(MIN));
+        assert_eq!("آخر ظهور قبل دقيقتين", t(2 * MIN));
+        assert_eq!("آخر ظهور قبل 5 دقائق", t(5 * MIN));
+        assert_eq!("آخر ظهور قبل 11 دقيقة", t(11 * MIN));
+        assert_eq!("آخر ظهور قبل 59 دقيقة", t(59 * MIN));
+        assert_eq!("آخر ظهور قبل ساعة واحدة", t(HOUR));
+        assert_eq!("آخر ظهور قبل ساعتين", t(2 * HOUR));
+        assert_eq!("آخر ظهور قبل 3 ساعات", t(3 * HOUR));
+        assert_eq!("آخر ظهور قبل 12 ساعة", t(12 * HOUR));
+        assert_eq!("آخر ظهور قبل يوم واحد", t(DAY));
+        assert_eq!("آخر ظهور قبل يومين", t(2 * DAY));
+        assert_eq!("آخر ظهور قبل 3 أيام", t(3 * DAY));
+        assert_eq!("آخر ظهور قبل 11 يومًا", t(11 * DAY));
+        assert_eq!("آخر ظهور قبل 30 يومًا", t(30 * DAY));
+        assert_eq!("متصل", device(true, false, None, Lang::Ar).words.text);
+        assert_eq!("تجري المزامنة", device(true, true, None, Lang::Ar).words.text);
+        assert_eq!(
+            "تعذّر الوصول إليه",
+            device(false, false, None, Lang::Ar).words.text
+        );
+    }
+
+    #[test]
+    fn the_same_device_in_arabic_has_the_same_state_key_and_values() {
+        let en = device(false, false, Some(3 * DAY), Lang::En);
+        let ar = device(false, false, Some(3 * DAY), Lang::Ar);
+        assert_eq!(
+            (en.state, &en.words.key, &en.words.values),
+            (ar.state, &ar.words.key, &ar.words.values)
+        );
+        assert_ne!(en.words.text, ar.words.text);
+        assert_eq!(ar, en.in_lang(Lang::Ar));
+    }
+
+    fn peer(name: &str, state: DevicePresence) -> FolderPeer {
+        FolderPeer {
+            device_id: format!("WASL-{name}"),
+            name: name.into(),
+            state,
+        }
+    }
+
+    #[test]
+    fn a_devices_only_folder_waits_for_the_offline_device_and_names_it() {
+        let p = pair();
+        let base = decide(&facts(&p));
+        let s = with_peers(
+            base,
+            vec![
+                peer("Desktop", DevicePresence::Online),
+                peer("Laptop", DevicePresence::LastSeen),
+            ],
+            true,
+            Lang::En,
+        );
+        assert_eq!(
+            (FolderState::Waiting, Some(WaitReason::Device)),
+            (s.state, s.wait)
+        );
+        assert_eq!("folder.waiting_device", s.words.key);
+        assert_eq!("Photos will sync when Laptop is back online.", s.words.text);
+        assert_eq!(Some("Laptop"), s.words.values.device.as_deref());
+        assert_eq!(2, s.peers.len(), "every device is listed");
+        let ar = s.in_lang(Lang::Ar);
+        assert_eq!("folder.waiting_device", ar.words.key);
+        assert_eq!(Some("Laptop"), ar.words.values.device.as_deref());
+        assert_eq!("ستتم مزامنة Photos عندما يعود Laptop إلى الاتصال.", ar.words.text);
+        let o = overall_status(&[s], 0, Lang::En);
+        assert_eq!(OverallState::Waiting, o.state);
+        assert_eq!(0, o.needs_you);
+    }
+
+    #[test]
+    fn a_device_that_cant_be_reached_is_named_as_such() {
+        let p = pair();
+        let s = with_peers(
+            decide(&facts(&p)),
+            vec![peer("Old phone", DevicePresence::CantReach)],
+            true,
+            Lang::En,
+        );
+        assert_eq!(
+            (FolderState::Waiting, Some(WaitReason::Device)),
+            (s.state, s.wait)
+        );
+        assert_eq!("folder.cant_reach_device", s.words.key);
+        assert_eq!(
+            "Wasl can't reach Old phone, so Photos isn't synced there.",
+            s.words.text
+        );
+        // A device last seen is waited for before one that can't be reached.
+        let both = with_peers(
+            decide(&facts(&p)),
+            vec![
+                peer("Old phone", DevicePresence::CantReach),
+                peer("Laptop", DevicePresence::LastSeen),
+            ],
+            true,
+            Lang::En,
+        );
+        assert_eq!("folder.waiting_device", both.words.key);
+        assert_eq!(Some("Laptop"), both.words.values.device.as_deref());
+    }
+
+    #[test]
+    fn devices_never_change_a_folder_that_has_other_news_or_a_drive_copy() {
+        let p = pair();
+        let offline = || vec![peer("Laptop", DevicePresence::LastSeen)];
+        // Drive keeps the folder current: still synced, the device is listed.
+        let drive = with_peers(decide(&facts(&p)), offline(), false, Lang::En);
+        assert_eq!((FolderState::Synced, None), (drive.state, drive.wait));
+        assert_eq!(1, drive.peers.len());
+        // Online devices change nothing.
+        let on = with_peers(
+            decide(&facts(&p)),
+            vec![peer("Laptop", DevicePresence::Syncing)],
+            true,
+            Lang::En,
+        );
+        assert_eq!(FolderState::Synced, on.state);
+        // A folder that needs the person keeps saying so.
+        let mut held = pair();
+        held.status.hold_for_preview = true;
+        let needs = with_peers(decide(&facts(&held)), offline(), true, Lang::En);
+        assert_eq!(FolderState::NeedsYou, needs.state);
+        assert_eq!("folder.needs_you", needs.words.key);
+    }
+
+    #[test]
+    fn a_status_with_peers_reads_back_from_json_and_an_older_one_has_none() {
+        let p = pair();
+        let s = with_peers(
+            decide(&facts(&p)),
+            vec![peer("Laptop", DevicePresence::Online)],
+            false,
+            Lang::En,
+        );
+        let json = serde_json::to_string(&s).unwrap();
+        assert_eq!(s, serde_json::from_str::<FolderStatus>(&json).unwrap());
+        let mut v = serde_json::to_value(&s).unwrap();
+        assert_eq!("online", v["peers"][0]["state"]);
+        v.as_object_mut().unwrap().remove("peers");
+        assert!(
+            serde_json::from_value::<FolderStatus>(v)
+                .unwrap()
+                .peers
+                .is_empty()
+        );
     }
 }

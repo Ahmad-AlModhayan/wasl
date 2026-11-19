@@ -3,8 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 use wasl_proto::{
-    BinEntry, ConflictChoice, ConflictUndo, FolderStatus, Lang, OplogStatus, OverallState, OverallStatus,
-    Pair, Progress, RunOutcome, SignInCause, Trigger, VersionRef,
+    BinEntry, ConflictChoice, ConflictUndo, DeviceStatus, FolderStatus, Lang, OplogStatus, OverallState,
+    OverallStatus, Pair, Progress, RunOutcome, SignInCause, Trigger, VersionRef,
 };
 pub use wasl_proto::{
     DeviceInfo, DevicesInfo, LinkPath, OfferInfo, OfferStatus, PairSharing, PairingStage, PairingStatus, View,
@@ -594,6 +594,11 @@ pub struct DaemonStatus {
     /// older daemon.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overall_status: Option<OverallStatus>,
+    /// Where each device in the group stands (online, syncing, last seen, can't reach), in the
+    /// caller's language, worked out once in the engine's catalogue. Empty from an older daemon and
+    /// when device sync is off.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub devices: Vec<DeviceStatus>,
 }
 
 /// The tray icon's states (FR-B5). The older form of [`OverallState`], kept so older clients still
@@ -1008,6 +1013,31 @@ mod tests {
         let st: DaemonStatus = serde_json::from_value(reply).unwrap();
         assert!(st.overall_status.is_none());
         assert_eq!(Overall::UpToDate, st.overall);
+    }
+
+    #[test]
+    fn the_devices_in_a_status_are_optional_both_ways() {
+        let reply = serde_json::json!({
+            "version": "0.9", "protocol": 3, "accounts": [], "pairs": [], "overall": "up_to_date"
+        });
+        let st: DaemonStatus = serde_json::from_value(reply).unwrap();
+        assert!(st.devices.is_empty());
+        // No devices: the field is left out, so an older client sees the reply it knew.
+        let json = serde_json::to_value(&st).unwrap();
+        assert!(json.get("devices").is_none(), "{json}");
+        let with = serde_json::json!({
+            "version": "1.0", "protocol": 3, "accounts": [], "pairs": [], "overall": "up_to_date",
+            "devices": [{
+                "id": "WASL-AAAA", "name": "Laptop", "this_device": false, "state": "last_seen",
+                "words": {"key": "device.last_seen_days", "text": "Last seen 3 days ago",
+                          "values": {"device": "Laptop", "count": 3}},
+                "last_seen_at": 1_700_000_000_000_i64
+            }]
+        });
+        let st: DaemonStatus = serde_json::from_value(with).unwrap();
+        assert_eq!(1, st.devices.len());
+        assert_eq!("device.last_seen_days", st.devices[0].words.key);
+        assert_eq!(Some(3), st.devices[0].words.values.count);
     }
 
     #[test]

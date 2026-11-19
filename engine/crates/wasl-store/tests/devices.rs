@@ -225,6 +225,22 @@ fn device_notes_are_made_once_and_changed_on_purpose() {
     assert_eq!(vec![("WASL-A".to_string(), true)], s.device_notes().unwrap());
 }
 
+#[test]
+fn when_a_device_was_last_seen_is_kept_and_never_moves_back() {
+    let s = store();
+    assert!(s.devices_seen().unwrap().is_empty());
+    s.note_device_seen("WASL-A", 2_000).unwrap();
+    s.note_device_seen("WASL-B", 500).unwrap();
+    s.note_device_seen("WASL-A", 1_000).unwrap();
+    assert_eq!(
+        vec![("WASL-A".to_string(), 2_000), ("WASL-B".to_string(), 500)],
+        s.devices_seen().unwrap(),
+        "an older time never replaces a newer one"
+    );
+    s.note_device_seen("WASL-A", 3_000).unwrap();
+    assert_eq!(3_000, s.devices_seen().unwrap()[0].1);
+}
+
 fn offer(share: &str, name: &str) -> NewOffer {
     NewOffer {
         share: share.into(),

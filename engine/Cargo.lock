@@ -4150,6 +4150,7 @@ dependencies = [
  "wasl-fs",
  "wasl-net",
  "wasl-pairs",
+ "wasl-proto",
  "wasl-store",
  "wasl-vfs",
  "wiremock",

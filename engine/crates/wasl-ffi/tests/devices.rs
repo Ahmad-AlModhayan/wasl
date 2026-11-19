@@ -306,3 +306,89 @@ async fn a_folder_is_offered_and_accepted_through_the_binding() {
     a.devices.shutdown();
     b.devices.shutdown();
 }
+
+/// Records what the app is told about folder statuses.
+#[derive(Default)]
+struct Told(Mutex<Vec<wasl_proto::FolderStatus>>);
+impl wasl_mobile::StatusSink for Told {
+    fn on_folder_status(&self, _pair_id: String, status: wasl_proto::FolderStatus) {
+        self.0.lock().unwrap().push(status);
+    }
+}
+
+/// Issue #32 through the binding: a folder shared with a device that went away says which device
+/// it waits for, the app is told, and the device list carries the same state and key.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_waits_for_a_device_that_went_away_and_the_app_is_told() {
+    use wasl_proto::{DevicePresence, FolderState, Lang, WaitReason};
+    let (a, b) = paired().await;
+    let share = a.devices.share_pair("p".into(), None).unwrap();
+    b.devices.share_pair("p".into(), Some(share)).unwrap();
+    std::fs::write(a.root.join("photo.jpg"), b"pixels").unwrap();
+    let r = a.devices.sync_pair("p".into()).await.unwrap();
+    assert_eq!(RunStatus::Success, r.status, "{:?}", r.message);
+
+    // B is online: the folder is up to date, and B is listed as online.
+    let told = Arc::new(Told::default());
+    let now = a.engine.watch_status(Lang::En, told.clone()).unwrap();
+    assert_eq!(FolderState::Synced, now[0].state, "{:?}", now[0]);
+    assert_eq!(1, now[0].peers.len());
+    let list = a.devices.device_statuses(Lang::En);
+    let b_row = list.iter().find(|d| !d.this_device).unwrap();
+    assert_eq!(
+        (DevicePresence::Online, "device.online"),
+        (b_row.state, b_row.words.key.as_str())
+    );
+
+    // B goes away: the folder waits for it by name, and the app is told once.
+    b.devices.shutdown();
+    for _ in 0..100 {
+        if told
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|s| s.wait == Some(WaitReason::Device))
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let calls = told.0.lock().unwrap().clone();
+    let last = calls.last().expect("the app is told when the device goes");
+    assert_eq!(
+        (
+            FolderState::Waiting,
+            Some(WaitReason::Device),
+            "folder.waiting_device"
+        ),
+        (last.state, last.wait, last.words.key.as_str()),
+        "{last:?}"
+    );
+    assert_eq!("Shared will sync when Galaxy is back online.", last.words.text);
+    assert_eq!(Some("Galaxy"), last.words.values.device.as_deref());
+    assert_eq!(last, &a.engine.folder_statuses(Lang::En).unwrap()[0]);
+
+    // The same device row and the same folder in Arabic, with the same keys.
+    let row = a.devices.device_statuses(Lang::En);
+    let b_row = row.iter().find(|d| !d.this_device).unwrap();
+    assert_eq!(DevicePresence::LastSeen, b_row.state);
+    assert_eq!("Last seen a moment ago", b_row.words.text);
+    let ar = a.devices.device_statuses(Lang::Ar);
+    let b_ar = ar.iter().find(|d| !d.this_device).unwrap();
+    assert_eq!(
+        (&b_row.words.key, &b_row.words.values),
+        (&b_ar.words.key, &b_ar.words.values)
+    );
+    assert_eq!("آخر ظهور قبل لحظات", b_ar.words.text);
+    let folder_ar = &a.engine.folder_statuses(Lang::Ar).unwrap()[0];
+    assert_eq!("folder.waiting_device", folder_ar.words.key);
+    assert!(
+        folder_ar.words.text.contains("Galaxy"),
+        "{}",
+        folder_ar.words.text
+    );
+
+    a.engine.unwatch_status();
+    a.devices.shutdown();
+}

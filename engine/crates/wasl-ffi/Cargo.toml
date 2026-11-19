@@ -29,6 +29,7 @@ wasl-fs.workspace = true
 wasl-drive.workspace = true
 wasl-crypto.workspace = true
 wasl-devices = { workspace = true, features = ["ffi"] }
+wasl-proto = { workspace = true, features = ["ffi"] }
 wasl-pairs.workspace = true
 wasl-net.workspace = true
 wasl-vfs.workspace = true
