@@ -702,7 +702,7 @@ pub const ENTRIES: &[Entry] = &[
         Forms::single("اختفى {file} قبل أن يتمكن وصل من مزامنته، لذلك تم تخطيه."),
         Some(Retry),
         &[File],
-        "A file was deleted or moved between Wasl listing it and reading it. Not a problem; the next sync is clean. Not raised yet: the engine records a vanished file as a plain-text SKIP event, so no error carries this key today.",
+        "A file was deleted or moved between Wasl listing it and reading it. Not a problem; the next sync is clean. The engine records it as a FILE_GONE run event ([`event_key`]); {file} is the file's name, not its path.",
     ),
     e(
         "error.disk_full",
@@ -731,6 +731,46 @@ pub const ENTRIES: &[Entry] = &[
         Some(OpenToRename),
         &[File],
         "The file name is too long, has a character or a reserved name that one side refuses. Wasl never renames it.",
+    ),
+    e(
+        "error.folder_missing",
+        Forms::single(
+            "{folder} can't be found on this device. If it is on a memory card or an external drive, reconnect it; otherwise choose the folder again.",
+        ),
+        Forms::single(
+            "تعذّر العثور على {folder} في هذا الجهاز. إن كان على بطاقة ذاكرة أو قرص خارجي فأعد توصيله، وإلا فاختر المجلد من جديد.",
+        ),
+        Some(OpenFolder),
+        &[Folder],
+        "The synced folder itself is gone from THIS device (a card taken out, the folder deleted or moved), so the run stopped. Not one vanished file (error.file_gone) and not a refused permission (error.permission). Nothing was deleted on Drive.",
+    ),
+    e(
+        "error.sign_in_unreadable",
+        Forms::single(
+            "Wasl has no usable Google sign-in saved on this device, so {folder} can't sync. Sign in again.",
+        ),
+        Forms::single(
+            "ليس لدى وصل تسجيل دخول صالح إلى Google محفوظ على هذا الجهاز، لذلك لا يمكن مزامنة {folder}. سجّل الدخول مجددًا.",
+        ),
+        Some(SignInAgain),
+        &[Folder],
+        "No usable sign-in is saved on this device: it was never saved here, or the system's keychain no longer gives it up. Contrast error.auth: Google no longer accepts a sign-in Wasl can read.",
+    ),
+    e(
+        "account.sign_in_ended",
+        Forms::single("Google no longer accepts this account's sign-in. Sign in again."),
+        Forms::single("لم تعد Google تقبل تسجيل الدخول لهذا الحساب. سجّل الدخول مجددًا."),
+        Some(SignInAgain),
+        &[],
+        "A row of the account list, or a problem listed without a folder: the account's session ended on Google's side. The account's email is shown beside these words, not inside them.",
+    ),
+    e(
+        "account.sign_in_unreadable",
+        Forms::single("Wasl has no usable sign-in saved for this account on this device. Sign in again."),
+        Forms::single("ليس لدى وصل تسجيل دخول صالح محفوظ لهذا الحساب على هذا الجهاز. سجّل الدخول مجددًا."),
+        Some(SignInAgain),
+        &[],
+        "A row of the account list, or a problem listed without a folder: no usable sign-in is saved on this device (never saved here, or the keychain no longer gives it up). The account's email is shown beside these words, not inside them.",
     ),
     e(
         "error.invalid",
@@ -821,6 +861,7 @@ pub fn key_for_kind(kind: crate::run::ErrorKind) -> &'static str {
         K::Permission => "error.permission",
         K::Quota => "error.quota",
         K::NotFound => "error.not_found",
+        K::FolderMissing => "error.folder_missing",
         K::Locked => "error.locked",
         K::Network => "error.network",
         K::RateLimit => "error.rate_limit",
@@ -920,6 +961,84 @@ pub fn os_error_code(raw: &str) -> Option<i32> {
     let rest = &raw[i + "(os error ".len()..];
     let end = rest.find(')')?;
     rest[..end].parse().ok()
+}
+
+/// Why an account needs to sign in again: the two causes read differently and the fix is the same.
+/// Typed where it is known (the engine, when it records the problem); never read back from words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SignInCause {
+    /// Google no longer accepts the saved sign-in (revoked, expired, a changed password).
+    Ended,
+    /// The sign-in saved on this device is missing or can't be read.
+    Unreadable,
+}
+
+impl SignInCause {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SignInCause::Ended => "ended",
+            SignInCause::Unreadable => "unreadable",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<SignInCause> {
+        match s {
+            "ended" => Some(SignInCause::Ended),
+            "unreadable" => Some(SignInCause::Unreadable),
+            _ => None,
+        }
+    }
+
+    /// The entry that words this cause for an account on its own (the account list).
+    pub fn account_key(self) -> &'static str {
+        match self {
+            SignInCause::Ended => "account.sign_in_ended",
+            SignInCause::Unreadable => "account.sign_in_unreadable",
+        }
+    }
+
+    /// The entry that words this cause for a folder that can't sync because of it.
+    pub fn folder_key(self) -> &'static str {
+        match self {
+            SignInCause::Ended => "error.auth",
+            SignInCause::Unreadable => "error.sign_in_unreadable",
+        }
+    }
+}
+
+/// The run-event code of a file that vanished between the scan and the read.
+pub const EVENT_FILE_GONE: &str = "FILE_GONE";
+/// The run-event code of an item whose name Drive or this device refuses.
+pub const EVENT_NAME_REFUSED: &str = "NAME_REFUSED";
+
+/// The entry that words a run event of this `action` code, for the codes that are failures people
+/// act on; `None` for the routine ones (`UPLOAD`, `SKIP`, …). Typed: the code is the engine's.
+pub fn event_key(action: &str) -> Option<&'static str> {
+    match action {
+        EVENT_FILE_GONE => Some("error.file_gone"),
+        EVENT_NAME_REFUSED => Some("error.name_refused"),
+        _ => None,
+    }
+}
+
+/// A run event in words: its entry filled with the file's own name (the last part of its key, never
+/// a path) and the folder's name. `None` when the event isn't one the catalogue words.
+pub fn render_event(
+    action: &str,
+    file_key: Option<&str>,
+    folder: &str,
+    lang: Lang,
+    raw: Option<&str>,
+    roots: &[&str],
+    secrets: &[&str],
+) -> Option<Rendered> {
+    let key = event_key(action)?;
+    let mut values = Values::default().folder(folder);
+    if let Some(name) = file_key.and_then(|k| k.rsplit('/').find(|p| !p.is_empty())) {
+        values = values.file(name);
+    }
+    Some(render_with(key, &values, lang, raw, roots, secrets, &mut |_| {}))
 }
 
 /// The entry with this key.
@@ -1318,6 +1437,7 @@ mod tests {
             (K::Permission, "error.permission"),
             (K::Quota, "error.quota"),
             (K::NotFound, "error.not_found"),
+            (K::FolderMissing, "error.folder_missing"),
             (K::Locked, "error.locked"),
             (K::Network, "error.network"),
             (K::RateLimit, "error.rate_limit"),
@@ -1326,9 +1446,154 @@ mod tests {
             (K::Integrity, "error.integrity"),
             (K::Other, FALLBACK),
         ];
+        assert_eq!(want.len(), K::ALL.len(), "a kind without a row here");
+        for kind in K::ALL {
+            assert!(want.iter().any(|(k, _)| *k == kind), "{kind:?} has no row");
+        }
         for (kind, key) in want {
             assert_eq!(key_for_kind(kind), key);
             assert!(entry(key).is_some(), "{key} is not in the catalogue");
+        }
+    }
+
+    /// Issue #33: whatever the cause says, no kind of failure shows a code such as `internal_failure`
+    /// (or the system's own words) in either language; the cause is only ever Details.
+    #[test]
+    fn no_kind_of_failure_shows_a_bare_internal_code() {
+        use crate::run::ErrorKind as K;
+        let causes = [
+            "internal_failure",
+            "INTERNAL_FAILURE",
+            "E_UNEXPECTED (os error 5)",
+            "",
+        ];
+        for kind in K::ALL {
+            for raw in causes {
+                for lang in [Lang::En, Lang::Ar] {
+                    let key = classify_for(Platform::Linux, kind, raw);
+                    let r = render(
+                        key,
+                        &Values::default().folder("Photos").file("a.txt"),
+                        lang,
+                        Some(raw),
+                        &[],
+                        &mut quiet(),
+                    );
+                    assert!(!r.text.trim().is_empty(), "{kind:?} {lang:?}");
+                    for bad in ["internal_failure", "INTERNAL_FAILURE", "E_UNEXPECTED", "os error"] {
+                        assert!(!r.text.contains(bad), "{kind:?} {lang:?} shows {bad}: {}", r.text);
+                    }
+                    assert!(r.fix.is_some() || kind == K::Other, "{kind:?} names no fix");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn each_failure_people_hit_has_its_own_entry_with_a_fix_in_both_languages() {
+        let cases: [(&str, Fix, &[Slot]); 8] = [
+            ("error.file_gone", Retry, &[File]),
+            ("error.disk_full", OpenStorageSettings, &[File, Folder]),
+            ("error.quota", OpenDriveStorage, &[Folder]),
+            ("error.folder_missing", OpenFolder, &[Folder]),
+            ("error.name_refused", OpenToRename, &[File]),
+            ("error.auth", SignInAgain, &[Folder]),
+            ("error.sign_in_unreadable", SignInAgain, &[Folder]),
+            ("account.sign_in_unreadable", SignInAgain, &[]),
+        ];
+        let mut keys = std::collections::HashSet::new();
+        for (key, fix, slots) in cases {
+            assert!(keys.insert(key), "{key} twice");
+            let ent = entry(key).unwrap_or_else(|| panic!("{key} is not in the catalogue"));
+            assert_eq!(Some(fix), ent.fix, "{key}");
+            assert_eq!(slots, ent.slots, "{key}");
+            let v = Values::default().folder("Photos").file("a.txt");
+            let en = render(key, &v, Lang::En, None, &[], &mut quiet());
+            let ar = render(key, &v, Lang::Ar, None, &[], &mut quiet());
+            assert_ne!(en.text, ar.text, "{key} reads the same in both languages");
+            assert!(
+                ar.text.chars().any(|c| ('\u{600}'..='\u{6ff}').contains(&c)),
+                "{key}"
+            );
+            // What happened and what to do, with the names the person knows.
+            if slots.contains(&File) {
+                assert!(en.text.contains("a.txt") && ar.text.contains("a.txt"), "{key}");
+            }
+            if slots.contains(&Folder) {
+                assert!(en.text.contains("Photos") && ar.text.contains("Photos"), "{key}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_sign_in_cause_is_typed_and_has_its_words_for_an_account_and_for_a_folder() {
+        assert_eq!("account.sign_in_ended", SignInCause::Ended.account_key());
+        assert_eq!(
+            "account.sign_in_unreadable",
+            SignInCause::Unreadable.account_key()
+        );
+        assert_eq!("error.auth", SignInCause::Ended.folder_key());
+        assert_eq!("error.sign_in_unreadable", SignInCause::Unreadable.folder_key());
+        for cause in [SignInCause::Ended, SignInCause::Unreadable] {
+            assert_eq!(Some(cause), SignInCause::parse(cause.as_str()));
+            assert_eq!(
+                format!("\"{}\"", cause.as_str()),
+                serde_json::to_string(&cause).unwrap()
+            );
+            for key in [cause.account_key(), cause.folder_key()] {
+                assert_eq!(Some(Fix::SignInAgain), entry(key).unwrap().fix, "{key}");
+            }
+        }
+        assert_eq!(None, SignInCause::parse("INTERNAL_FAILURE"));
+        // The two causes never read alike.
+        let say = |c: SignInCause| {
+            render(
+                c.account_key(),
+                &Values::default(),
+                Lang::En,
+                None,
+                &[],
+                &mut quiet(),
+            )
+            .text
+        };
+        assert_ne!(say(SignInCause::Ended), say(SignInCause::Unreadable));
+    }
+
+    /// A vanished file and a refused name are typed run events; their words take the file's name,
+    /// never its path, and a routine event has none.
+    #[test]
+    fn a_run_event_of_a_failure_people_act_on_has_words_with_the_file_name() {
+        let words = |action: &str, lang| {
+            render_event(
+                action,
+                Some("Trips/2024/photo one.jpg"),
+                "Photos",
+                lang,
+                Some("No such file (os error 2) at /home/me/Photos/Trips/2024/photo one.jpg"),
+                &["/home/me/Photos"],
+                &[],
+            )
+        };
+        let gone = words(EVENT_FILE_GONE, Lang::En).unwrap();
+        assert_eq!("error.file_gone", gone.key);
+        assert_eq!(Some(Fix::Retry), gone.fix);
+        assert_eq!(Some("photo one.jpg"), gone.values.file.as_deref());
+        assert_eq!(
+            "photo one.jpg was gone before Wasl could sync it, so it was skipped.",
+            gone.text
+        );
+        assert!(!gone.text.contains("Trips"), "{}", gone.text);
+        assert_eq!(
+            Some("No such file (os error 2) at Photos/…/photo one.jpg"),
+            gone.details.as_deref()
+        );
+        let refused = words(EVENT_NAME_REFUSED, Lang::Ar).unwrap();
+        assert_eq!("error.name_refused", refused.key);
+        assert_eq!(Some(Fix::OpenToRename), refused.fix);
+        assert!(refused.text.contains("photo one.jpg"), "{}", refused.text);
+        for routine in ["UPLOAD", "DOWNLOAD", "SKIP", "ERROR", "INFO", "CONFLICT"] {
+            assert!(words(routine, Lang::En).is_none(), "{routine}");
         }
     }
 

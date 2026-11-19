@@ -69,7 +69,7 @@ impl From<EngineError> for WaslError {
         match e.kind() {
             Auth => WaslError::Auth { detail: message },
             Network | RateLimit | Server => WaslError::Network { detail: message },
-            Permission => WaslError::Permission { detail: message },
+            Permission | FolderMissing => WaslError::Permission { detail: message },
             NotFound => WaslError::NotFound { detail: message },
             Locked => WaslError::Locked { detail: message },
             Io | Integrity | Quota => WaslError::Io { detail: message },

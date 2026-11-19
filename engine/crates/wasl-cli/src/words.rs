@@ -116,3 +116,52 @@ pub fn run_cause(
 pub fn text(key: &str) -> String {
     say(key, &Values::default(), None).text
 }
+
+/// [`say`] for a place that lists many causes (the history): an unknown one is not logged.
+pub fn say_quiet(key: &str, values: &Values, raw: Option<&str>) -> Rendered {
+    let k = known();
+    let roots: Vec<&str> = k.roots.iter().map(String::as_str).collect();
+    let secrets: Vec<&str> = k.secrets.iter().map(String::as_str).collect();
+    words::render_with(key, values, lang(), raw, &roots, &secrets, &mut |_| {})
+}
+
+/// An account's sign-in problem in the catalogue's words (its cause typed by the daemon; an older
+/// daemon sends none, and that reads as Google no longer accepting the sign-in). None when the
+/// account is fine.
+pub fn account_problem(a: &wasl_ipc::Account) -> Option<Rendered> {
+    let raw = a.auth_error.as_deref()?;
+    let cause = a.sign_in.unwrap_or(wasl_proto::SignInCause::Ended);
+    Some(say(cause.account_key(), &Values::default(), Some(raw)))
+}
+
+/// Takes the Details out of every catalogue sentence (an object with a `key` and a `text`) in a
+/// `--json` value, unless `--details` asked for them. Walks the whole value, so a sentence a later
+/// version of the daemon adds is covered too.
+pub fn hide_details(v: &mut serde_json::Value) {
+    if details_wanted() {
+        return;
+    }
+    match v {
+        serde_json::Value::Object(o) => {
+            if o.contains_key("key") && o.contains_key("text") {
+                o.remove("details");
+            }
+            o.values_mut().for_each(hide_details);
+        }
+        serde_json::Value::Array(a) => a.iter_mut().for_each(hide_details),
+        _ => {}
+    }
+}
+
+/// An account as `--json` prints it: the daemon's fields (the raw cause redacted), and beside them
+/// the catalogue's key, words in this language, values and fix for its sign-in problem.
+pub fn account_json(a: &wasl_ipc::Account) -> serde_json::Value {
+    let mut v = serde_json::to_value(a).unwrap_or_default();
+    if let Some(e) = a.auth_error.as_deref() {
+        v["auth_error"] = plain(e).into();
+    }
+    if let Some(w) = account_problem(a) {
+        v["words"] = serde_json::to_value(w).unwrap_or_default();
+    }
+    v
+}

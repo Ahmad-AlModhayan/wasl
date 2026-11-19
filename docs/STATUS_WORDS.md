@@ -420,7 +420,7 @@ falling back to English.
 
 ## `error.file_gone`
 
-- Note: A file was deleted or moved between Wasl listing it and reading it. Not a problem; the next sync is clean. Not raised yet: the engine records a vanished file as a plain-text SKIP event, so no error carries this key today.
+- Note: A file was deleted or moved between Wasl listing it and reading it. Not a problem; the next sync is clean. The engine records it as a FILE_GONE run event ([`event_key`]); {file} is the file's name, not its path.
 - Values: file
 - Fix: `retry`
 - English: {file} was gone before Wasl could sync it, so it was skipped.
@@ -449,6 +449,38 @@ falling back to English.
 - Fix: `open_to_rename`
 - English: Drive or this device won't accept the name of {file}, so it was skipped.
 - Arabic: لا يقبل Drive أو هذا الجهاز اسم {file}، لذلك تم تخطيه.
+
+## `error.folder_missing`
+
+- Note: The synced folder itself is gone from THIS device (a card taken out, the folder deleted or moved), so the run stopped. Not one vanished file (error.file_gone) and not a refused permission (error.permission). Nothing was deleted on Drive.
+- Values: folder
+- Fix: `open_folder`
+- English: {folder} can't be found on this device. If it is on a memory card or an external drive, reconnect it; otherwise choose the folder again.
+- Arabic: تعذّر العثور على {folder} في هذا الجهاز. إن كان على بطاقة ذاكرة أو قرص خارجي فأعد توصيله، وإلا فاختر المجلد من جديد.
+
+## `error.sign_in_unreadable`
+
+- Note: No usable sign-in is saved on this device: it was never saved here, or the system's keychain no longer gives it up. Contrast error.auth: Google no longer accepts a sign-in Wasl can read.
+- Values: folder
+- Fix: `sign_in_again`
+- English: Wasl has no usable Google sign-in saved on this device, so {folder} can't sync. Sign in again.
+- Arabic: ليس لدى وصل تسجيل دخول صالح إلى Google محفوظ على هذا الجهاز، لذلك لا يمكن مزامنة {folder}. سجّل الدخول مجددًا.
+
+## `account.sign_in_ended`
+
+- Note: A row of the account list, or a problem listed without a folder: the account's session ended on Google's side. The account's email is shown beside these words, not inside them.
+- Values: none
+- Fix: `sign_in_again`
+- English: Google no longer accepts this account's sign-in. Sign in again.
+- Arabic: لم تعد Google تقبل تسجيل الدخول لهذا الحساب. سجّل الدخول مجددًا.
+
+## `account.sign_in_unreadable`
+
+- Note: A row of the account list, or a problem listed without a folder: no usable sign-in is saved on this device (never saved here, or the keychain no longer gives it up). The account's email is shown beside these words, not inside them.
+- Values: none
+- Fix: `sign_in_again`
+- English: Wasl has no usable sign-in saved for this account on this device. Sign in again.
+- Arabic: ليس لدى وصل تسجيل دخول صالح محفوظ لهذا الحساب على هذا الجهاز. سجّل الدخول مجددًا.
 
 ## `error.invalid`
 

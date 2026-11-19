@@ -55,6 +55,9 @@ pub enum ErrorKind {
     Permission,
     Quota,
     NotFound,
+    /// The pair's own folder on this device isn't there (a memory card taken out, the folder
+    /// deleted or moved): not a permission, not one vanished file.
+    FolderMissing,
     Locked,
     Network,
     RateLimit,
@@ -79,6 +82,7 @@ impl ErrorKind {
             ErrorKind::Permission => "PERMISSION",
             ErrorKind::Quota => "QUOTA",
             ErrorKind::NotFound => "NOT_FOUND",
+            ErrorKind::FolderMissing => "FOLDER_MISSING",
             ErrorKind::Locked => "LOCKED",
             ErrorKind::Network => "NETWORK",
             ErrorKind::RateLimit => "RATE_LIMIT",
@@ -89,21 +93,23 @@ impl ErrorKind {
         }
     }
 
+    /// Every kind, so a test can walk them all.
+    pub const ALL: [ErrorKind; 12] = [
+        ErrorKind::Auth,
+        ErrorKind::Permission,
+        ErrorKind::Quota,
+        ErrorKind::NotFound,
+        ErrorKind::FolderMissing,
+        ErrorKind::Locked,
+        ErrorKind::Network,
+        ErrorKind::RateLimit,
+        ErrorKind::Server,
+        ErrorKind::Io,
+        ErrorKind::Integrity,
+        ErrorKind::Other,
+    ];
+
     pub fn parse(s: &str) -> Option<ErrorKind> {
-        [
-            ErrorKind::Auth,
-            ErrorKind::Permission,
-            ErrorKind::Quota,
-            ErrorKind::NotFound,
-            ErrorKind::Locked,
-            ErrorKind::Network,
-            ErrorKind::RateLimit,
-            ErrorKind::Server,
-            ErrorKind::Io,
-            ErrorKind::Integrity,
-            ErrorKind::Other,
-        ]
-        .into_iter()
-        .find(|k| k.as_str() == s)
+        ErrorKind::ALL.into_iter().find(|k| k.as_str() == s)
     }
 }
