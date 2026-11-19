@@ -3,7 +3,7 @@
 //! while the crawl runs in the background; afterwards the cache answers.
 
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use wasl_drive::{
     AccountState, DriveClient, DriveClientConfig, DriveEndpoints, DriveError, DriveNodeCache, FOLDER_MIME,
     MemoryNodeStore, TokenProvider,
@@ -32,6 +32,11 @@ fn file(id: &str, name: &str, mime: &str, parent: &str, modified: &str) -> Strin
         r#"{{"id":"{id}","name":"{name}","mimeType":"{mime}","parents":["{parent}"],"modifiedTime":"{modified}","size":"3","md5Checksum":"x","version":"1"}}"#
     )
 }
+
+/// A crawl that never answers within a test: the fake Drive holds it open.
+const CRAWL_HELD: Duration = Duration::from_secs(3600);
+/// Only a guard against a hang, never a speed claim.
+const HANG_GUARD: Duration = Duration::from_secs(120);
 
 const T1: &str = "2026-01-01T00:00:00.000Z";
 const T2: &str = "2026-02-01T00:00:00.000Z";
@@ -155,18 +160,34 @@ fn keys(l: &wasl_drive::SubtreeListing) -> Vec<String> {
     k
 }
 
+/// Waits (up to the hang guard) until the background crawl has stored its changes token.
+async fn wait_for_crawl(store: &MemoryNodeStore) {
+    tokio::time::timeout(HANG_GUARD, async {
+        while store
+            .account_state(ACCOUNT)
+            .and_then(|a| a.changes_token)
+            .is_none()
+        {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("the background crawl completed");
+}
+
+/// The order is what is claimed, not a speed: the first listing comes back while the full crawl is
+/// still running. So the fake Drive holds the crawl for as long as the test can last (an hour), and
+/// the listing has to arrive and be right with the crawl still unanswered. The clock only guards a
+/// hang (a loaded machine read 6.2 s against the former 1 s limit, #54).
 #[tokio::test(flavor = "multi_thread")]
 async fn the_first_listing_reads_the_pair_live_while_the_full_crawl_runs() {
-    let (server, queries) = drive(Duration::from_secs(3)).await;
+    let (server, queries) = drive(CRAWL_HELD).await;
     let (cache, store) = cache(&server);
 
-    let started = Instant::now();
-    let live = cache.list_subtree(ACCOUNT, "A", None).await.unwrap();
-    assert!(
-        started.elapsed() < Duration::from_secs(1),
-        "did not wait for the crawl: {:?}",
-        started.elapsed()
-    );
+    let live = tokio::time::timeout(HANG_GUARD, cache.list_subtree(ACCOUNT, "A", None))
+        .await
+        .expect("the first listing hung")
+        .unwrap();
     assert_eq!(vec!["B", "B/b.txt", "a.txt", "dup.txt"], keys(&live));
     assert_eq!(
         vec!["dup.txt".to_string()],
@@ -177,18 +198,34 @@ async fn the_first_listing_reads_the_pair_live_while_the_full_crawl_runs() {
     assert_eq!("d2", dup.id, "the newer one wins");
     assert_eq!(vec!["link".to_string()], live.shortcuts);
 
-    // The crawl finishes in the background; then the cache answers, with no per-folder queries.
-    let done = tokio::time::timeout(Duration::from_secs(10), async {
-        while store
-            .account_state(ACCOUNT)
-            .and_then(|a| a.changes_token)
-            .is_none()
-        {
-            tokio::time::sleep(Duration::from_millis(50)).await;
+    // The listing is in hand and the crawl has not answered: it was asked in the background (its
+    // query has no folder in it) and it is still held, so the listing did not wait for it.
+    tokio::time::timeout(HANG_GUARD, async {
+        while !queries.lock().unwrap().iter().any(|q| !q.contains("in parents")) {
+            tokio::time::sleep(Duration::from_millis(20)).await;
         }
     })
-    .await;
-    assert!(done.is_ok(), "the background crawl completed");
+    .await
+    .expect("the background crawl was never asked");
+    assert!(
+        store
+            .account_state(ACCOUNT)
+            .and_then(|a| a.changes_token)
+            .is_none(),
+        "the listing arrived only after the crawl ended"
+    );
+}
+
+/// After the crawl the cache answers the same as the live read did, with no per-folder queries.
+/// Nothing here depends on which of the two answered the first listing, so no clock is involved
+/// beyond the hang guard.
+#[tokio::test(flavor = "multi_thread")]
+async fn after_the_crawl_the_cache_answers_the_same_as_the_live_read() {
+    let (server, queries) = drive(Duration::from_millis(300)).await;
+    let (cache, store) = cache(&server);
+
+    let live = cache.list_subtree(ACCOUNT, "A", None).await.unwrap();
+    wait_for_crawl(&store).await;
     let asked = queries.lock().unwrap().len();
     let cached = cache.list_subtree(ACCOUNT, "A", None).await.unwrap();
     assert_eq!(keys(&live), keys(&cached), "live and cached listings agree");
@@ -236,17 +273,7 @@ async fn the_top_level_is_one_folder_read_live_and_agrees_with_the_cache() {
     assert!(matches!(e, DriveError::NotFound(_)), "{e:?}");
 
     // Once the crawl is done the cache answers the same, with no per-folder queries.
-    let done = tokio::time::timeout(Duration::from_secs(10), async {
-        while store
-            .account_state(ACCOUNT)
-            .and_then(|a| a.changes_token)
-            .is_none()
-        {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-    })
-    .await;
-    assert!(done.is_ok(), "the background crawl completed");
+    wait_for_crawl(&store).await;
     let asked = queries.lock().unwrap().len();
     let cached = cache.list_top_level(ACCOUNT, "A", None).await.unwrap();
     assert_eq!(keys(&live), keys(&cached));
