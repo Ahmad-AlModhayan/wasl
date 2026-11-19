@@ -18,7 +18,7 @@ use tokio::sync::{Mutex, mpsc, oneshot};
 use wasl_proto::{
     BinEntry, Changeset, ChangesetDetails, ConflictChoice, ConflictDetails, ConflictRecord, ConflictUndo,
     DeletionReview, FileVersions, JournalReport, Lang, OplogFilter, OplogPage, Pair, Preview, RestoreResult,
-    RevertReport, RunEvent, RunOutcome, RunRecord, Trigger, VersionRef, Watch,
+    RevertReport, RunEvent, RunItem, RunOutcome, RunRecord, Trigger, VersionRef, Watch,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -252,6 +252,14 @@ impl Client {
     pub async fn run_events(&self, run_id: &str) -> Result<Vec<RunEvent>, ClientError> {
         self.call(Request::RunEvents {
             run_id: run_id.into(),
+        })
+        .await
+    }
+    /// The files run `run_id` left out or could not sync, worded in `lang` (issue #56).
+    pub async fn run_items(&self, run_id: &str, lang: Lang) -> Result<Vec<RunItem>, ClientError> {
+        self.call(Request::RunItems {
+            run_id: run_id.into(),
+            lang: Some(lang),
         })
         .await
     }

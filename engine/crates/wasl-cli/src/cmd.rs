@@ -163,7 +163,15 @@ pub async fn run(cmd: Cmd) -> R<u8> {
         Cmd::Account(AccountCmd::List { json }) => account_list(json).await,
         Cmd::Account(AccountCmd::Add) => account_add().await,
         Cmd::Account(AccountCmd::Remove { email }) => account_remove(&email).await,
-        Cmd::History { pair, limit, json } => history(pair, limit, json).await,
+        Cmd::History {
+            pair,
+            limit,
+            run,
+            json,
+        } => match run {
+            Some(run) => history_run(&run, json).await,
+            None => history(pair, limit, json).await,
+        },
         Cmd::Problems { json } => problems(json).await,
         Cmd::Bin(BinCmd::List { pair, json }) => bin_list(pair, json).await,
         Cmd::Bin(BinCmd::Restore { ids }) => bin_restore(ids).await,
@@ -1930,18 +1938,7 @@ async fn history(pair: Option<String>, limit: u32, json: bool) -> R<u8> {
     };
     let runs = c.runs(only.as_deref(), limit).await?;
     let names: HashMap<&str, &str> = pairs.iter().map(|p| (p.id.as_str(), p.name.as_str())).collect();
-    // The runs the engine has worded itself (its folder statuses keep the latest ones, with their
-    // typed cause); the rest are worded here from what the history holds.
-    let engine_words: HashMap<String, wasl_proto::Rendered> = match c.status_in(words::lang()).await {
-        Ok(st) => st
-            .pairs
-            .into_iter()
-            .filter_map(|p| p.status)
-            .flat_map(|s| s.last_runs)
-            .filter_map(|r| r.words.map(|w| (r.run_id, w)))
-            .collect(),
-        Err(_) => HashMap::new(),
-    };
+    let engine_words = engine_run_words(&c).await;
     let worded: Vec<(wasl_proto::RunRecord, Option<wasl_proto::Rendered>)> = runs
         .into_iter()
         .map(|r| {
@@ -1969,6 +1966,7 @@ async fn history(pair: Option<String>, limit: u32, json: bool) -> R<u8> {
         return Ok(OK);
     }
     let mut rows = vec![vec![
+        t!(ColId),
         t!(ColStarted),
         t!(ColPair),
         t!(ColResult),
@@ -1979,6 +1977,7 @@ async fn history(pair: Option<String>, limit: u32, json: bool) -> R<u8> {
     for (r, w) in &worded {
         let (status, tone) = run_status_label(r.status);
         rows.push(vec![
+            i18n::clean(&r.id),
             out::when(r.started_at),
             names
                 .get(r.pair_id.as_str())
@@ -1998,12 +1997,121 @@ async fn history(pair: Option<String>, limit: u32, json: bool) -> R<u8> {
         }
     }
     print!("{}", out::table(&rows));
+    println!("{}", t!(HistoryRunHint));
     if words::details_wanted() {
         for (when, d) in details {
             eprintln!("{when}: {}", t!(DetailsLine, d));
         }
     }
     Ok(OK)
+}
+
+/// The runs the engine has worded itself: its folder statuses keep the latest ones, with their typed
+/// cause. The rest are worded from what the history holds.
+async fn engine_run_words(c: &Client) -> HashMap<String, wasl_proto::Rendered> {
+    match c.status_in(words::lang()).await {
+        Ok(st) => st
+            .pairs
+            .into_iter()
+            .filter_map(|p| p.status)
+            .flat_map(|s| s.last_runs)
+            .filter_map(|r| r.words.map(|w| (r.run_id, w)))
+            .collect(),
+        Err(_) => HashMap::new(),
+    }
+}
+
+/// A run by its exact ID, or by the start of it (4+ characters) when only one matches.
+fn find_run<'a>(runs: &'a [wasl_proto::RunRecord], reference: &str) -> R<&'a wasl_proto::RunRecord> {
+    if let Some(r) = runs.iter().find(|r| r.id == reference) {
+        return Ok(r);
+    }
+    let found: Vec<&wasl_proto::RunRecord> = if reference.chars().count() >= 4 {
+        runs.iter().filter(|r| r.id.starts_with(reference)).collect()
+    } else {
+        Vec::new()
+    };
+    match found.len() {
+        0 => Err(Fail::new(NOT_FOUND, t!(NoSuchRun, i18n::clean(reference)))),
+        1 => Ok(found[0]),
+        _ => {
+            let list: Vec<String> = found
+                .iter()
+                .map(|r| format!("  {}", i18n::clean(&r.id)))
+                .collect();
+            Err(Fail::new(
+                USAGE,
+                t!(AmbiguousRun, i18n::clean(reference), list.join("\n")),
+            ))
+        }
+    }
+}
+
+/// `wasl history --run`: how one run ended, and each file it left out with what to do about it.
+async fn history_run(reference: &str, json: bool) -> R<u8> {
+    let c = connect().await?;
+    let pairs = c.pairs().await?;
+    let runs = c.runs(None, 1000).await?;
+    let run = find_run(&runs, reference)?.clone();
+    let folder = pairs
+        .iter()
+        .find(|p| p.id == run.pair_id)
+        .map_or(run.pair_id.as_str(), |p| p.name.as_str());
+    let items = c.run_items(&run.id, words::lang()).await?;
+    let engine_words = engine_run_words(&c).await;
+    let said = run_words(&run, folder, engine_words.get(&run.id));
+    if json {
+        return print_json_safe(&RunDetail {
+            run: HistoryRun {
+                words: said,
+                run: wasl_proto::RunRecord {
+                    message: run.message.as_deref().map(words::plain),
+                    ..run
+                },
+            },
+            items,
+        });
+    }
+    let (status, tone) = run_status_label(run.status);
+    println!(
+        "{}",
+        t!(
+            RunHeader,
+            i18n::clean(folder),
+            out::when(run.started_at),
+            out::styled(&status, tone)
+        )
+    );
+    if let Some(w) = &said {
+        println!("  {}", i18n::clean(&w.text));
+    }
+    if items.is_empty() {
+        println!("{}", t!(NoRunItems));
+    }
+    for item in &items {
+        println!("  - {}", i18n::clean(&item.words.text));
+        if let Some(fix) = &item.fix_words {
+            println!("    {}", t!(ItemWhatToDo, i18n::clean(fix)));
+        }
+    }
+    if words::details_wanted() {
+        let all = said
+            .iter()
+            .filter_map(|w| w.details.clone())
+            .chain(items.iter().filter_map(|i| i.words.details.clone()));
+        for d in all {
+            eprintln!("{}", t!(DetailsLine, words::plain(&d)));
+        }
+    }
+    Ok(OK)
+}
+
+/// A run and its files left out, as `wasl history --run --json` prints them: the run as the history
+/// lists it, and beside it each item with its key, values, fix and the words for it.
+#[derive(serde::Serialize)]
+struct RunDetail {
+    run: HistoryRun,
+    items: Vec<wasl_proto::RunItem>,
 }
 
 /// A run as `--json` prints it: the history's fields (the raw message redacted), and beside them
@@ -2028,8 +2136,11 @@ fn run_words(
     match r.status {
         RunStatus::Failed => Some(match engine {
             Some(w) => w.clone(),
+            // The kind the run kept (issue #57); a run stored before runs kept it reads as the
+            // generic sentence, or the specific one an I/O number in its cause names.
             None => {
-                let key = wasl_proto::words::classify(wasl_proto::ErrorKind::Other, raw);
+                let kind = r.error_kind.unwrap_or(wasl_proto::ErrorKind::Other);
+                let key = wasl_proto::words::classify(kind, raw);
                 words::say_quiet(key, &Values::default().folder(folder), Some(raw))
             }
         }),

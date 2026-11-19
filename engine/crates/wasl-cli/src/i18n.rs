@@ -319,6 +319,15 @@ messages! {
     AccountRemoved => "Removed account {0}.", "أُزيل الحساب {0}.";
 
     NoHistory => "No sync runs yet.", "لا توجد عمليات مزامنة بعد.";
+    HistoryRunHint => "To see which files a run left out and what to do: wasl history --run <ID>",
+        "لمعرفة الملفات التي تركتها عملية المزامنة وما يمكنك فعله: wasl history --run <المعرّف>";
+    NoSuchRun => "No sync run matches \"{0}\". See: wasl history",
+        "لا توجد عملية مزامنة تطابق \"{0}\". راجع: wasl history";
+    AmbiguousRun => "\"{0}\" matches more than one sync run; use more of its ID:\n{1}",
+        "\"{0}\" يطابق أكثر من عملية مزامنة؛ استخدم جزءًا أطول من المعرّف:\n{1}";
+    RunHeader => "{0}, {1}: {2}", "{0}، {1}: {2}";
+    NoRunItems => "No file was left out in this run.", "لم يُترك أي ملف في هذه العملية.";
+    ItemWhatToDo => "What to do: {0}", "ما يمكنك فعله: {0}";
     NoProblems => "No problems.", "لا توجد مشكلات.";
     ProblemBlocked => "{0}: waiting for your approval. See: wasl pair preview \"{0}\"",
         "{0}: بانتظار موافقتك. راجع: wasl pair preview \"{0}\"";

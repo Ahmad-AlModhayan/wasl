@@ -126,7 +126,9 @@ absent when the folder isn't being retried). `wasl problems` leaves out a folder
 
 ### Failures people hit (issues #33 and #44)
 
-No command or screen lists a run's per-file events yet, so the words for the two run events (`FILE_GONE`, `NAME_REFUSED`) are ready in the catalogue (`render_event`) and reach a screen once one does.
+A run's per-file events are listed with their words (issue #56): `wasl history --run <ID>` (the ID is in the `wasl history` table, the start of it from 4 characters works too) says which files the run left out, and for each what happened and what to do, in the caller's language. `wasl history --run <ID> --json` gives `run` (as the history lists it) and `items`; each item has `action` (`FILE_GONE`, `NAME_REFUSED`), `path` inside the folder, `words` (`key`, `text`, `values.file`, `values.folder`, `fix`) and `fix_words`, the sentence for the fix. The daemon's `run_items` request (`Client::run_items`) and the phone binding's `run_items` give the same list; the apps draw it and keep no wording of their own. The cause behind an item (`words.details`, redacted) shows only with `--details`. The catalogue words these two run events (`render_event`), and `wasl_proto::fix_words` words each suggested fix (see "Suggested fixes" in `STATUS_WORDS.md`).
+
+A run also keeps the kind of its failure (`error_kind` in the history, schema 14), so `wasl history` and the folder status word an older failed run from its own cause and not with the generic sentence. A run stored before that migration has no kind and keeps the generic sentence (or the specific one an I/O number in its stored cause names).
 
 Each failure below has its own entry in both languages, says what happened and what to do, names only the
 file or the folder, and arrives typed (a marker or a stored value, never a guess from the message text):

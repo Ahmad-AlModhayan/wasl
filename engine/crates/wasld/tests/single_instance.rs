@@ -48,7 +48,7 @@ fn a_second_wasld_on_the_same_home_exits_and_the_first_keeps_running() {
     assert!(!out.status.success());
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(err.contains("another Wasl is already running"), "{err}");
-    assert_eq!(13, first.store.lock().schema_version().unwrap());
+    assert_eq!(14, first.store.lock().schema_version().unwrap());
 }
 
 #[test]

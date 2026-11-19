@@ -1279,10 +1279,40 @@ async fn a_file_that_vanishes_between_the_scan_and_the_read_is_skipped_not_faile
         assert_eq!("error.file_gone", said.key);
         assert_eq!(Some(name), said.values.file.as_deref());
     }
+    // And the engine lists them, worded, for the history (issue #56): each file by name with what
+    // to do, in either language, and nothing else from the run's log.
+    for lang in [wasl_proto::Lang::En, wasl_proto::Lang::Ar] {
+        let items = w.engine.run_items(&r.run_id, lang).unwrap();
+        let mut names: Vec<_> = items.iter().filter_map(|i| i.path.clone()).collect();
+        names.sort();
+        assert_eq!(vec!["new.xlsx", "statements.xlsx"], names, "{items:?}");
+        for item in &items {
+            assert_eq!("FILE_GONE", item.action);
+            assert_eq!("error.file_gone", item.words.key);
+            assert_eq!(item.path.as_deref(), item.words.values.file.as_deref());
+            assert_eq!(Some("Sync"), item.words.values.folder.as_deref());
+            assert_eq!(
+                Some(wasl_proto::fix_words(wasl_proto::Fix::Retry, lang)),
+                item.fix_words.as_deref()
+            );
+        }
+    }
+    // A run that isn't there is not found.
+    assert!(matches!(
+        w.engine.run_items("no-such-run", wasl_proto::Lang::En),
+        Err(wasl_engine::EngineError::NotFound(_))
+    ));
 
     opens.gone.lock().unwrap().clear();
     let next = w.sync().await;
     assert_eq!(RunStatus::Success, next.status, "{:?}", next.message);
+    // A run that left nothing out lists nothing.
+    assert!(
+        w.engine
+            .run_items(&next.run_id, wasl_proto::Lang::En)
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(
         "saved again",
         String::from_utf8(w.drive.content("Sync/statements.xlsx").unwrap()).unwrap(),
@@ -1321,6 +1351,13 @@ async fn a_folder_gone_mid_run_fails_the_run_instead_of_skipping_every_file() {
     // (issue #33); it needs the person at once, so it is not a failure to retry.
     assert_eq!(Some(ErrorKind::FolderMissing), w.pair().status.last_error_kind);
     assert!(!ErrorKind::FolderMissing.transient());
+    // The run keeps its own kind, so the history words it from its cause long after the folder's
+    // status has moved on (issue #57); a run that went well keeps none.
+    let pair_id = w.pair().id;
+    let kept = w.engine.store().lock().runs(Some(&pair_id), 10).unwrap();
+    assert_eq!(Some(ErrorKind::FolderMissing), kept[0].error_kind, "{kept:?}");
+    assert_eq!(RunStatus::Success, kept[1].status);
+    assert_eq!(None, kept[1].error_kind);
 }
 
 #[tokio::test]
