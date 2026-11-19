@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use wasl_proto::{
     BinEntry, ConflictChoice, ConflictUndo, DeviceStatus, FolderStatus, Lang, OplogStatus, OverallState,
-    OverallStatus, Pair, Progress, RunOutcome, Trigger, VersionRef,
+    OverallStatus, Pair, Progress, RunOutcome, SignInCause, Trigger, VersionRef,
 };
 pub use wasl_proto::{
     DeviceInfo, DevicesInfo, LinkPath, OfferInfo, OfferStatus, PairSharing, PairingStage, PairingStatus, View,
@@ -641,8 +641,14 @@ impl From<OverallState> for Overall {
 pub struct Account {
     pub id: String,
     pub email: String,
-    /// Set when the account must sign in again.
+    /// Set when the account must sign in again. The raw cause, for Details; the words and the fix
+    /// are the catalogue's, chosen by `sign_in`.
     pub auth_error: Option<String>,
+    /// Why the account must sign in again, typed by the engine: Google no longer accepts the
+    /// sign-in, or the one saved on this device can't be read. None when it needn't, and from an
+    /// older daemon (a problem with no cause reads as the first).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sign_in: Option<SignInCause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

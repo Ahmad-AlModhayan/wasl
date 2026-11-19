@@ -46,7 +46,7 @@ pub use engine::{
     excluded_by_pair_settings, export_beside_note, export_here_note, google_skipped_note, local_only_note,
     syncing_refusal,
 };
-pub use error::{EngineError, NAME_REFUSED, Result};
+pub use error::{EngineError, FILE_GONE, NAME_REFUSED, Result};
 pub use journal::{JournalReport, MAX_CAPTURE, Version};
 pub use memory_remote::{MemoryRemote, Op, ROOT_ID};
 pub use on_demand::{DriveSource, RemoteSource, VaultV1Source, view_tree};

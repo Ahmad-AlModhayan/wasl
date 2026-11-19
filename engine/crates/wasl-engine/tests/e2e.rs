@@ -1259,6 +1259,26 @@ async fn a_file_that_vanishes_between_the_scan_and_the_read_is_skipped_not_faile
         !events.iter().any(|e| e.level == wasl_store::EventLevel::Error),
         "nothing is logged as an error: {events:?}"
     );
+    // Each is a typed `FILE_GONE` event (issue #33), so a screen or an agent words it from the
+    // catalogue and the file's name, not from the message above.
+    for name in ["statements.xlsx", "new.xlsx"] {
+        let ev = events
+            .iter()
+            .find(|e| e.action == wasl_engine::FILE_GONE && e.key.as_deref() == Some(name))
+            .unwrap_or_else(|| panic!("no FILE_GONE event for {name}: {events:?}"));
+        let said = wasl_proto::words::render_event(
+            &ev.action,
+            ev.key.as_deref(),
+            "Sync",
+            wasl_proto::words::Lang::En,
+            Some(&ev.message),
+            &[],
+            &[],
+        )
+        .expect("a vanished file has words");
+        assert_eq!("error.file_gone", said.key);
+        assert_eq!(Some(name), said.values.file.as_deref());
+    }
 
     opens.gone.lock().unwrap().clear();
     let next = w.sync().await;
@@ -1297,6 +1317,10 @@ async fn a_folder_gone_mid_run_fails_the_run_instead_of_skipping_every_file() {
     assert_eq!(RunStatus::Failed, r.status, "{:?}", r.message);
     let message = r.message.unwrap_or_default();
     assert!(message.contains("isn't there any more"), "{message}");
+    // Typed, so the folder's words are "the folder is missing" and never a guess from the message
+    // (issue #33); it needs the person at once, so it is not a failure to retry.
+    assert_eq!(Some(ErrorKind::FolderMissing), w.pair().status.last_error_kind);
+    assert!(!ErrorKind::FolderMissing.transient());
 }
 
 #[tokio::test]

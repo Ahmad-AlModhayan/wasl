@@ -4,6 +4,12 @@ use crate::{Result, SharedStore, Store, to_i64, to_u64};
 use async_trait::async_trait;
 use rusqlite::{OptionalExtension, Row, params};
 use wasl_drive::{AccountState, DriveError, DriveNode, NodeStore, SessionStore};
+use wasl_proto::SignInCause;
+
+/// Where an account's sign-in cause is kept: the settings table, so no schema changes for it.
+fn sign_in_cause_key(account_id: &str) -> String {
+    format!("sign_in_cause:{account_id}")
+}
 
 fn db_err(e: crate::StoreError) -> DriveError {
     DriveError::Io(format!("local database: {e}"))
@@ -81,12 +87,59 @@ impl Store {
         Ok(())
     }
 
+    /// Records (`Some`) or clears (`None`) the account's sign-in problem. Clearing forgets its
+    /// cause too; recording keeps the cause already known (a saved sign-in that can't be read stays
+    /// that until the person signs in again), and a problem with no cause recorded is
+    /// [`SignInCause::Ended`].
     pub fn set_account_auth_error(&self, account_id: &str, error: Option<&str>) -> Result<()> {
         self.conn.execute(
             "UPDATE accounts SET auth_error = ?2 WHERE id = ?1",
             params![account_id, error],
         )?;
+        if error.is_none() {
+            self.remove_setting(&sign_in_cause_key(account_id))?;
+        }
         Ok(())
+    }
+
+    /// Records the account's sign-in problem with its cause, typed where it is known (the token
+    /// source: Google refused the sign-in, or the saved one can't be read on this device).
+    pub fn set_account_sign_in_problem(
+        &self,
+        account_id: &str,
+        cause: SignInCause,
+        message: &str,
+    ) -> Result<()> {
+        self.set_account_auth_error(account_id, Some(message))?;
+        self.set_setting(&sign_in_cause_key(account_id), cause.as_str())
+    }
+
+    /// Why the account must sign in again; `None` when it needn't.
+    pub fn account_sign_in_cause(&self, account_id: &str) -> Result<Option<SignInCause>> {
+        if self.account_auth_error(account_id)?.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(self.stored_cause(account_id)?))
+    }
+
+    /// Every account that must sign in again, with why.
+    pub fn accounts_to_sign_in(&self) -> Result<Vec<(String, SignInCause)>> {
+        let mut out = Vec::new();
+        for (id, _, auth_error) in self.accounts()? {
+            if auth_error.is_some() {
+                let cause = self.stored_cause(&id)?;
+                out.push((id, cause));
+            }
+        }
+        Ok(out)
+    }
+
+    fn stored_cause(&self, account_id: &str) -> Result<SignInCause> {
+        Ok(self
+            .setting(&sign_in_cause_key(account_id))?
+            .as_deref()
+            .and_then(SignInCause::parse)
+            .unwrap_or(SignInCause::Ended))
     }
 
     /// Every account: (id, email, last sign-in problem).
@@ -112,6 +165,7 @@ impl Store {
             .execute("DELETE FROM drive_nodes WHERE account_id = ?1", [account_id])?;
         self.conn
             .execute("DELETE FROM accounts WHERE id = ?1", [account_id])?;
+        self.remove_setting(&sign_in_cause_key(account_id))?;
         Ok(true)
     }
 

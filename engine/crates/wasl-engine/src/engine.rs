@@ -210,6 +210,8 @@ pub struct Engine {
 pub(crate) struct Prepared {
     pub(crate) plan: SyncPlan,
     pub(crate) notes: Vec<String>,
+    /// Device files moved or deleted since the scan, as (key, why): skipped by name.
+    pub(crate) vanished: Vec<(String, String)>,
     /// What the run did on its own that is not a problem (renames followed, shortcuts left out).
     pub(crate) infos: Vec<String>,
     pub(crate) local: Arc<dyn LocalFs>,
@@ -225,7 +227,7 @@ pub(crate) struct Prepared {
 
 /// The planner's result: the plan, how many files it hashed, the files it couldn't read and the
 /// ones gone since the scan (each with why), and the trees it planned from.
-type Planned = (SyncPlan, usize, Vec<String>, Vec<String>, PlanInput);
+type Planned = (SyncPlan, usize, Vec<String>, Vec<(String, String)>, PlanInput);
 
 impl Engine {
     /// This device's name: the `device_name` setting, else the configured one.
@@ -515,7 +517,7 @@ impl Engine {
         }
         Ok(Preview {
             plan: p.plan,
-            notes: p.notes,
+            notes: p.vanished.iter().map(|(_, m)| m.clone()).chain(p.notes).collect(),
             infos: p.infos,
             sizes,
         })
@@ -730,6 +732,9 @@ impl Engine {
             .prepare(pair, approve, &active.tracker, &active.cancel, true)
             .await?;
         let summary = prepared.plan.summary.clone();
+        for (key, message) in &prepared.vanished {
+            self.log_item(run_id, EventLevel::Warn, crate::error::FILE_GONE, key, message);
+        }
         for n in &prepared.notes {
             self.log(run_id, EventLevel::Warn, "INFO", n);
         }
@@ -877,6 +882,20 @@ impl Engine {
             level,
             action: action.to_owned(),
             key: None,
+            message: message.to_owned(),
+            detail: None,
+            bytes: 0,
+        };
+        let _ = self.store.lock().append_events(run_id, &[e]);
+    }
+
+    /// [`Self::log`] for one item, by its key.
+    fn log_item(&self, run_id: &str, level: EventLevel, action: &str, key: &str, message: &str) {
+        let e = RunEvent {
+            at: self.clock.now_ms(),
+            level,
+            action: action.to_owned(),
+            key: Some(key.to_owned()),
             message: message.to_owned(),
             detail: None,
             bytes: 0,
@@ -1066,7 +1085,15 @@ impl Engine {
             let key_of = key_of.clone();
             let cancel = cancel.clone();
             tokio::task::spawn_blocking(move || {
-                wasl_fs::scan(fs.as_ref(), builder, &key_of, || cancel.is_cancelled())
+                // A listing that fails because the pair's own folder isn't there is the folder
+                // missing, said by the type (`FolderGone`), not a file the scan could not read.
+                wasl_fs::scan(fs.as_ref(), builder, &key_of, || cancel.is_cancelled()).map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        crate::support::root_gone(fs.as_ref()).unwrap_or(e)
+                    } else {
+                        e
+                    }
+                })
             })
             .await
             .map_err(|e| EngineError::Other(e.to_string()))??
@@ -1206,7 +1233,10 @@ impl Engine {
                             {
                                 return Err(e);
                             }
-                            vanished.extend(gone.into_iter().map(|(_, e)| e.to_string()));
+                            vanished.extend(gone.into_iter().map(|(rel, e)| {
+                                let key = key_by_rel.get(rel.as_str()).copied().unwrap_or(&rel);
+                                (key.to_owned(), e.to_string())
+                            }));
                             unreadable.extend(refused.into_iter().map(|(_, e)| e.to_string()));
                             input = input.without_ignored(|k, _| skip.contains(k));
                         }
@@ -1217,8 +1247,8 @@ impl Engine {
             .map_err(|e| EngineError::Other(e.to_string()))??
         };
         let (plan, compared, unreadable, vanished, input) = plan;
-        // Each by name in the log, as a skip: nothing failed (#154).
-        notes.extend(vanished);
+        // Each by name in the log, as a typed `FILE_GONE` skip: nothing failed (#154), and the
+        // words for it come from the catalogue with the file's name (#33).
         if !unreadable.is_empty() {
             notes.push(format!(
                 "Skipped {} file(s) on the device that couldn't be read this time; they stay as they are on both sides until the next sync: {}",
@@ -1247,6 +1277,7 @@ impl Engine {
         Ok(Prepared {
             plan,
             notes,
+            vanished,
             infos,
             local,
             remote,
