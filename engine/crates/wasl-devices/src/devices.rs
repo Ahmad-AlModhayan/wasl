@@ -42,9 +42,11 @@ use wasl_net::group::{Screened, SignerThrottle};
 use wasl_net::rendezvous::is_lan_ip;
 use wasl_net::{
     DeviceId, DeviceKey, Endpoint, GroupOp, GroupOps, IndexPage, KeyStore, OpId, PairReply, PairRound,
-    PeerError, PeerLink, PeerResult, PeerService, QuicLink, ShareId, Trust,
+    PeerError, PeerLink, PeerResult, PeerService, QuicError, QuicLink, ShareId, Trust,
 };
-use wasl_proto::{DeviceFacts, DeviceStatus, FolderPeer, FolderStatus, Lang, device_status};
+use wasl_proto::{
+    DeviceFacts, DeviceNeedsUpdate, DeviceStatus, FolderPeer, FolderStatus, Lang, UpdateSide, device_status,
+};
 use wasl_store::{NewOffer, OfferState, Pair, RunStats, SharedStore};
 
 use crate::status::{DeviceInfo, LinkPath, OfferInfo, OfferStatus, PairSharing};
@@ -55,6 +57,34 @@ pub const NO_LONGER_OFFERED: &str =
 /// A device this device's group no longer has (removed elsewhere, or never added).
 pub const NOT_IN_GROUP: &str =
     "That device isn't one of your devices any more. Add it again under Devices to sync with it.";
+/// Why [`Devices::connect`] didn't connect.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConnectError {
+    /// The device speaks no protocol version this one does: one of the two needs an update
+    /// (wasl#34). Typed, so the apps word it and name the device; its words are English until
+    /// they ask for their language.
+    NeedsUpdate(Box<DeviceNeedsUpdate>),
+    /// Anything else, in the engine's English.
+    Failed(String),
+}
+
+impl std::fmt::Display for ConnectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConnectError::NeedsUpdate(n) => f.write_str(&n.words.text),
+            ConnectError::Failed(m) => f.write_str(m),
+        }
+    }
+}
+
+impl std::error::Error for ConnectError {}
+
+impl From<String> for ConnectError {
+    fn from(m: String) -> Self {
+        ConnectError::Failed(m)
+    }
+}
+
 /// A pair with no device share: nothing to sync, and nothing to preview.
 pub const NOT_SHARED: &str = "This pair isn't shared with any device yet.";
 /// A run that found no device to sync with: none connected that has this folder (#148).
@@ -965,24 +995,45 @@ impl Devices {
 
     /// Connects to the device at `addr` (it must be in the group), then compares groups with it.
     /// Returns who it is.
-    pub async fn connect(&self, addr: SocketAddr) -> Result<DeviceId, String> {
+    pub async fn connect(&self, addr: SocketAddr) -> Result<DeviceId, ConnectError> {
         // Members only, whatever pairing is open: a stranger at `addr` is refused before it sees
         // this device's certificate.
         let link = self
             .endpoint
             .connect_trusting(addr, self.members_only())
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| self.connect_error(e))?;
         let path = if is_lan_ip(addr.ip()) {
             LinkPath::Lan
         } else {
             LinkPath::Direct
         };
         if !self.keep_link(&link, path) {
-            return Err(NOT_IN_GROUP.into());
+            return Err(NOT_IN_GROUP.to_owned().into());
         }
         let _ = self.exchange_group(&link).await;
         Ok(link.peer())
+    }
+
+    /// A refused connection as the apps get it: a version mismatch is typed, with the device's
+    /// name where the group has one.
+    fn connect_error(&self, e: QuicError) -> ConnectError {
+        match e {
+            QuicError::NeedsUpdate { behind, peer } => {
+                let name = self.members().into_iter().find(|m| m.id == peer).map(|m| m.name);
+                let behind = match behind {
+                    wasl_net::proto::Behind::This => UpdateSide::This,
+                    wasl_net::proto::Behind::Peer => UpdateSide::Peer,
+                };
+                ConnectError::NeedsUpdate(Box::new(DeviceNeedsUpdate::new(
+                    behind,
+                    peer.to_string(),
+                    name,
+                    Lang::En,
+                )))
+            }
+            other => ConnectError::Failed(other.to_string()),
+        }
     }
 
     /// Keeps `link`, replacing an older one to that device, if the device is a member; closes it

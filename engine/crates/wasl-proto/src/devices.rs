@@ -1,6 +1,7 @@
 //! What the screens show about devices and pairing (sent over the daemon's protocol and the
 //! phone's bindings).
 
+use crate::words::{self, Lang, Rendered, Values};
 use serde::{Deserialize, Serialize};
 
 /// Where a pairing stands.
@@ -133,4 +134,124 @@ pub struct DevicesInfo {
     /// Where other devices reach this one.
     pub listen: Option<String>,
     pub devices: Vec<DeviceInfo>,
+}
+
+/// Which side of a refused device connection has to update Wasl: the two share no protocol
+/// version (wasl#34), so one of them is too old for the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+pub enum UpdateSide {
+    /// This device speaks only versions older than the other device's.
+    This,
+    /// The other device speaks only versions older than this device's.
+    Peer,
+}
+
+impl UpdateSide {
+    /// The catalogue entry that words it.
+    pub fn key(self) -> &'static str {
+        match self {
+            UpdateSide::This => "device.this_needs_update",
+            UpdateSide::Peer => "device.peer_needs_update",
+        }
+    }
+}
+
+/// A device that couldn't be connected because one of the two needs an update: a typed reason
+/// the apps and agents read, with the words for a person beside it (docs/STATUS_WORDS.md,
+/// `device.this_needs_update` and `device.peer_needs_update`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct DeviceNeedsUpdate {
+    /// Who is behind.
+    pub behind: UpdateSide,
+    /// The other device's ID (`WASL-XXXX-…`).
+    pub device: String,
+    /// Its name in the group, where this device has it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// The words, in the language asked for (English until [`DeviceNeedsUpdate::in_lang`]): the
+    /// key is stable and the device is in its values, so a script never parses the sentence.
+    pub words: Rendered,
+}
+
+impl DeviceNeedsUpdate {
+    /// The refusal for `device` (named `name` when known), worded in `lang`. The words name the
+    /// device by its name, or by its ID when this device has no name for it.
+    pub fn new(behind: UpdateSide, device: impl Into<String>, name: Option<String>, lang: Lang) -> Self {
+        let device = device.into();
+        let shown = name.clone().unwrap_or_else(|| device.clone());
+        let words = words::render(
+            behind.key(),
+            &Values::default().device(shown),
+            lang,
+            None,
+            &[],
+            &mut |_| {},
+        );
+        DeviceNeedsUpdate {
+            behind,
+            device,
+            name,
+            words,
+        }
+    }
+
+    /// The same refusal in another language: its side, device and name stay.
+    pub fn in_lang(&self, lang: Lang) -> Self {
+        DeviceNeedsUpdate {
+            words: self.words.in_lang(lang),
+            ..self.clone()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ID: &str = "WASL-AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG";
+
+    #[test]
+    fn a_device_that_is_behind_is_worded_with_its_name_and_a_fix_for_this_device_only() {
+        let this = DeviceNeedsUpdate::new(UpdateSide::This, ID, Some("Pixel".into()), Lang::En);
+        assert_eq!("device.this_needs_update", this.words.key);
+        assert_eq!(
+            "This device needs an update to sync with Pixel. Update Wasl on this device.",
+            this.words.text
+        );
+        assert_eq!(Some(crate::words::Fix::UpdateWasl), this.words.fix);
+        assert_eq!(Some("Pixel".into()), this.words.values.device);
+
+        let peer = DeviceNeedsUpdate::new(UpdateSide::Peer, ID, Some("Pixel".into()), Lang::En);
+        assert_eq!("device.peer_needs_update", peer.words.key);
+        assert_eq!(
+            "Pixel needs an update to sync with this device. Update Wasl on Pixel.",
+            peer.words.text
+        );
+        assert_eq!(None, peer.words.fix, "the update happens on the other device");
+        assert_eq!((ID, Some("Pixel".to_owned())), (peer.device.as_str(), peer.name));
+    }
+
+    #[test]
+    fn a_device_with_no_name_here_is_worded_by_its_id() {
+        let n = DeviceNeedsUpdate::new(UpdateSide::Peer, ID, None, Lang::En);
+        assert!(n.words.text.starts_with(ID), "{}", n.words.text);
+        assert_eq!(Some(ID.to_owned()), n.words.values.device);
+    }
+
+    #[test]
+    fn the_same_refusal_is_worded_in_arabic_with_the_same_key_and_values() {
+        let en = DeviceNeedsUpdate::new(UpdateSide::This, ID, Some("Pixel".into()), Lang::En);
+        let ar = en.in_lang(Lang::Ar);
+        assert_eq!(
+            "يحتاج هذا الجهاز إلى تحديث للمزامنة مع Pixel. حدّث وصل على هذا الجهاز.",
+            ar.words.text
+        );
+        assert_eq!(
+            (en.behind, &en.device, &en.words.key, &en.words.values),
+            (ar.behind, &ar.device, &ar.words.key, &ar.words.values)
+        );
+    }
 }

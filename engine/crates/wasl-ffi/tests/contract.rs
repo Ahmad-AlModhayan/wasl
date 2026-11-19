@@ -284,6 +284,72 @@ async fn creating_a_pair_checks_the_pair_rules_and_holds_it_for_its_preview() {
     assert_eq!(1, engine.pairs().unwrap().len(), "nothing refused was saved");
 }
 
+/// wasl#12: the phone's `update_pair` saved straight to the store, so an edit could make a pair
+/// that `create_pair` refuses. Editing goes through the same pair rules, and a refusal says the
+/// same thing as the one `create_pair` gives.
+#[tokio::test]
+async fn editing_a_pair_keeps_the_pair_rules_creating_one_does() {
+    let server = mock_drive("x").await;
+    let dir = tempfile::tempdir().unwrap();
+    let engine = WaslEngine::new(
+        init(dir.path(), &server),
+        Arc::new(Tokens { asked: Mutex::new(0) }),
+        Arc::new(Device { saf: None }),
+        None,
+    )
+    .unwrap();
+    let (one, two) = (dir.path().join("one"), dir.path().join("two"));
+    std::fs::create_dir_all(one.join("sub")).unwrap();
+    std::fs::create_dir_all(&two).unwrap();
+    engine
+        .create_pair(pair(one.to_str().unwrap(), StorageMode::Files))
+        .unwrap();
+    let mut second = pair(two.to_str().unwrap(), StorageMode::Files);
+    second.id = "q".into();
+    second.name = "Other".into();
+    engine.create_pair(second.clone()).unwrap();
+
+    // What creating a pair there says.
+    let mut probe = second.clone();
+    probe.id = "probe".into();
+    probe.local_root = one.join("sub").to_string_lossy().into_owned();
+    let said = engine.create_pair(probe).unwrap_err();
+    assert!(matches!(said, WaslError::PairRule { .. }), "{said:?}");
+
+    // Editing the second pair onto the first one's files is refused with the same words.
+    let mut moved = second.clone();
+    moved.local_root = one.join("sub").to_string_lossy().into_owned();
+    let err = engine.update_pair(moved).unwrap_err();
+    assert!(matches!(err, WaslError::PairRule { .. }), "{err:?}");
+    assert_eq!(said.to_string(), err.to_string());
+
+    // Into Wasl's own folders, with no folder, and with no Drive folder: all refused.
+    let mut own = second.clone();
+    own.local_root = dir.path().join("bin").to_string_lossy().into_owned();
+    assert!(matches!(engine.update_pair(own), Err(WaslError::PairRule { .. })));
+    let mut none = second.clone();
+    none.local_root = String::new();
+    assert!(matches!(
+        engine.update_pair(none),
+        Err(WaslError::PairRule { .. })
+    ));
+    let mut no_drive = second.clone();
+    no_drive.drive_folder_id = None;
+    assert!(matches!(
+        engine.update_pair(no_drive),
+        Err(WaslError::PairRule { .. })
+    ));
+
+    let kept = engine.pair("q".into()).unwrap().unwrap();
+    assert_eq!(second.local_root, kept.local_root, "nothing refused was saved");
+
+    // An edit that keeps the rules still saves, and moving beside the other pair is fine.
+    let mut renamed = kept.clone();
+    renamed.name = "Renamed".into();
+    engine.update_pair(renamed).unwrap();
+    assert_eq!("Renamed", engine.pair("q".into()).unwrap().unwrap().name);
+}
+
 #[tokio::test]
 async fn a_locked_vault_pair_fails_clearly() {
     let server = mock_drive("x").await;

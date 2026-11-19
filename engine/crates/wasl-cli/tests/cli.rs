@@ -363,11 +363,13 @@ impl Handler for Fake {
                     .unwrap()
                     .clone()
                     .unwrap_or_else(|| "boom".into()),
+                needs_update: None,
             }),
             Request::Devices if self.devices_fail.load(std::sync::atomic::Ordering::SeqCst) => {
                 Err(RemoteError {
                     kind: ErrorKind::Other,
                     message: "the device list can't be read".into(),
+                    needs_update: None,
                 })
             }
             Request::Devices => ok(wasl_ipc::DevicesInfo {
@@ -468,6 +470,7 @@ impl Handler for Fake {
                     Err(RemoteError {
                         kind: ErrorKind::Invalid,
                         message: "Wrong passphrase for this vault.".into(),
+                        needs_update: None,
                     })
                 }
             }
@@ -570,6 +573,7 @@ impl Handler for Fake {
                 Err(RemoteError {
                     kind: ErrorKind::NotFound,
                     message: format!("{path} isn't in a view. See: wasl view list"),
+                    needs_update: None,
                 })
             }
             Request::PinPath { path } => {
@@ -617,13 +621,31 @@ impl Handler for Fake {
                     return Err(RemoteError {
                         kind: ErrorKind::NotFound,
                         message: format!("changeset {id}"),
+                        needs_update: None,
                     });
                 }
                 ok(oplog_page(true))
             }
+            // wasl#36: a device that needs an update, typed beside the generic network failure
+            // an older client reads.
+            Request::ConnectDevice { address } => Err(RemoteError {
+                kind: ErrorKind::Network,
+                message: format!("Couldn't reach a device of your group at {address}: boom"),
+                needs_update: Some(Box::new(wasl_proto::DeviceNeedsUpdate::new(
+                    if address.starts_with("behind") {
+                        wasl_proto::UpdateSide::This
+                    } else {
+                        wasl_proto::UpdateSide::Peer
+                    },
+                    "WASL-BBBB",
+                    Some("هاتفي".into()),
+                    wasl_proto::Lang::En,
+                ))),
+            }),
             _ => Err(RemoteError {
                 kind: ErrorKind::Unsupported,
                 message: "not in this test".into(),
+                needs_update: None,
             }),
         }
     }
@@ -2323,4 +2345,38 @@ async fn a_wasl_that_is_newer_than_the_daemon_says_the_daemon_needs_updating() {
         "{}",
         r.stderr
     );
+}
+
+/// wasl#36: a device that needs an update is worded by the CLI itself, in its language, naming the
+/// device and the side that must update, with no cause shown unless asked for.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_that_needs_an_update_is_worded_in_both_languages() {
+    let d = start();
+    for (lang, address, want) in [
+        (
+            "en",
+            "behind:1",
+            "Error: This device needs an update to sync with هاتفي. Update Wasl on this device.",
+        ),
+        (
+            "en",
+            "ahead:1",
+            "Error: هاتفي needs an update to sync with this device. Update Wasl on هاتفي.",
+        ),
+        (
+            "ar",
+            "behind:1",
+            "يحتاج هذا الجهاز إلى تحديث للمزامنة مع هاتفي. حدّث وصل على هذا الجهاز.",
+        ),
+        (
+            "ar",
+            "ahead:1",
+            "يحتاج هاتفي إلى تحديث للمزامنة مع هذا الجهاز. حدّث وصل على هاتفي.",
+        ),
+    ] {
+        let r = wasl(d.dir.path(), lang, &["device", "connect", address]).await;
+        assert_ne!(0, r.code);
+        assert!(r.stderr.contains(want), "{lang} {address}: {}", r.stderr);
+        assert!(!r.stderr.contains("Details:"), "{}", r.stderr);
+    }
 }
