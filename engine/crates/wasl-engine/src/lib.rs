@@ -45,6 +45,7 @@ pub use engine::{
     ALREADY_RUNNING, Engine, EngineConfig, Environment, GOOGLE_ANY_SIZE, HOLD_MESSAGE, INTERNAL_SOURCE,
     IgnoreVerdict, Preview, RunOutcome, SIZE_LIMIT_LOCAL_ONLY, STALLED, STOPPED, Trigger,
     excluded_by_pair_settings, export_beside_note, export_here_note, google_skipped_note, local_only_note,
+    syncing_refusal,
 };
 pub use error::{EngineError, FILE_GONE, NAME_REFUSED, Result};
 pub use journal::{JournalReport, MAX_CAPTURE, Version};

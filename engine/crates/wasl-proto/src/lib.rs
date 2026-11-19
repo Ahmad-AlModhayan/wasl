@@ -20,7 +20,8 @@ pub mod words;
 
 pub use conditions::{Blocker, Conditions, DeviceState, blocker};
 pub use devices::{
-    DeviceInfo, DevicesInfo, LinkPath, OfferInfo, OfferStatus, PairSharing, PairingStage, PairingStatus,
+    DeviceInfo, DeviceNeedsUpdate, DevicesInfo, LinkPath, OfferInfo, OfferStatus, PairSharing, PairingStage,
+    PairingStatus, UpdateSide,
 };
 pub use engine::{
     AGENT_REVERT, ALREADY_RUNNING, ChangesetDetails, ConflictChoice, ConflictDetails, ConflictSide,

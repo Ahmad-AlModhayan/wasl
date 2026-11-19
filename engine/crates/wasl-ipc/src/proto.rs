@@ -543,6 +543,13 @@ impl ErrorKind {
 pub struct RemoteError {
     pub kind: ErrorKind,
     pub message: String,
+    /// Set when the request failed because one of two devices needs an update (a device
+    /// connection refused for no shared protocol version, wasl#36). The `kind` and `message`
+    /// stay the generic network failure they have always been, so a client from before this
+    /// field still reads the answer; a newer one words the typed reason. Boxed: it is large and
+    /// every `ClientError` carries a `RemoteError`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub needs_update: Option<Box<wasl_proto::DeviceNeedsUpdate>>,
 }
 
 /// A pair as the status line shows it.
@@ -984,6 +991,49 @@ mod tests {
         running: bool,
         open_conflicts: u32,
         blocked: bool,
+    }
+
+    /// wasl#36: what a client from before `needs_update` reads of an error answer (a copy of the
+    /// previous release's shape, so it stays that when `RemoteError` grows again).
+    #[derive(serde::Deserialize)]
+    #[allow(dead_code)]
+    struct OlderRemoteError {
+        kind: super::ErrorKind,
+        message: String,
+    }
+
+    #[test]
+    fn a_needs_update_answer_reads_as_a_network_failure_to_an_older_client() {
+        use super::{ErrorKind, Frame, RemoteError};
+        use wasl_proto::{DeviceNeedsUpdate, Lang, UpdateSide};
+        let n = DeviceNeedsUpdate::new(UpdateSide::Peer, "abc", Some("Phone".into()), Lang::En);
+        let err = RemoteError {
+            kind: ErrorKind::Network,
+            message: "Couldn't reach a device of your group at x: Phone needs an update".into(),
+            needs_update: Some(Box::new(n.clone())),
+        };
+        let wire = serde_json::to_value(Frame::Err {
+            id: 7,
+            err: err.clone(),
+        })
+        .unwrap();
+        // An older client's reader ignores the new field and sees a network failure.
+        let old: OlderRemoteError = serde_json::from_value(wire["err"].clone()).unwrap();
+        assert_eq!(ErrorKind::Network, old.kind);
+        assert_eq!(err.message, old.message);
+        // A new client reads the typed reason back.
+        let back: RemoteError = serde_json::from_value(wire["err"].clone()).unwrap();
+        assert_eq!(Some(Box::new(n)), back.needs_update);
+        // An answer without the reason is the old shape on the wire, and reads back without one.
+        let plain = RemoteError {
+            needs_update: None,
+            ..err
+        };
+        let wire = serde_json::to_value(&plain).unwrap();
+        assert!(wire.get("needs_update").is_none(), "{wire}");
+        let back: RemoteError =
+            serde_json::from_value(serde_json::json!({"kind": "network", "message": "m"})).unwrap();
+        assert!(back.needs_update.is_none());
     }
 
     #[test]

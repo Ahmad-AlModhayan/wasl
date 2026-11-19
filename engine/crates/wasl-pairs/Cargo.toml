@@ -10,11 +10,13 @@ publish.workspace = true
 [dependencies]
 wasl-core.workspace = true
 wasl-store.workspace = true
+wasl-engine.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+wasl-fs.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 
 [lints]

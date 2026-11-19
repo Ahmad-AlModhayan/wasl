@@ -352,6 +352,7 @@ impl Daemon {
             .ok_or_else(|| RemoteError {
                 kind: ErrorKind::NotFound,
                 message: format!("{path} is not in a folder Wasl syncs"),
+                needs_update: None,
             })
     }
 
@@ -422,12 +423,6 @@ impl Daemon {
         Ok(())
     }
 
-    /// A pair on a vault's folder is linked to the vault before it is recorded; when that can't
-    /// be checked the pair is refused (see `Vaults::link_pair`).
-    async fn link_vault(&self, pair: &mut Pair) -> Result<(), RemoteError> {
-        link_vault(&self.store, &self.env, &self.vaults, pair).await
-    }
-
     /// A vault was unlocked: its views show their files and its pairs sync, in the background.
     fn vault_unlocked(self: &Arc<Self>, vault_id: &str) -> Result<(), RemoteError> {
         let waiting: Vec<String> = self
@@ -485,6 +480,7 @@ impl Daemon {
         self.pairing.as_ref().ok_or_else(|| RemoteError {
             kind: ErrorKind::Unsupported,
             message: "Device sync is off on this computer.".into(),
+            needs_update: None,
         })
     }
 
@@ -492,6 +488,7 @@ impl Daemon {
         self.devices.as_ref().ok_or_else(|| RemoteError {
             kind: ErrorKind::Unsupported,
             message: "Device sync is off on this computer.".into(),
+            needs_update: None,
         })
     }
 
@@ -704,6 +701,7 @@ impl Daemon {
         let pending = oauth::begin(&self.tokens.config).await.map_err(|e| RemoteError {
             kind: ErrorKind::Auth,
             message: e.to_string(),
+            needs_update: None,
         })?;
         let url = pending.url.clone();
         *signing_in = Some(url.clone());
@@ -798,6 +796,7 @@ impl Daemon {
                     return Err(RemoteError {
                         kind: ErrorKind::NotFound,
                         message: format!("There is no folder \"{part}\" in {} on Drive", current.name),
+                        needs_update: None,
                     });
                 }
             };
@@ -817,68 +816,16 @@ impl Daemon {
                 self.emit(Event::Changed);
                 ok(())
             }
-            Request::UpdatePair { mut pair } => {
-                check_pair(&pair)?;
-                self.check_not_own_dirs(&pair)?;
-                self.check_no_overlap(&pair)?;
-                // A new Drive folder or vault is checked like a new pair's.
-                let before = self.store.lock().get_pair(&pair.id).map_err(store_err)?;
-                // Advisory, before `link_vault`'s remote call; `Engine::update_pair` checks again
-                // under the lock it saves with (#134).
-                if let Some(b) = &before
-                    && wasl_store::repointed(b, &pair)
-                    && self
-                        .store
-                        .lock()
-                        .pair_has_agent_changes(&pair.id)
-                        .map_err(store_err)?
-                {
-                    return Err(invalid(wasl_store::AGENT_CHANGES_PENDING.into()));
-                }
-                let moved = before.as_ref().is_none_or(|b| {
-                    (&b.account_id, &b.drive_folder_id, &b.drive_id, &b.vault_id)
-                        != (
-                            &pair.account_id,
-                            &pair.drive_folder_id,
-                            &pair.drive_id,
-                            &pair.vault_id,
-                        )
-                });
-                if moved {
-                    // Advisory, before the remote call: a move refused below would otherwise
-                    // leave a vault linked on Drive. The real check is in `Engine::update_pair`.
-                    if e.is_running(&pair.id) {
-                        return Err(invalid(format!(
-                            "{} is syncing. Stop it or let it finish, then change its folders.",
-                            pair.name
-                        )));
-                    }
-                    self.link_vault(&mut pair).await?;
-                }
-                // Other files reset the pair's sync state and hold it for its preview (#94). The
-                // engine checks that the pair isn't running and saves under the lock a run takes
-                // before it reads its pair, so a run can't start between the check and the save.
-                e.update_pair(&pair).map_err(|err| match err {
-                    EngineError::Other(message)
-                    | EngineError::Store(wasl_store::StoreError::Refused(message)) => RemoteError {
-                        kind: ErrorKind::Invalid,
-                        message,
-                    },
-                    other => engine_err(other),
-                })?;
+            Request::UpdatePair { pair } => {
+                // The same pair rules and the same save as the phone's (ADR-0001, wasl#12).
+                self.pairs.update(e, pair).await.map_err(pair_err)?;
                 self.emit(Event::Changed);
                 ok(())
             }
             Request::DeletePair { id } => {
-                // The store refuses, in the delete itself, while an agent's changeset on the pair
-                // is open or held (#134).
-                let deleted = self.store.lock().delete_pair(&id);
-                match deleted {
-                    Err(wasl_store::StoreError::Refused(m)) => return Err(invalid(m)),
-                    other => other.map_err(store_err)?,
-                }
-                // Only once it's gone: a refused delete leaves a running sync alone.
-                e.cancel(&id);
+                // Refused while an agent's changes on the pair wait (#134); a running sync is
+                // stopped only once the pair is gone.
+                self.pairs.delete(e, &id).map_err(pair_err)?;
                 self.emit(Event::Changed);
                 ok(())
             }
@@ -1121,6 +1068,7 @@ impl Daemon {
                         message: format!(
                             "Agents can't accept changes ({marker} is set). Accept in the Wasl app or your own terminal."
                         ),
+                        needs_update: None,
                     });
                 }
                 // Everyone else gets a confirmation shown by the Wasl app, never an accept: any
@@ -1191,6 +1139,7 @@ impl Daemon {
                     return Err(RemoteError {
                         kind: ErrorKind::Busy,
                         message: format!("{id} still has views. Remove them first."),
+                        needs_update: None,
                     });
                 }
                 let removed = self.store.lock().remove_account(&id).map_err(store_err)?;
@@ -1198,6 +1147,7 @@ impl Daemon {
                     return Err(RemoteError {
                         kind: ErrorKind::Busy,
                         message: format!("{id} still has pairs. Remove them first."),
+                        needs_update: None,
                     });
                 }
                 self.tokens.forget(&id).await;
@@ -1233,18 +1183,28 @@ impl Daemon {
                     .map_err(|e| invalid(format!("Can't find {address}: {e}")))?
                     .collect();
                 let mut last = format!("Can't find {address}");
+                let mut needs_update = None;
                 for a in addrs {
                     match d.connect(a).await {
                         Ok(id) => {
                             self.emit(Event::Changed);
                             return ok(id.to_string());
                         }
-                        Err(e) => last = e,
+                        // The device is there but too old (or this one is): that says more than
+                        // a later address that simply wasn't reachable.
+                        Err(wasl_devices::ConnectError::NeedsUpdate(n)) => {
+                            last = n.words.text.clone();
+                            needs_update = Some(n);
+                        }
+                        Err(e) if needs_update.is_none() => last = e.to_string(),
+                        Err(_) => {}
                     }
                 }
+                // Still a network failure to a client from before `needs_update` existed.
                 Err(RemoteError {
                     kind: ErrorKind::Network,
                     message: format!("Couldn't reach a device of your group at {address}: {last}"),
+                    needs_update,
                 })
             }
             Request::SharePair { id, share } => {
@@ -1369,6 +1329,7 @@ impl Daemon {
                 None => Err(RemoteError {
                     kind: ErrorKind::Unsupported,
                     message: "Views aren't File Provider domains on this computer.".into(),
+                    needs_update: None,
                 }),
             },
             Request::Vaults => ok(self.vaults.list()?),
@@ -1538,33 +1499,17 @@ fn pair_err(e: wasl_pairs::PairError) -> RemoteError {
             .downcast_ref::<RemoteError>()
             .cloned()
             .unwrap_or_else(|| invalid(e.to_string())),
+        wasl_pairs::PairError::Refused(m) => invalid(m),
+        wasl_pairs::PairError::Engine(e) => engine_err(e),
         wasl_pairs::PairError::Store(e) => store_err(e),
     }
-}
-
-fn check_pair(pair: &Pair) -> Result<(), RemoteError> {
-    let invalid = |m: &str| {
-        Err(RemoteError {
-            kind: ErrorKind::Invalid,
-            message: m.into(),
-        })
-    };
-    if pair.id.is_empty() || pair.id.contains(['/', '\\', ':']) || pair.id == "." || pair.id == ".." {
-        return invalid("A pair id is one plain name");
-    }
-    if !std::path::Path::new(&pair.local_root).is_absolute() {
-        return invalid("Choose the folder on this computer by its full path");
-    }
-    if pair.drive_folder_id.as_deref().unwrap_or("").is_empty() || pair.account_id.is_none() {
-        return invalid("Choose a Google account and a Drive folder");
-    }
-    Ok(())
 }
 
 fn invalid(message: String) -> RemoteError {
     RemoteError {
         kind: ErrorKind::Invalid,
         message,
+        needs_update: None,
     }
 }
 
@@ -1576,6 +1521,7 @@ fn not_found(message: String) -> RemoteError {
     RemoteError {
         kind: ErrorKind::NotFound,
         message,
+        needs_update: None,
     }
 }
 
@@ -1583,6 +1529,7 @@ pub fn store_err(e: wasl_store::StoreError) -> RemoteError {
     RemoteError {
         kind: ErrorKind::Other,
         message: e.to_string(),
+        needs_update: None,
     }
 }
 
@@ -1605,6 +1552,7 @@ pub fn engine_err(e: EngineError) -> RemoteError {
     RemoteError {
         kind,
         message: e.to_string(),
+        needs_update: None,
     }
 }
 
@@ -1615,7 +1563,11 @@ fn drive_err_ref(d: &DriveError, message: String) -> RemoteError {
         DriveError::NotFound(_) => ErrorKind::NotFound,
         _ => ErrorKind::Other,
     };
-    RemoteError { kind, message }
+    RemoteError {
+        kind,
+        message,
+        needs_update: None,
+    }
 }
 
 pub fn drive_err(d: DriveError) -> RemoteError {
@@ -1955,6 +1907,7 @@ impl Daemon {
                 message: "Accepting an agent's changes needs the Wasl app, which shows the confirmation, \
                           and it isn't installed next to wasld. Install the Wasl app, then try again."
                     .into(),
+                needs_update: None,
             });
         }
         let now = Instant::now();
@@ -1974,6 +1927,7 @@ impl Daemon {
                         message: "Another agent's changes are waiting for you to confirm in the Wasl app. \
                                   Answer that first."
                             .into(),
+                        needs_update: None,
                     });
                 }
                 Slot::Free => {}
@@ -1995,6 +1949,7 @@ impl Daemon {
             let p = Pending::mint(&cs.id, now).map_err(|m| RemoteError {
                 kind: ErrorKind::Other,
                 message: m,
+                needs_update: None,
             })?;
             *current = Some(p.clone());
             p

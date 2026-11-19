@@ -14,8 +14,8 @@ pub mod status;
 
 pub use board::BoardTiming;
 pub use devices::{
-    DeviceConfig, Devices, MAX_OFFERS_KEPT, MAX_OFFERS_PER_DEVICE, NO_LONGER_OFFERED, NO_PEER, NOT_IN_GROUP,
-    NOT_SHARED, OpenFolder, clean_name,
+    ConnectError, DeviceConfig, Devices, MAX_OFFERS_KEPT, MAX_OFFERS_PER_DEVICE, NO_LONGER_OFFERED, NO_PEER,
+    NOT_IN_GROUP, NOT_SHARED, OpenFolder, clean_name,
 };
 pub use pairing::Pairing;
 pub use reach::{DriveRendezvous, ReachPolicy, ReachTiming};

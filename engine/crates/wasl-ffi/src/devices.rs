@@ -20,6 +20,18 @@ use zeroize::Zeroizing;
 
 use crate::{WaslEngine, WaslError, other};
 
+/// Why [`WaslDevices::connect_typed`] didn't connect.
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum ConnectError {
+    /// The device and this one share no protocol version: one of them needs an update. The words
+    /// say which, in the language asked for, with a stable key and the device in the values.
+    #[error("{}", update.words.text)]
+    NeedsUpdate { update: wasl_proto::DeviceNeedsUpdate },
+    /// Anything else (not found, not reachable, not one of the group's devices), in English.
+    #[error("{detail}")]
+    Failed { detail: String },
+}
+
 /// Where the phone keeps its device key's 32-byte seed: wrapped by an Android Keystore key, so it
 /// never leaves the device in the clear.
 #[uniffi::export(with_foreign)]
@@ -245,7 +257,8 @@ impl WaslDevices {
         Ok(())
     }
 
-    /// Connects to a device of the group at `host:port`.
+    /// Connects to a device of the group at `host:port`. A device that needs an update, or this
+    /// one, comes back as a generic network failure; [`WaslDevices::connect_typed`] names it.
     pub async fn connect(&self, address: String) -> Result<String, WaslError> {
         let addrs: Vec<SocketAddr> = tokio::net::lookup_host(address.as_str())
             .await
@@ -255,10 +268,48 @@ impl WaslDevices {
         for a in addrs {
             match self.devices.connect(a).await {
                 Ok(id) => return Ok(id.to_string()),
-                Err(e) => last = e,
+                Err(e) => last = e.to_string(),
             }
         }
         Err(WaslError::Network { detail: last })
+    }
+
+    /// [`WaslDevices::connect`] with its reasons typed: a device that can't be connected because
+    /// one of the two needs an update (the two share no protocol version) is
+    /// [`ConnectError::NeedsUpdate`], with the device's ID and name, which side is behind, and
+    /// the words for a person in `lang` (the same words as the desktop's). Any other failure is
+    /// [`ConnectError::Failed`]. Added beside `connect` so existing app code keeps working.
+    // A uniffi error enum can't box a record, and the reason is returned once per tap.
+    #[allow(clippy::result_large_err)]
+    pub async fn connect_typed(
+        &self,
+        address: String,
+        lang: wasl_proto::Lang,
+    ) -> Result<String, ConnectError> {
+        let addrs: Vec<SocketAddr> = tokio::net::lookup_host(address.as_str())
+            .await
+            .map_err(|e| ConnectError::Failed {
+                detail: e.to_string(),
+            })?
+            .collect();
+        let mut last = format!("Can't find {address}");
+        let mut needs_update = None;
+        for a in addrs {
+            match self.devices.connect(a).await {
+                Ok(id) => return Ok(id.to_string()),
+                // A device that is there but too old says more than a later address that wasn't
+                // reachable.
+                Err(wasl_devices::ConnectError::NeedsUpdate(n)) => needs_update = Some(n),
+                Err(e) if needs_update.is_none() => last = e.to_string(),
+                Err(_) => {}
+            }
+        }
+        Err(match needs_update {
+            Some(n) => ConnectError::NeedsUpdate {
+                update: n.in_lang(lang),
+            },
+            None => ConnectError::Failed { detail: last },
+        })
     }
 
     /// Shares a pair with the group under a new code, or under `code` from another device;

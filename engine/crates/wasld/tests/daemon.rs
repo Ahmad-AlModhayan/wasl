@@ -1188,6 +1188,13 @@ async fn views_work_through_the_daemon() {
     let e = c.create_pair(pair(&local.join("inside"))).await.unwrap_err();
     assert_eq!(Some(ErrorKind::Invalid), e.kind());
     assert!(g.uploads.lock().unwrap().is_empty(), "a view never uploads");
+    // Nor may an edit point a pair there: the desktop's edit skipped this rule (wasl#12).
+    let mut mine = pair(&d.root);
+    c.create_pair(mine.clone()).await.unwrap();
+    mine.local_root = local.join("inside").display().to_string();
+    let e = c.update_pair(mine).await.unwrap_err();
+    assert_eq!(Some(ErrorKind::Invalid), e.kind());
+    assert!(e.to_string().contains("read-only"), "{e}");
 
     c.remove_view(&view.id, false).await.unwrap();
     assert!(c.views().await.unwrap().views.is_empty());

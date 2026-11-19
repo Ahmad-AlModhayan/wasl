@@ -11,7 +11,7 @@ mod saf;
 mod status;
 mod vaults;
 
-pub use devices::{DeviceEvents, DeviceKeyStore, DevicesInit, WaslDevices};
+pub use devices::{ConnectError, DeviceEvents, DeviceKeyStore, DevicesInit, WaslDevices};
 pub use on_demand::{
     CacheUsage, DEFAULT_CACHE_LIMIT, OnDemandFile, OnDemandOrigin, OnDemandReader, OnDemandRemotes,
     VaultItem, VaultLocks,
@@ -58,7 +58,9 @@ pub enum WaslError {
     #[error("{detail}")]
     Other { detail: String },
     /// The pair breaks a pair rule (overlaps another pair, in Wasl's own folders, around a view,
-    /// no folder or Drive folder chosen); `detail` says which, in English.
+    /// no folder or Drive folder chosen), or the change is refused while the pair syncs or an
+    /// agent's changes on it wait; `detail` says which, in English. Creating, editing and deleting
+    /// a pair give the same refusals, in the same words, as the desktop.
     #[error("{detail}")]
     PairRule { detail: String },
 }
@@ -618,20 +620,25 @@ impl WaslEngine {
         made
     }
 
-    /// Saves the pair's options; its status stays the engine's. Another folder, Drive folder or
+    /// Saves the pair's options through the pair rules, as the desktop does (`Pairs::update`,
+    /// ADR-0001): a pair that would break a rule is refused as [`WaslError::PairRule`] with the
+    /// same words as creating it. Its status stays the engine's. Another folder, Drive folder or
     /// vault starts the pair over and holds it for its preview, and is refused while the pair
-    /// syncs (`Engine::update_pair`, the same path as the desktop's, #94).
+    /// syncs or an agent's changes on it wait (#94, #134).
     pub fn update_pair(&self, pair: Pair) -> Result<(), WaslError> {
-        self.engine.update_pair(&pair)?;
+        let saved = right_away(self.pairs.update(&self.engine, pair))?
+            .map(|_| ())
+            .map_err(pair_err);
         self.touched();
-        Ok(())
+        saved
     }
 
+    /// Removes the pair through the pair rules, as the desktop does: refused while an agent's
+    /// changes on it wait ([`WaslError::PairRule`]). A running sync is stopped once it is gone.
     pub fn delete_pair(&self, id: String) -> Result<(), WaslError> {
-        self.engine.cancel(&id);
-        let gone = self.engine.store().lock().delete_pair(&id);
+        let gone = self.pairs.delete(&self.engine, &id).map_err(pair_err);
         self.touched();
-        Ok(gone?)
+        gone
     }
 
     pub fn set_paused(&self, id: String, paused: bool, reason: Option<String>) -> Result<(), WaslError> {
@@ -1043,6 +1050,8 @@ fn pair_err(e: wasl_pairs::PairError) -> WaslError {
         wasl_pairs::PairError::Vault(e) => WaslError::Other {
             detail: e.to_string(),
         },
+        wasl_pairs::PairError::Refused(detail) => WaslError::PairRule { detail },
+        wasl_pairs::PairError::Engine(e) => e.into(),
         wasl_pairs::PairError::Store(e) => e.into(),
     }
 }
