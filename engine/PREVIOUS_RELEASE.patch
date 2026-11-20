@@ -1,0 +1,18 @@
+diff --git a/engine/crates/wasld/src/main.rs b/engine/crates/wasld/src/main.rs
+index 2ead9b8..d425d08 100644
+--- a/engine/crates/wasld/src/main.rs
++++ b/engine/crates/wasld/src/main.rs
+@@ -1,12 +1,12 @@
+ // No console window when started at login on Windows.
+ #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+ 
++use wasl_ipc::Paths;
+ use wasld::schedule::Timing;
+ #[cfg(not(feature = "miqyas"))]
+ use {
+     std::sync::Arc,
+     std::time::Duration,
+-    wasl_ipc::Paths,
+     wasld::daemon::DaemonConfig,
+     wasld::oauth::OAuthConfig,
+     wasld::tokens::{Keychain, secrets_for},

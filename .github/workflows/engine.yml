@@ -67,6 +67,19 @@ jobs:
       # Two real wasld processes, paired, syncing and removing (test build, loopback only).
       - run: cargo test -p wasld --features miqyas --test two_daemons
         timeout-minutes: 15
+      # The previous release's daemon (engine/PREVIOUS_RELEASE) built from its own ref, then run next
+      # to this one: they pair, sync both ways and remove each other (wasl#27). Loopback only. Linux
+      # only. The build is cached by the ref, so only a new ref pays for it (a few minutes).
+      - name: Cache the previous release's build
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: engine/target/previous-release/bin
+          key: previous-release-${{ runner.os }}-${{ hashFiles('engine/PREVIOUS_RELEASE', 'engine/PREVIOUS_RELEASE.patch', 'engine/scripts/build-previous-release.sh', 'engine/rust-toolchain.toml') }}
+      - name: Mixed-version test
+        if: runner.os == 'Linux'
+        run: scripts/mixed-version-test.sh
+        timeout-minutes: 30
       # The phone's Kotlin bindings generate from the built library and carry the status types the
       # app reads (folder and device status, the status callback). No Kotlin compiler is needed.
       - name: Kotlin bindings carry the status types

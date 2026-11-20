@@ -1,0 +1,8 @@
+# The release the mixed-version test builds and runs next to the current daemon (wasl#27).
+# One git ref of this repository: a release tag, or a commit while there is no tag yet.
+# The first public engine release is the commit below. When the next release is tagged, put its
+# tag here, so the test then runs the release people actually have.
+# PREVIOUS_RELEASE.patch is the one-line build fix this release needs to compile as the test build
+# (its `miqyas` build lacks an import, fixed in wasl#39). Delete the patch when the ref no longer needs it.
+# Run it with: engine/scripts/mixed-version-test.sh
+d33bffaff313831060b15dc3fbfe6fab711f85e9

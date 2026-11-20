@@ -60,6 +60,17 @@ The kill-point tests use a fault plan (`wasl_engine::fault`), compiled only unde
 `crates/wasl-engine/tests/common/kill.rs`: it runs a scenario once to count the points it passes, then once per
 point, stopped there as if the process had died, restarts the engine on the same data and runs again.
 
+### The previous release next to this one
+
+`engine/scripts/mixed-version-test.sh` builds `wasld` and `wasl` from the release named in
+`engine/PREVIOUS_RELEASE` (a tag, or a commit until there is a tag; it is the only place that names it), in a
+separate checkout under `engine/target/previous-release`, and runs `crates/wasld/tests/mixed_version.rs`: the old
+and the current daemon, as two real processes on loopback, pair with an invitation (each version making it in
+turn), sync a folder both ways and remove each other, and the old command line lists the current daemon's pairs.
+It fails, never skips, when the build or the binaries are missing. `build-previous-release.sh` alone builds and prints
+the binary paths (`WASL_PREVIOUS_WASLD`, `WASL_PREVIOUS_WASL`) that the test reads; the build is reused while the ref
+is the same. The engine workflow runs it on Linux and caches the build by the ref.
+
 The ignore engine's comparison tests use `git` and skip themselves when it is not on `PATH`. The parsers that read
 outside data (peer frames, vaults, manifests, Drive JSON, IPC) also have robustness tests and cargo-fuzz targets
 (`engine/fuzz`, nightly Rust, Linux or macOS); see [docs/SECURITY.md](../docs/SECURITY.md).
