@@ -18,6 +18,8 @@
 //! `EROFS` (and the mount itself is `ro`): local edits on on-demand pairs come in a later step,
 //! where an edited file becomes an ordinary local file and syncs as today (§2.1 "Writes").
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 mod view;
 
 pub use view::{Attr, Change, DirEntry, FsError, Kind, PINNED_XATTR, ROOT, View, XattrReply};

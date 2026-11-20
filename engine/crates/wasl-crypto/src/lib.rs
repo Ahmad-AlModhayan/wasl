@@ -15,6 +15,8 @@
 //! `tools/decrypt_vault.py`. Nothing here panics on hostile input: names, manifests and
 //! ciphertext come from Drive, where anyone with access can write.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub mod content;
 mod error;
 pub mod kdf;

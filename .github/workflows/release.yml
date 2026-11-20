@@ -1,0 +1,107 @@
+name: release
+
+# Builds pre-compiled `wasl` and `wasld` binaries for Linux, macOS, and Windows,
+# packages archives with SHA-256 checksums, and attaches them to a GitHub Release.
+# Never enables the `miqyas` or `test-support` features.
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (e.g. v0.5.0)
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install target toolchain
+        working-directory: engine
+        shell: bash
+        run: |
+          rustup show active-toolchain
+          rustup target add ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+          key: release-${{ matrix.target }}
+
+      - name: Package release binaries
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          PY=python3
+          command -v python3 >/dev/null 2>&1 || PY=python
+          "$PY" engine/scripts/package-release.py \
+            --target "${{ matrix.target }}" \
+            --tag "$RELEASE_TAG" \
+            --out-dir dist-release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasl-${{ matrix.target }}
+          path: dist-release/*
+
+  publish:
+    name: publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate combined SHA256SUMS.txt
+        shell: bash
+        run: |
+          cd artifacts
+          rm -f *.sha256
+          sha256sum wasl-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" artifacts/* --clobber
+          else
+            gh release create "$RELEASE_TAG" artifacts/* \
+              --title "Wasl $RELEASE_TAG" \
+              --generate-notes
+          fi

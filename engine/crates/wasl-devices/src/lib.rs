@@ -3,6 +3,8 @@
 //! files through Drive's app-data folder, and running pairs with the connected devices. Shared by the desktop daemon
 //! and the phone; each supplies where the key is kept and how a pair's folder is opened.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 #[cfg(feature = "ffi")]
 uniffi::setup_scaffolding!();
 

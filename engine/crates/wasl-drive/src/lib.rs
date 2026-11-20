@@ -10,6 +10,8 @@
 //! - [`DriveNodeCache`]: the account-wide metadata cache (one crawl, then Changes deltas).
 //! - [`BandwidthLimiter`]: the token bucket the transfer loops share.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 mod client;
 mod download;
 mod error;

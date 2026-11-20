@@ -2,6 +2,8 @@
 //! `wasl` CLI and the tray app are clients. One JSON value per line over a socket only the current
 //! OS user can reach, opened by a handshake in which both sides prove they know a per-user token.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 mod auth;
 pub mod client;
 #[cfg(test)]

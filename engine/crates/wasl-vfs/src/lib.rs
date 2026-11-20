@@ -7,6 +7,8 @@
 //! ends (Cloud Files on Windows, FUSE on Linux, File Provider on macOS, Android's
 //! DocumentsProvider) only translate the OS's requests into [`Hydrator::read`].
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 mod cache;
 mod hydrator;
 mod kept;

@@ -1321,12 +1321,14 @@ async fn find_offer(c: &wasl_ipc::Client, reference: &str, from: Option<&str>) -
                 || o.name == reference
         })
         .collect();
-    match found.len() {
-        0 => Err(Fail::new(NOT_FOUND, t!(NoSuchOffer, reference))),
-        1 => Ok(found.into_iter().next().expect("one")),
-        _ => {
-            let list: Vec<String> = found
-                .iter()
+    let mut iter = found.into_iter();
+    match (iter.next(), iter.next()) {
+        (None, _) => Err(Fail::new(NOT_FOUND, t!(NoSuchOffer, reference))),
+        (Some(one), None) => Ok(one),
+        (Some(first), Some(second)) => {
+            let list: Vec<String> = [first, second]
+                .into_iter()
+                .chain(iter)
                 .map(|o| {
                     format!(
                         "  {}  {}  {}",

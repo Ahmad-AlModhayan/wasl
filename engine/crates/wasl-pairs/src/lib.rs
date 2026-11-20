@@ -8,6 +8,8 @@
 //! ([`Problem::words`], ADR-0003), so no app keeps wording of its own. What differs between apps
 //! (where it keeps its own data, how it finds a vault) comes in through [`PairsEnv`].
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use wasl_core::Route;

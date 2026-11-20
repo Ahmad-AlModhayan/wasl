@@ -180,12 +180,22 @@ fn join(parent: &str, name: &str) -> String {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Side {
-    Unchanged,
-    Changed,
-    New,
+enum Side<'a, T> {
+    Unchanged(&'a T),
+    Changed(&'a T),
+    New(&'a T),
     Deleted,
     Absent,
+}
+
+impl<T> Side<'_, T> {
+    fn is_unchanged(&self) -> bool {
+        matches!(self, Side::Unchanged(_))
+    }
+
+    fn is_changed(&self) -> bool {
+        matches!(self, Side::Changed(_))
+    }
 }
 
 /// The planner needs a hash it doesn't have yet.
@@ -742,38 +752,38 @@ impl<'a> Ctx<'a> {
         let local_side = match (l, base) {
             (None, None) => Side::Absent,
             (None, Some(_)) => Side::Deleted,
-            (Some(_), None) => Side::New,
-            (Some(l), Some(b)) if l.size == b.local_size && l.mtime == b.local_mtime => Side::Unchanged,
+            (Some(l), None) => Side::New(l),
+            (Some(l), Some(b)) if l.size == b.local_size && l.mtime == b.local_mtime => Side::Unchanged(l),
             (Some(l), Some(b)) => {
                 if Some(self.hash_of(l)?) == b.local_hash.as_deref() {
-                    Side::Unchanged
+                    Side::Unchanged(l)
                 } else {
-                    Side::Changed
+                    Side::Changed(l)
                 }
             }
         };
         let remote_side = match (r, base) {
             (None, None) => Side::Absent,
             (None, Some(_)) => Side::Deleted,
-            (Some(_), None) => Side::New,
+            (Some(r), None) => Side::New(r),
             (Some(r), Some(b)) => {
                 if remote_unchanged_by_identity(r, b) || (r.md5.is_some() && r.md5 == b.remote_md5) {
-                    Side::Unchanged
+                    Side::Unchanged(r)
                 } else {
-                    Side::Changed
+                    Side::Changed(r)
                 }
             }
         };
 
         // Same content under a new size or time (a git checkout, a copy back): record the new stat
         // once, or the file is hashed again on every run.
-        let stat_drifted = local_side == Side::Unchanged
-            && remote_side == Side::Unchanged
+        let stat_drifted = local_side.is_unchanged()
+            && remote_side.is_unchanged()
             && matches!((l, base), (Some(l), Some(b)) if l.size != b.local_size || l.mtime != b.local_mtime);
         // An unchanged file whose row has no MD5 yet but whose listing has one: record it, so the
         // MD5 decides from now on and a version Drive raises by itself is not read as a change.
-        let md5_learned = local_side == Side::Unchanged
-            && remote_side == Side::Unchanged
+        let md5_learned = local_side.is_unchanged()
+            && remote_side.is_unchanged()
             && matches!((r, base), (Some(r), Some(b)) if r.md5.is_some() && b.remote_md5.is_none());
         let planned = self.actions.len();
         let result = self.plan_by_mode(key, base, l, r, local_rel, local_side, remote_side);
@@ -791,32 +801,32 @@ impl<'a> Ctx<'a> {
         l: Option<&LocalEntry>,
         r: Option<&RemoteEntry>,
         local_rel: &str,
-        local_side: Side,
-        remote_side: Side,
+        local_side: Side<'_, LocalEntry>,
+        remote_side: Side<'_, RemoteEntry>,
     ) -> Result<(), NeedHash> {
         let cfg = self.cfg;
-        // Each arm below only runs when its `Option`s are known to be `Some` by the side states;
-        // `unwrap`s mirror 1.1.4's `!!` and are guaranteed by the state table.
         use Side::*;
         match cfg.mode {
             SyncMode::TwoWay => match local_side {
                 Absent => match remote_side {
-                    New | Changed | Unchanged => self.download(key, r.unwrap(), l, local_rel, "new on Drive"),
-                    _ => self.forget(key),
+                    New(r) | Changed(r) | Unchanged(r) => self.download(key, r, l, local_rel, "new on Drive"),
+                    Deleted | Absent => self.forget(key),
                 },
-                New => match remote_side {
-                    Absent | Deleted => self.upload(key, l.unwrap(), r, "new on device"),
-                    _ => self.adopt_or_conflict(key, l.unwrap(), r.unwrap(), local_rel)?,
+                New(l_entry) => match remote_side {
+                    Absent | Deleted => self.upload(key, l_entry, r, "new on device"),
+                    New(r_entry) | Changed(r_entry) | Unchanged(r_entry) => {
+                        self.adopt_or_conflict(key, l_entry, r_entry, local_rel)?
+                    }
                 },
-                Unchanged => match remote_side {
-                    Unchanged => {
+                Unchanged(l_entry) => match remote_side {
+                    Unchanged(_) => {
                         if base.is_some_and(|b| b.local_rel != local_rel) {
                             self.refresh(key, l, r, local_rel);
                         }
                     }
-                    Changed | New => {
+                    Changed(r_entry) | New(r_entry) => {
                         if !self.adopt_if_same(key, l, r, local_rel)? {
-                            self.download(key, r.unwrap(), l, local_rel, "changed on Drive");
+                            self.download(key, r_entry, l, local_rel, "changed on Drive");
                         }
                     }
                     Deleted => {
@@ -825,49 +835,47 @@ impl<'a> Ctx<'a> {
                         } else {
                             self.upload(
                                 key,
-                                l.unwrap(),
+                                l_entry,
                                 r,
                                 "re-uploading: deleted on Drive but deletions are not propagated",
                             );
                         }
                     }
-                    Absent => self.upload(key, l.unwrap(), r, "missing on Drive"),
+                    Absent => self.upload(key, l_entry, r, "missing on Drive"),
                 },
-                Changed => match remote_side {
-                    Unchanged | Absent | Deleted => self.upload(key, l.unwrap(), r, "changed on device"),
-                    Changed | New => self.adopt_or_conflict(key, l.unwrap(), r.unwrap(), local_rel)?,
+                Changed(l_entry) => match remote_side {
+                    Unchanged(_) | Absent | Deleted => self.upload(key, l_entry, r, "changed on device"),
+                    Changed(r_entry) | New(r_entry) => {
+                        self.adopt_or_conflict(key, l_entry, r_entry, local_rel)?
+                    }
                 },
                 Deleted => match remote_side {
-                    Unchanged => {
+                    Unchanged(r_entry) => {
                         if cfg.propagate_deletions {
-                            self.delete_remote(key, r.unwrap(), false, "deleted on device");
+                            self.delete_remote(key, r_entry, false, "deleted on device");
                         } else {
                             self.download(
                                 key,
-                                r.unwrap(),
+                                r_entry,
                                 l,
                                 local_rel,
                                 "restoring: deleted on device but deletions are not propagated",
                             );
                         }
                     }
-                    Changed | New => self.download(
-                        key,
-                        r.unwrap(),
-                        l,
-                        local_rel,
-                        "changed on Drive after local delete",
-                    ),
+                    Changed(r_entry) | New(r_entry) => {
+                        self.download(key, r_entry, l, local_rel, "changed on Drive after local delete")
+                    }
                     Deleted | Absent => self.forget(key),
                 },
             },
             SyncMode::UploadOnly | SyncMode::UploadThenDelete => match local_side {
-                New | Changed => {
+                New(l_entry) | Changed(l_entry) => {
                     if !self.adopt_if_same(key, l, r, local_rel)? {
-                        self.upload(key, l.unwrap(), r, "new or changed on device");
+                        self.upload(key, l_entry, r, "new or changed on device");
                     }
                 }
-                Unchanged => {
+                Unchanged(_) => {
                     if r.is_none() && base.is_some_and(|b| b.remote_id.is_some()) {
                         // Already uploaded once; Drive deleted it on purpose.
                         self.skip(
@@ -875,7 +883,7 @@ impl<'a> Ctx<'a> {
                             "already uploaded once; not re-uploading after Drive deletion",
                             false,
                         );
-                    } else if r.is_some() && remote_side == Changed {
+                    } else if r.is_some() && remote_side.is_changed() {
                         self.refresh(key, l, r, local_rel);
                     }
                 }
@@ -887,19 +895,19 @@ impl<'a> Ctx<'a> {
                 }
             },
             SyncMode::UploadMirror => match local_side {
-                New | Changed => {
+                New(l_entry) | Changed(l_entry) => {
                     if !self.adopt_if_same(key, l, r, local_rel)? {
-                        self.upload(key, l.unwrap(), r, "mirror: device version");
+                        self.upload(key, l_entry, r, "mirror: device version");
                     }
                 }
-                Unchanged => match remote_side {
-                    Changed | New => {
+                Unchanged(l_entry) => match remote_side {
+                    Changed(_) | New(_) => {
                         if !self.adopt_if_same(key, l, r, local_rel)? {
-                            self.upload(key, l.unwrap(), r, "mirror: overwriting Drive change");
+                            self.upload(key, l_entry, r, "mirror: overwriting Drive change");
                         }
                     }
-                    Deleted | Absent => self.upload(key, l.unwrap(), r, "mirror: missing on Drive"),
-                    Unchanged => {}
+                    Deleted | Absent => self.upload(key, l_entry, r, "mirror: missing on Drive"),
+                    Unchanged(_) => {}
                 },
                 Deleted | Absent => match r {
                     Some(r) => self.delete_remote(key, r, false, "mirror: not on device"),
@@ -907,15 +915,15 @@ impl<'a> Ctx<'a> {
                 },
             },
             SyncMode::DownloadOnly | SyncMode::DownloadThenDelete => match remote_side {
-                New | Changed => {
+                New(r_entry) | Changed(r_entry) => {
                     if !self.adopt_if_same(key, l, r, local_rel)? {
-                        self.download(key, r.unwrap(), l, local_rel, "new or changed on Drive");
+                        self.download(key, r_entry, l, local_rel, "new or changed on Drive");
                     }
                 }
-                Unchanged => {
+                Unchanged(_) => {
                     if l.is_none() && base.is_some_and(|b| b.local_hash.is_some()) {
                         self.skip(key, "already downloaded once; device copy was removed", false);
-                    } else if l.is_some() && local_side == Changed {
+                    } else if l.is_some() && local_side.is_changed() {
                         self.refresh(key, l, r, local_rel);
                     }
                 }
@@ -927,21 +935,21 @@ impl<'a> Ctx<'a> {
                 }
             },
             SyncMode::DownloadMirror => match remote_side {
-                New | Changed => {
+                New(r_entry) | Changed(r_entry) => {
                     if !self.adopt_if_same(key, l, r, local_rel)? {
-                        self.download(key, r.unwrap(), l, local_rel, "mirror: Drive version");
+                        self.download(key, r_entry, l, local_rel, "mirror: Drive version");
                     }
                 }
-                Unchanged => match local_side {
-                    Changed | New => {
+                Unchanged(r_entry) => match local_side {
+                    Changed(_) | New(_) => {
                         if !self.adopt_if_same(key, l, r, local_rel)? {
-                            self.download(key, r.unwrap(), l, local_rel, "mirror: overwriting device change");
+                            self.download(key, r_entry, l, local_rel, "mirror: overwriting device change");
                         }
                     }
                     Deleted | Absent => {
-                        self.download(key, r.unwrap(), l, local_rel, "mirror: missing on device")
+                        self.download(key, r_entry, l, local_rel, "mirror: missing on device")
                     }
-                    Unchanged => {}
+                    Unchanged(_) => {}
                 },
                 Deleted | Absent => {
                     if l.is_some() {

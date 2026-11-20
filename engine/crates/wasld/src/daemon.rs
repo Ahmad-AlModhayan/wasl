@@ -1275,9 +1275,15 @@ impl Daemon {
             | Request::ProviderList { .. }
             | Request::ProviderChanges { .. }
             | Request::ProviderFetch { .. }) => match self.views.provider() {
-                Some(host) => crate::provider::answer(&host, &r)
-                    .await
-                    .expect("a File Provider request"),
+                Some(host) => match crate::provider::answer(&host, &r).await {
+                    Some(reply) => reply,
+                    None => Err(RemoteError {
+                        kind: ErrorKind::Unsupported,
+                        message: "Unsupported File Provider request.".into(),
+                        needs_update: None,
+                        pair_rule: None,
+                    }),
+                },
                 None => Err(RemoteError {
                     kind: ErrorKind::Unsupported,
                     message: "Views aren't File Provider domains on this computer.".into(),

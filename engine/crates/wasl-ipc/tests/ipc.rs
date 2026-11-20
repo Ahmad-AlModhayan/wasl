@@ -407,6 +407,9 @@ async fn a_running_daemon_is_still_reported_as_running() {
 #[cfg(windows)]
 fn sddl(path: &std::path::Path) -> String {
     let out = std::process::Command::new("powershell")
+        // Clear inherited PowerShell 7 PSModulePath so Windows PowerShell 5.1 loads its own
+        // Microsoft.PowerShell.Security module when cargo test runs inside pwsh.
+        .env_remove("PSModulePath")
         .args(["-NoProfile", "-NonInteractive", "-Command"])
         .arg(format!("(Get-Acl -LiteralPath '{}').Sddl", path.display()))
         .output()

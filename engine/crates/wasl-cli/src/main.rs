@@ -1,6 +1,8 @@
 //! `wasl`: the command line of Wasl (SRS FR-A3). Every command talks to `wasld` over the local
 //! protocol; messages are in English or Arabic (NFR-8).
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 mod agent;
 mod cmd;
 mod oplog;

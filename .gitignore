@@ -2,6 +2,7 @@
 .DS_Store
 /build/
 /dist/
+/dist-release/
 *.log
 .verify/
 # secrets and signing material: never in the repo

@@ -166,9 +166,10 @@ impl Index {
                 _ => false,
             };
             if content_same {
-                if !s.is_dir {
+                if !s.is_dir
+                    && let Some(e) = self.entries.get_mut(&s.key)
+                {
                     // Touched, not changed: the version stays as it was; only what this disk shows moves.
-                    let e = self.entries.get_mut(&s.key).expect("present");
                     e.local_size = s.size;
                     e.local_mtime = s.mtime;
                 }

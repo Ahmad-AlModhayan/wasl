@@ -13,6 +13,8 @@
 //!
 //! [`Tree`]: wasl_vfs::Tree
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 mod identity;
 
 pub use identity::{

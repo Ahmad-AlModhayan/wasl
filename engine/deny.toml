@@ -30,6 +30,8 @@ ignore = [
     { id = "RUSTSEC-2026-0372", reason = "unmaintained, not vulnerable: zvariant_derive via keyring 3 (Linux secret service); move to zbus 5" },
     # Build time only: askama's derive macro reads its config with it (uniffi's binding generator).
     { id = "RUSTSEC-2026-0374", reason = "unmaintained, not vulnerable, build-time only (askama_derive via uniffi_bindgen)" },
+    # Local timestamp formatting in wasl-cli and wasl-engine; no security vulnerability.
+    { id = "RUSTSEC-2026-0543", reason = "unmaintained, not vulnerable: chrono used for local display timestamps; migrate to time or jiff later" },
 ]
 unused-ignored-advisory = "allow"
 

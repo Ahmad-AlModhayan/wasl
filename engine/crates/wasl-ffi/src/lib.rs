@@ -2,6 +2,8 @@
 //! SRS FR-E4, and the interfaces the platform implements (tokens, device state, SAF, progress).
 //! No sync decision is made outside the engine (FR-E3).
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 uniffi::setup_scaffolding!();
 
 mod devices;

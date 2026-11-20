@@ -158,7 +158,9 @@ impl Hydrator {
             }
             i = j + 1;
         }
-        Ok(out.into_iter().map(|b| b.expect("filled")).collect())
+        out.into_iter()
+            .map(|b| b.ok_or_else(|| VfsError::Integrity("missing hydrated block".into())))
+            .collect()
     }
 }
 
