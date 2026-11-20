@@ -3992,7 +3992,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-chunk"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "blake3",
  "fastcdc",
@@ -4004,7 +4004,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-cli"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4023,7 +4023,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "proptest",
  "serde",
@@ -4035,7 +4035,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-crypto"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aes-gcm",
  "aes-siv",
@@ -4060,7 +4060,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-devices"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "serde",
@@ -4081,7 +4081,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-drive"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4101,7 +4101,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-engine"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4133,7 +4133,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-ffi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "nix 0.31.3",
@@ -4160,7 +4160,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-fs"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "blake3",
  "filetime",
@@ -4174,7 +4174,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-ignore"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "ignore",
  "regex",
@@ -4185,7 +4185,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-ipc"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4204,7 +4204,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-net"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4234,7 +4234,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-pairs"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "tempfile",
@@ -4249,7 +4249,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-proto"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "regex",
  "serde",
@@ -4260,7 +4260,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-store"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "proptest",
@@ -4278,7 +4278,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-vfs"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4292,7 +4292,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-vfs-fuse"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "fuser",
@@ -4306,7 +4306,7 @@ dependencies = [
 
 [[package]]
 name = "wasl-vfs-windows"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "tempfile",
@@ -4319,7 +4319,7 @@ dependencies = [
 
 [[package]]
 name = "wasld"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",

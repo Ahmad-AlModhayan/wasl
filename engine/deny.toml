@@ -55,10 +55,27 @@ allow = [
     "CC0-1.0",
 ]
 confidence-threshold = 0.9
-exceptions = []
+# Wasl's own workspace crates declare AGPL-3.0-only (third-party strong-copyleft crates stay forbidden).
+exceptions = [
+    { allow = ["AGPL-3.0-only"], name = "wasl-chunk" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-core" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-crypto" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-devices" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-drive" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-engine" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-fs" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-ignore" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-net" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-pairs" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-store" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-vfs" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-vfs-fuse" },
+    { allow = ["AGPL-3.0-only"], name = "wasl-vfs-windows" },
+    { allow = ["AGPL-3.0-only"], name = "wasld" },
+]
 
 [licenses.private]
-# Wasl's own crates are unpublished (`publish = false`).
+# Keep private exemption for `wasl-ffi` (`publish = false`).
 ignore = true
 
 [bans]
