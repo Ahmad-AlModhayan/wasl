@@ -8,35 +8,148 @@ Every sync decision, conflict rule, safety guard, cryptographic format, and erro
 
 ## Architecture & Sync Design Tradeoffs
 
-```text
-  Clients (`wasl` CLI [Apache-2.0], desktop UI, scripts)     Mobile clients
-               | local socket / named pipe                        | UniFFI (`wasl-ffi`)
-               | mutual HMAC + version-range (`wasl-ipc`)         |
-               v                                                  v
-        +---------------------------------------------------------------+
-        | `wasld` daemon · `wasl-pairs` (rules) · `wasl-devices` (mesh) |
-        +-------------------------------+-------------------------------+
-                                        | shared per-pair `PairLocks`
-                                        v
-        +---------------------------------------------------------------+
-        | `wasl-engine` (Drive executor, P2P pull, safe `Apply`, agent) |
-        +---------------+-------------------------------+---------------+
-                        |                               |
-                        v                               v
-        +-------------------------------+   +---------------------------+
-        | `wasl-core` (pure, zero I/O)  |   | `wasl-store` (SQLite)     |
-        | - 3-way Drive `Planner`       |   | - baselines & chunk table |
-        | - N-way `VersionVector`       |   | - pre-migration backups   |
-        | - `name_key` (NFC+lower)      |   | - append-only `oplog`     |
-        | - safety `guards`             |   | - 30-day recycle bin      |
-        +-------------------------------+   +---------------------------+
-                        |
-        +---------------+---------------+---------------+
-        v                               v               v
-   Google Drive                   P2P QUIC        Files on Demand
-   `wasl-drive` + `wasl-crypto`   `wasl-net` +    `wasl-vfs` +
-   (Changes API, Vault v1/v2.1)   `wasl-chunk`    Cloud Files / FUSE 3
+### System Context (C4 Level 1)
+
+```mermaid
+flowchart TB
+    user(["User<br/>[Person]<br/>Syncs folders across desktop,<br/>mobile, and Drive with 30-day undo"])
+    agent(["Local AI Agent<br/>[External Actor]<br/>Edits files inside held changesets"])
+
+    wasl["Wasl Sync Engine<br/>[Software System]<br/>Local-first Rust engine, wasld daemon,<br/>wasl CLI, and UniFFI bindings"]
+
+    clients["Desktop & Mobile UI Clients<br/>[External Systems]<br/>Native apps integrating via IPC / UniFFI"]:::ext
+    drive["Google Drive<br/>[External System]<br/>Optional cloud remote (Drive v3 + Changes API)"]:::ext
+    peers["Peer Wasl Devices<br/>[External System]<br/>Pinned-Ed25519 QUIC / TLS 1.3 peers"]:::ext
+    relay["STUN / Optional Relay<br/>[External System]<br/>NAT discovery or encrypted relay fallback"]:::ext
+
+    user -->|"CLI / previews / agent review"| wasl
+    user -->|"Native UI"| clients
+    clients -->|"Sync, pairs, vaults, hydration [wasl-ipc / UniFFI]"| wasl
+    agent -->|"Scoped sessions [wasl agent CLI / hooks]"| wasl
+    wasl -->|"Files, Docs exports, Vault v2.1 [HTTPS]"| drive
+    wasl <-->|"Causal DAG & FastCDC BLAKE3 chunks [QUIC / TLS 1.3]"| peers
+    wasl -->|"Endpoint discovery / relay [UDP / STUN / TURN]"| relay
+
+    classDef ext stroke-dasharray: 5 5,stroke-width:1.5px;
 ```
+
+### Containers & Open-Core Boundary (C4 Level 2)
+
+```mermaid
+flowchart TB
+    user(["User<br/>[Person]"])
+    desktop_ui["Desktop UI Client<br/>[External Native App]"]:::ext
+    mobile_ui["Mobile UI Client<br/>[External Native App]"]:::ext
+
+    subgraph wasl_repo["Wasl Public Repository (engine/)"]
+        subgraph apache_tier["Apache-2.0 Interface Layer (zero AGPL dependencies)"]
+            cli["wasl CLI — wasl-cli<br/>[Rust Binary]<br/>Daemon control, previews, agent sessions"]
+            ipc["IPC & Protocol — wasl-ipc, wasl-proto<br/>[Rust Crates]<br/>Local socket/pipe, mutual HMAC, EN/AR DTOs"]
+        end
+
+        subgraph agpl_tier["AGPL-3.0-only Core Layer"]
+            wasld["Background Daemon — wasld<br/>[Rust Binary]<br/>Watcher, scheduler, keychain, IPC server, vault decrypt"]
+            ffi["Mobile FFI — wasl-ffi<br/>[Rust UniFFI Library]<br/>Engine, pairs, devices, on-demand bindings"]
+            core["Sync Engine Crates<br/>[wasl-engine, wasl-core, wasl-pairs, wasl-devices,<br/>wasl-crypto, wasl-drive, wasl-net, wasl-chunk]<br/>3-way & N-way planners, safe Apply, Vault v2.1, QUIC"]
+            vfs["Files on Demand<br/>[wasl-vfs, wasl-vfs-windows, wasl-vfs-fuse]<br/>1 MiB LRU cache, pins, CfApi / FUSE 3 views"]
+            store[("Local State Store — wasl-store<br/>[Bundled SQLite]<br/>Baselines, Drive cache, chunks,<br/>append-only oplog, 30-day bin")]
+        end
+    end
+
+    drive["Google Drive API<br/>[External]"]:::ext
+    peers["Peer Wasl Devices<br/>[External]"]:::ext
+
+    user --> cli
+    cli --> ipc
+    desktop_ui -->|"Mutual HMAC [Local IPC]"| ipc
+    ipc -->|"Authenticated commands"| wasld
+    mobile_ui -->|"In-process [UniFFI]"| ffi
+    wasld --> core
+    wasld --> vfs
+    ffi --> core
+    core --> store
+    core -->|"HTTPS / rustls"| drive
+    core <-->|"QUIC / CBOR / zstd"| peers
+
+    classDef ext stroke-dasharray: 5 5,stroke-width:1.5px;
+```
+
+### Runtime Safety: Crash-Safe Apply & Agent Changeset Lifecycle (UML)
+
+```mermaid
+sequenceDiagram
+    participant Plan as Planner / P2P Pull
+    participant Locks as PairLocks (wasl-engine)
+    participant Apply as Apply Boundary
+    participant FS as Local Filesystem
+    participant Store as wasl-store (SQLite)
+
+    Plan->>Locks: Acquire per-pair async mutex
+    Locks->>Apply: Execute planned write/delete
+    Apply->>Apply: Validate path against disk NameRules
+    Apply->>FS: Write incoming bytes to staged temp file + fsync
+    Apply->>FS: Re-stat target (as_planned check)
+    alt Target modified locally after plan
+        Apply-->>Plan: Abort overwrite (CHANGED_SINCE_PLANNED)
+    else Target unchanged
+        Apply->>FS: Copy replaced file into 30-day local recycle bin
+        Apply->>Store: Index bin entry (<= 5 versions / key)
+        Apply->>FS: Atomic rename staged file over target
+        Apply->>Store: Commit updated baseline row
+    end
+    Locks-->>Plan: Release per-pair lock
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> open : wasl agent begin / run
+    open --> staged : Agent exits (edits held off-sync, BLAKE3 snapshots saved)
+    staged --> committed : Human confirms via out-of-band dialog (256-bit token)
+    staged --> reverted : wasl agent revert (append inverse ops, skip user-edited files)
+    committed --> reverted : Revert accepted changeset ("you win" check)
+    committed --> [*] : Sync resumes for committed keys
+    reverted --> [*] : Original bytes & mtimes restored
+```
+
+<details>
+<summary>Level 3 — Component Diagram: Rust Sync Engine Workspace (19 Crates)</summary>
+
+```mermaid
+flowchart TB
+    ipc_c["CLI & Desktop Clients<br/>[wasl-ipc]"]:::ext
+    mob_c["Mobile Clients<br/>[UniFFI]"]:::ext
+
+    subgraph engine_ws["engine/ (AGPL-3.0-only Core Crates)"]
+        host["Daemon & FFI Entry<br/>[wasld, wasl-ffi]<br/>IPC server, notify watcher, scheduler, keychain"]
+        rules["Pair Rules & Device Mesh<br/>[wasl-pairs, wasl-devices]<br/>Pair validation/CRUD, preview holds, group offers"]
+        exec["Execution & Safety Boundary<br/>[wasl-engine]<br/>PairLocks, Drive executor, P2P pull, Apply, agent hold"]
+        pure["Pure Decision Core<br/>[wasl-core, wasl-ignore]<br/>Zero-I/O 3-way Planner, N-way nway, name_key, guards"]
+        dc["Drive & Vault Crypto<br/>[wasl-drive, wasl-crypto]<br/>Drive v3 Changes API, Vault v1/v2.1 (Argon2id, SIV, Padme, GCM)"]
+        p2p["P2P Transport & Chunking<br/>[wasl-net, wasl-chunk]<br/>Pinned-Ed25519 QUIC, causal DAG, mDNS/STUN, FastCDC, zstd"]
+        fsvfs["Local FS & On-Demand VFS<br/>[wasl-fs, wasl-vfs, wasl-vfs-windows, wasl-vfs-fuse]<br/>Atomic staging/rename, local bin, CfApi / FUSE 3"]
+        db[("Persistence<br/>[wasl-store — SQLite]<br/>14 migrations, pre-migration .bak, baselines, oplog, bin")]
+    end
+
+    drive["Google Drive v3<br/>[HTTPS]"]:::ext
+    peers["Peer Devices<br/>[QUIC / mDNS / STUN]"]:::ext
+
+    ipc_c -->|"wasl-ipc"| host
+    mob_c -->|"UniFFI"| host
+    host --> rules
+    host --> exec
+    host --> fsvfs
+    exec --> pure
+    exec --> db
+    exec --> fsvfs
+    exec --> dc
+    exec --> p2p
+    dc -->|"HTTPS / rustls"| drive
+    p2p <-->|"QUIC / TLS 1.3"| peers
+
+    classDef ext stroke-dasharray: 5 5,stroke-width:1.5px;
+```
+
+</details>
 
 Full component map and module boundaries: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
