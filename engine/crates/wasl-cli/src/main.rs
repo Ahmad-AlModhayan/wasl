@@ -354,13 +354,23 @@ pub enum DeviceCmd {
         /// Confirm the four words without asking (compare them on both screens first).
         #[arg(long)]
         yes: bool,
+        /// One JSON object per line for each stage (waiting, confirm, paired or failed).
+        #[arg(long)]
+        json: bool,
     },
-    /// Joins your other device's group with the code it shows.
+    /// Joins your other device's group with the code it shows: the 8 characters (any case, the
+    /// dash optional) or the long code from a QR.
     Join {
         code: String,
         /// Confirm the four words without asking (compare them on both screens first).
         #[arg(long)]
         yes: bool,
+        /// Where the other device is (ip:port), when this network blocks finding it. Repeatable.
+        #[arg(long = "address")]
+        address: Vec<String>,
+        /// One JSON object per line for each stage (waiting, confirm, paired or failed).
+        #[arg(long)]
+        json: bool,
     },
     /// Lists the folders your other devices offer this computer.
     Offers {

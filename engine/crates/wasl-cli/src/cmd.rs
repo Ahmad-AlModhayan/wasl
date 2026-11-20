@@ -191,8 +191,13 @@ pub async fn run(cmd: Cmd) -> R<u8> {
         Cmd::Device(DeviceCmd::List { json }) => device_list(json).await,
         Cmd::Device(DeviceCmd::Remove { device, yes }) => device_remove(&device, yes).await,
         Cmd::Device(DeviceCmd::Connect { address }) => device_connect(&address).await,
-        Cmd::Device(DeviceCmd::Add { yes }) => device_pair(None, yes).await,
-        Cmd::Device(DeviceCmd::Join { code, yes }) => device_pair(Some(&code), yes).await,
+        Cmd::Device(DeviceCmd::Add { yes, json }) => device_pair(None, &[], yes, json).await,
+        Cmd::Device(DeviceCmd::Join {
+            code,
+            yes,
+            address,
+            json,
+        }) => device_pair(Some(&code), &address, yes, json).await,
         Cmd::Device(DeviceCmd::Offers { json, all }) => device_offers(json, all).await,
         Cmd::Device(DeviceCmd::Accept {
             offer,
@@ -1389,21 +1394,61 @@ async fn device_remove(reference: &str, yes: bool) -> R<u8> {
 
 /// Adds a device (`code` is `None`: this computer shows the code) or joins one: waits for both
 /// devices to prove the code, asks whether the four words match, and waits for the other side.
-async fn device_pair(code: Option<&str>, yes: bool) -> R<u8> {
+/// One stage of a pairing as a line of JSON: the daemon's status with the failure worded in this
+/// command's language. The keys are stable (`stage`, `code`, `short_code`, `expires_at`, `words`,
+/// `peer_name`, `peer_id`, `failure`, `message`).
+fn pairing_line(s: &wasl_ipc::PairingStatus) -> R<()> {
+    let mut v = serde_json::to_value(s).map_err(|e| Fail::new(GENERAL, e.to_string()))?;
+    if let (Some(key), Some(obj)) = (s.failure.as_deref(), v.as_object_mut()) {
+        obj.insert(
+            "message".into(),
+            serde_json::Value::String(words::say(key, &Values::default(), None).text),
+        );
+    }
+    println!(
+        "{}",
+        serde_json::to_string(&v).map_err(|e| Fail::new(GENERAL, e.to_string()))?
+    );
+    Ok(())
+}
+
+/// A failed pairing, in words.
+fn pairing_failure(s: &wasl_ipc::PairingStatus) -> Fail {
+    match s.failure.as_deref() {
+        Some(key) => Fail::said(GENERAL, words::say(key, &Values::default(), None)),
+        None => Fail::new(GENERAL, s.message.clone().unwrap_or_default()),
+    }
+}
+
+async fn device_pair(code: Option<&str>, addresses: &[String], yes: bool, json: bool) -> R<u8> {
     use wasl_ipc::PairingStage;
+    // A JSON stream has no room for a question: the agent says yes up front.
+    if json && !yes {
+        return Err(Fail::new(USAGE, t!(NeedsYes)));
+    }
     let c = connect().await?;
     match code {
         None => {
             let s = c.invite_device().await?;
-            println!("{}", t!(PairShowCode));
-            println!();
-            println!("    {}", s.code.unwrap_or_default());
-            println!();
-            println!("{}", t!(PairCodeNext));
+            if json {
+                pairing_line(&s)?;
+            } else {
+                println!("{}", t!(PairShowCode));
+                println!();
+                println!("    {}", s.short_code.clone().unwrap_or_default());
+                println!();
+                println!("{}", t!(PairShowQr));
+                println!();
+                println!("    {}", s.code.unwrap_or_default());
+                println!();
+                println!("{}", t!(PairCodeNext));
+            }
         }
         Some(code) => {
-            c.join_device(code).await?;
-            println!("{}", t!(PairReaching));
+            c.join_device_at(code, addresses).await?;
+            if !json {
+                println!("{}", t!(PairReaching));
+            }
         }
     }
     let wait_for = |want: &'static [PairingStage]| {
@@ -1420,22 +1465,40 @@ async fn device_pair(code: Option<&str>, yes: bool) -> R<u8> {
     };
     let s = wait_for(&[PairingStage::Confirm]).await?;
     if s.stage == PairingStage::Failed {
-        return Err(Fail::new(GENERAL, s.message.unwrap_or_default()));
+        if json {
+            pairing_line(&s)?;
+            return Ok(GENERAL);
+        }
+        return Err(pairing_failure(&s));
     }
-    println!("{}", t!(PairWords));
-    println!();
-    println!("    {}", s.words.join("  "));
-    println!();
+    if json {
+        pairing_line(&s)?;
+    } else {
+        println!("{}", t!(PairWords));
+        println!();
+        println!("    {}", s.words.join("  "));
+        println!();
+    }
     let same = yes || confirm(&t!(PairWordsAsk))?;
     let s = c.confirm_pairing(same).await?;
     if !same {
-        println!("{}", t!(PairNotAdded));
+        if !json {
+            println!("{}", t!(PairNotAdded));
+        }
         return Ok(GENERAL);
     }
-    if s.stage != PairingStage::Paired {
+    if s.stage != PairingStage::Paired && !json {
         println!("{}", t!(PairWaitingOther));
     }
     let s = wait_for(&[PairingStage::Paired]).await?;
+    if json {
+        pairing_line(&s)?;
+        return Ok(if s.stage == PairingStage::Paired {
+            OK
+        } else {
+            GENERAL
+        });
+    }
     match s.stage {
         PairingStage::Paired => {
             println!(
@@ -1444,7 +1507,7 @@ async fn device_pair(code: Option<&str>, yes: bool) -> R<u8> {
             );
             Ok(OK)
         }
-        _ => Err(Fail::new(GENERAL, s.message.unwrap_or_default())),
+        _ => Err(pairing_failure(&s)),
     }
 }
 
@@ -2602,9 +2665,33 @@ mod tests {
         }
         // #148: the words can be confirmed without a terminal, as the "add --yes" hint says.
         let cli = Cli::try_parse_from(["wasl", "device", "add", "--yes"]).unwrap();
-        assert!(matches!(cli.cmd, Cmd::Device(DeviceCmd::Add { yes: true })));
+        assert!(matches!(cli.cmd, Cmd::Device(DeviceCmd::Add { yes: true, .. })));
         let cli = Cli::try_parse_from(["wasl", "device", "join", "ABCD-EFGH", "--yes"]).unwrap();
         assert!(matches!(cli.cmd, Cmd::Device(DeviceCmd::Join { yes: true, .. })));
+        // The short code, typed any way, with an address to try and one JSON object per stage.
+        let cli = Cli::try_parse_from([
+            "wasl",
+            "device",
+            "join",
+            "abcd efgh",
+            "--address",
+            "192.168.1.5:4242",
+            "--json",
+            "--yes",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Cmd::Device(DeviceCmd::Join {
+                code,
+                address,
+                json: true,
+                yes: true,
+            }) => {
+                assert_eq!("abcd efgh", code);
+                assert_eq!(vec!["192.168.1.5:4242".to_string()], address);
+            }
+            other => panic!("{other:?}"),
+        }
         let cli = Cli::try_parse_from(["wasl", "view", "remove", "Photos", "--keep-files", "--yes"]).unwrap();
         assert!(matches!(
             cli.cmd,

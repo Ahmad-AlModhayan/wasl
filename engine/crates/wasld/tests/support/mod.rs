@@ -23,7 +23,28 @@ pub struct Device {
     pub home: PathBuf,
     pub folder: PathBuf,
     pub log: PathBuf,
+    bin: String,
     child: Child,
+}
+
+fn spawn(bin: &str, home: &Path, log: &Path, name: &str) -> Child {
+    // Appended, so a restarted device keeps the log of its first run.
+    let out = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .unwrap();
+    let err = out.try_clone().unwrap();
+    Command::new(bin)
+        .arg("--home")
+        .arg(home)
+        .env("WASL_MIQYAS_NAME", name)
+        .env_remove("WASL_MIQYAS_LISTEN")
+        .stdin(Stdio::null())
+        .stdout(out)
+        .stderr(err)
+        .spawn()
+        .unwrap_or_else(|e| panic!("cannot start {bin}: {e}"))
 }
 
 impl Device {
@@ -34,27 +55,30 @@ impl Device {
         for d in [&home, &folder] {
             std::fs::create_dir_all(d).unwrap();
         }
-        let out = std::fs::File::create(&log).unwrap();
-        let err = out.try_clone().unwrap();
-        let child = Command::new(bin)
-            .arg("--home")
-            .arg(&home)
-            .env("WASL_MIQYAS_NAME", name)
-            .env_remove("WASL_MIQYAS_LISTEN")
-            .stdin(Stdio::null())
-            .stdout(out)
-            .stderr(err)
-            .spawn()
-            .unwrap_or_else(|e| panic!("cannot start {bin}: {e}"));
+        let child = spawn(bin, &home, &log, name);
         let mut device = Device {
             name: name.into(),
             home,
             folder,
             log,
+            bin: bin.into(),
             child,
         };
         device.wait_ready().await;
         device
+    }
+
+    /// Stops the daemon the hard way, as a crash or a closed laptop would. Its home stays.
+    pub fn stop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+
+    /// Stops the daemon and starts it again on the same home, and waits until it answers.
+    pub async fn restart(&mut self) {
+        self.stop();
+        self.child = spawn(&self.bin, &self.home, &self.log, &self.name);
+        self.wait_ready().await;
     }
 
     async fn wait_ready(&mut self) {

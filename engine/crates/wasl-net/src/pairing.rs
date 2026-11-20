@@ -15,10 +15,12 @@
 //!   nothing else. All 40 bits go to authentication, none to addressing.
 //!
 //! **How a short code finds the inviter.** While a short code is on screen, the inviter
-//! announces "pairing open" on the LAN (the `discover` module: a random per-boot token, nothing
-//! derived from the code) and, when both devices use the same Google account, writes a
-//! rendezvous file in the Drive app-data folder. The joiner connects to each candidate and runs
-//! the protocol below with the typed code. Because the joiner reveals nothing that depends on
+//! announces "pairing open" on the LAN (`discover::PAIRING_SERVICE_TYPE`: a random per-boot
+//! token and the port, nothing derived from the code; withdrawn when the pairing closes). A
+//! joiner on a network that blocks discovery may also be given the inviter's address by the
+//! person. (A rendezvous file in the Drive app-data folder for devices on different networks is
+//! not built.) The joiner connects to each candidate and runs the protocol below with the typed
+//! code. Because the joiner reveals nothing that depends on
 //! the code until the candidate has proved it knows the code, trying a wrong candidate costs
 //! nothing and leaks nothing.
 //!

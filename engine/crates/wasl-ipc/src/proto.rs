@@ -274,6 +274,9 @@ pub enum Request {
     /// Joins the device whose code was scanned or pasted.
     JoinDevice {
         code: String,
+        /// Where to look for a typed code (`ip:port`) when discovery is blocked on this network.
+        #[serde(default)]
+        addresses: Vec<String>,
     },
     /// Where the open pairing stands (also after `Event::Changed`).
     PairingStatus,

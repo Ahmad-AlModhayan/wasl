@@ -1753,6 +1753,206 @@ async fn a_device_that_goes_away_is_last_seen_just_now() {
     assert_eq!("Shared will sync when Desktop is back online.", folder.words.text);
 }
 
+/// Rows in every table the store keeps per device that name `id` (wasl#13).
+fn rows_about(n: &Node, id: &str) -> Vec<(&'static str, i64)> {
+    let store = n.daemon.store.lock();
+    let c = store.connection();
+    [
+        ("device_notes", "device_id"),
+        ("device_seen", "device_id"),
+        ("pair_share_devices", "device_id"),
+        ("received_offers", "from_device"),
+        ("peer_progress", "peer"),
+    ]
+    .into_iter()
+    .map(|(table, col)| {
+        let n: i64 = c
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {table} WHERE {col} = ?1"),
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        (table, n)
+    })
+    .filter(|(_, n)| *n > 0)
+    .collect()
+}
+
+/// Pairs `b` into `a`'s group with a code, in process, the way the apps do.
+async fn pair_with_code(a: &Node, b: &Node) {
+    use wasl_ipc::PairingStage::*;
+    let (pa, pb) = (
+        a.daemon.pairing.clone().unwrap(),
+        b.daemon.pairing.clone().unwrap(),
+    );
+    let code = pa.invite().unwrap().code.unwrap();
+    pb.join(&code).unwrap();
+    let (sa, sb) = (until(a, Confirm).await, until(b, Confirm).await);
+    assert_eq!(sa.words, sb.words, "{sa:?} {sb:?}");
+    pa.confirm(true).unwrap();
+    pb.confirm(true).unwrap();
+    assert_eq!(Paired, until(a, Paired).await.stage);
+    assert_eq!(Paired, until(b, Paired).await.stage);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn removing_a_device_clears_every_row_kept_about_it() {
+    let (a, b) = pair_up().await;
+    let (da, db) = (
+        a.daemon.devices.clone().unwrap(),
+        b.daemon.devices.clone().unwrap(),
+    );
+    let idb = db.id().to_string();
+    // What A holds about B: a share by name, an offer from it, when it was seen, how far its
+    // index was read.
+    da.share_with("p", false, &[db.id()]).unwrap();
+    {
+        let mut s = a.daemon.store.lock();
+        s.put_received_offers(
+            &idb,
+            &[wasl_store::NewOffer {
+                share: "ab".repeat(16),
+                name: "Photos".into(),
+                files: 1,
+                bytes: 1,
+            }],
+            1,
+        )
+        .unwrap();
+        s.set_peer_since("p", &idb, 7).unwrap();
+        s.note_device_seen(&idb, 5).unwrap();
+    }
+    let before: Vec<_> = rows_about(&a, &idb).into_iter().map(|(t, _)| t).collect();
+    for t in [
+        "device_notes",
+        "device_seen",
+        "pair_share_devices",
+        "received_offers",
+        "peer_progress",
+    ] {
+        assert!(before.contains(&t), "A holds a {t} row about B: {before:?}");
+    }
+
+    da.remove_member(db.id()).unwrap();
+    assert!(
+        rows_about(&a, &idb).is_empty(),
+        "rows about the removed device remain: {:?}",
+        rows_about(&a, &idb)
+    );
+    assert!(
+        a.daemon
+            .store
+            .lock()
+            .device_notes()
+            .unwrap()
+            .iter()
+            .all(|(d, _)| *d != idb)
+    );
+    assert!(da.offers().is_empty());
+    assert_eq!(1, da.device_infos().len());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_removed_device_opens_with_a_group_of_its_own_and_pairs_again() {
+    use wasl_ipc::PairingStage::*;
+    let (a, b) = pair_up().await;
+    let (da, db) = (
+        a.daemon.devices.clone().unwrap(),
+        b.daemon.devices.clone().unwrap(),
+    );
+    let old_b = db.id();
+    da.remove_member(old_b).unwrap();
+    // B was away: what it restarts with is its data folder, and A's group file now lists the
+    // removal (it reaches B through the group file in Drive).
+    db.close();
+    drop(db);
+    let data = restart_copy(&b, "data-b-removed");
+    std::fs::copy(a.data.join("group.json"), data.join("group.json")).unwrap();
+    let b2 = Daemon::open(config(data, b.secrets.clone(), "Desktop")).unwrap();
+    let db2 = b2.devices.clone().unwrap();
+    assert_ne!(
+        old_b,
+        db2.id(),
+        "a removed key is never a member again: B takes a new one"
+    );
+    assert_eq!(1, db2.members().len(), "a group of its own");
+    assert_eq!(db2.id(), db2.members()[0].id);
+    let leftovers = {
+        let s = b2.store.lock();
+        s.device_notes().unwrap()
+    };
+    assert_eq!(
+        vec![db2.id().to_string()],
+        leftovers.into_iter().map(|(d, _)| d).collect::<Vec<_>>(),
+        "only itself is noted"
+    );
+
+    // A new invitation from A, and B pairs as a new device.
+    let b = Node {
+        daemon: b2,
+        root: b.root.clone(),
+        secrets: b.secrets.clone(),
+        data: b.data.clone(),
+        _dir: tempfile::tempdir().unwrap(),
+    };
+    pair_with_code(&a, &b).await;
+    let members = da.members();
+    assert_eq!(2, members.len(), "{members:?}");
+    assert!(members.iter().any(|m| m.id == db2.id()));
+    assert!(members.iter().all(|m| m.id != old_b), "the old B stays gone");
+    assert_eq!(da.members(), db2.members());
+    // And they sync.
+    da.connect(db2.local_addr().unwrap()).await.unwrap();
+    std::fs::write(a.root.join("again.txt"), b"back").unwrap();
+    a.daemon.run("p", Trigger::Manual).await;
+    assert_eq!(Paired, until(&a, Paired).await.stage);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_reset_device_leaves_the_old_entry_marked_not_seen_and_pairs_as_new() {
+    use wasl_proto::{DevicePresence, Lang};
+    let (a, b) = pair_up().await;
+    let (da, db) = (
+        a.daemon.devices.clone().unwrap(),
+        b.daemon.devices.clone().unwrap(),
+    );
+    let old_b = db.id();
+    assert!(da.connected().contains(&old_b));
+    db.close();
+    drop(db);
+    // B's identity is reset: its data stays, its key is gone from the keychain.
+    let data = restart_copy(&b, "data-b-reset");
+    let fresh_secrets = Arc::new(MemorySecrets::default());
+    let b2 = Daemon::open(config(data, fresh_secrets.clone(), "Desktop")).unwrap();
+    let db2 = b2.devices.clone().unwrap();
+    assert_ne!(old_b, db2.id());
+    let b = Node {
+        daemon: b2,
+        root: b.root.clone(),
+        secrets: fresh_secrets,
+        data: b.data.clone(),
+        _dir: tempfile::tempdir().unwrap(),
+    };
+    pair_with_code(&a, &b).await;
+
+    let statuses = da.device_statuses(Lang::En);
+    assert_eq!(3, statuses.len(), "{statuses:?}");
+    let old = statuses.iter().find(|s| s.id == old_b.to_string()).unwrap();
+    assert_ne!(
+        DevicePresence::Online,
+        old.state,
+        "the old B is not online: {old:?}"
+    );
+    assert!(
+        old.last_seen_at.is_some(),
+        "it says when it was last seen: {old:?}"
+    );
+    let new = statuses.iter().find(|s| s.id == db2.id().to_string()).unwrap();
+    assert!(!new.this_device);
+    assert_eq!("Desktop", new.name);
+}
+
 /// A member of A's group that speaks `range`, as a device from another release would.
 fn peer_speaking(range: wasl_net::proto::VersionRange, seed: u8) -> (wasl_net::Endpoint, [u8; 32]) {
     let key = wasl_net::DeviceKey::from_seed(&[seed; 32]);

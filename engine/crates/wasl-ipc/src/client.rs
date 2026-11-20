@@ -576,7 +576,15 @@ impl Client {
         self.call(Request::InviteDevice).await
     }
     pub async fn join_device(&self, code: &str) -> Result<(), ClientError> {
-        self.call(Request::JoinDevice { code: code.into() }).await
+        self.join_device_at(code, &[]).await
+    }
+    /// Joins with a scanned or typed code, trying `addresses` (`ip:port`) first for a typed code.
+    pub async fn join_device_at(&self, code: &str, addresses: &[String]) -> Result<(), ClientError> {
+        self.call(Request::JoinDevice {
+            code: code.into(),
+            addresses: addresses.to_vec(),
+        })
+        .await
     }
     pub async fn pairing_status(&self) -> Result<PairingStatus, ClientError> {
         self.call(Request::PairingStatus).await

@@ -230,6 +230,86 @@ falling back to English.
 - English: Can't reach
 - Arabic: تعذّر الوصول إليه
 
+## `pair.bad_code`
+
+- Note: The person typed something that isn't an 8-character pairing code (or a scanned code). Case, spaces and dashes don't matter. Shown beside the code field.
+- Values: none
+- Fix: none
+- English: That isn't a pairing code. It is 8 letters and numbers, like K7QM-2XNP.
+- Arabic: هذا ليس رمز اقتران. هو 8 أحرف وأرقام، مثل K7QM-2XNP.
+
+## `pair.wrong_code`
+
+- Note: The other device did not prove it knows the code: a typo. A mistyped code is used up, so the person makes a new one.
+- Values: none
+- Fix: none
+- English: That code didn't match. Check the 8 characters, or make a new code on the other device and try again.
+- Arabic: لم يتطابق هذا الرمز. تحقق من الأحرف الثمانية، أو أنشئ رمزًا جديدًا على الجهاز الآخر وحاول مجددًا.
+
+## `pair.code_expired`
+
+- Note: A pairing code works for 10 minutes. Shown on either device.
+- Values: none
+- Fix: none
+- English: That code has expired. Make a new code on the other device and try again.
+- Arabic: انتهت صلاحية هذا الرمز. أنشئ رمزًا جديدًا على الجهاز الآخر وحاول مجددًا.
+
+## `pair.code_used`
+
+- Note: A pairing code works once, even when the first try failed.
+- Values: none
+- Fix: none
+- English: That code was already used. Make a new code on the other device and try again.
+- Arabic: استُخدم هذا الرمز من قبل. أنشئ رمزًا جديدًا على الجهاز الآخر وحاول مجددًا.
+
+## `pair.not_found`
+
+- Note: The device typing the code found nobody open for pairing, or could not reach who it found.
+- Values: none
+- Fix: none
+- English: Couldn't find a device showing that code. Check that both devices are on the same network and the code is still on its screen.
+- Arabic: تعذّر العثور على جهاز يعرض هذا الرمز. تأكد أن الجهازين على الشبكة نفسها وأن الرمز لا يزال ظاهرًا على شاشته.
+
+## `pair.device_removed`
+
+- Note: A removed device tried to pair with its old identity. Nothing was used up on the other device. It starts clean on restart.
+- Values: none
+- Fix: none
+- English: This device was removed from your group. Restart Wasl on it, then pair it again as a new device.
+- Arabic: أُزيل هذا الجهاز من مجموعتك. أعد تشغيل وصل عليه، ثم أضِفه من جديد كجهاز جديد.
+
+## `pair.cancelled`
+
+- Note: The person said the words don't match, cancelled, or the other device stopped pairing.
+- Values: none
+- Fix: none
+- English: Pairing was stopped on one of the devices. A mistyped code stops it too. Make a new code to try again.
+- Arabic: أُوقف الاقتران على أحد الجهازين. وإدخال رمز خاطئ يوقفه أيضًا. أنشئ رمزًا جديدًا للمحاولة مجددًا.
+
+## `pair.timed_out`
+
+- Note: A device answered a typed code but never got as far as showing the words, or the pairing ran out of time.
+- Values: none
+- Fix: none
+- English: No device answered in time. Check that both are on the same network and the code is still showing, then try again.
+- Arabic: لم يردّ أي جهاز في الوقت المناسب. تأكد أن الجهازين على الشبكة نفسها وأن الرمز ما زال ظاهرًا، ثم حاول مرة أخرى.
+
+## `pair.own_code`
+
+- Note: The person scanned or typed a QR code that this very device made.
+- Values: none
+- Fix: none
+- English: That code was made on this device. Type the code shown on the other device.
+- Arabic: هذا الرمز أُنشئ على هذا الجهاز. اكتب الرمز الظاهر على الجهاز الآخر.
+
+## `pair.other`
+
+- Note: Catch-all for a pairing that ended for a reason the catalogue doesn't name (the other device went quiet, the network broke).
+- Values: none
+- Fix: none
+- English: Pairing didn't work. Make a new code and try again.
+- Arabic: لم ينجح الاقتران. أنشئ رمزًا جديدًا وحاول مجددًا.
+
 ## `device.this_needs_update`
 
 - Note: A connection to another device was refused because this device's Wasl is too old for it. {device} is the other device's name, or its ID when this device has no name for it.

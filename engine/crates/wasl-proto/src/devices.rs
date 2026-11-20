@@ -24,8 +24,12 @@ pub struct PairingStatus {
     pub stage: PairingStage,
     /// This computer made the code.
     pub inviting: bool,
-    /// The code to show (inviter, while waiting).
+    /// The code to show as a QR (inviter, while waiting).
     pub code: Option<String>,
+    /// The same invitation as the 8 characters a person can type (`XXXX-XXXX`), shown beside the
+    /// QR (inviter, while waiting).
+    #[serde(default)]
+    pub short_code: Option<String>,
     /// Unix seconds.
     pub expires_at: Option<u64>,
     /// The four words both screens must show.
@@ -37,7 +41,14 @@ pub struct PairingStatus {
     pub peer_id: Option<String>,
     /// The person here already confirmed; waiting for the other device.
     pub confirmed_here: bool,
+    /// Why a pairing failed in plain English; for screens that keep no wording of their own it is
+    /// worded in the catalogue (`failure`).
     pub message: Option<String>,
+    /// The catalogue key of the failure (`pair.wrong_code`, `pair.code_expired`,
+    /// `pair.device_removed`, ...), set with `message` when the stage is `Failed`. Scripts and
+    /// agents read this, not the sentence.
+    #[serde(default)]
+    pub failure: Option<String>,
 }
 
 /// One device of the group.

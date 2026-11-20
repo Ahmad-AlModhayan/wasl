@@ -40,6 +40,31 @@ research only. Each section names the crate that implements it.
   inviter's messages back); once both people confirmed, the inviter adds it and returns every
   group operation, which the joiner adopts with the inviter as the trusted signer.
 
+  **Typing the short code (as built).** The inviter shows the 8 characters beside the QR; the
+  joiner types them (any case, dash and spaces optional, 0/O and 1/I folded). A typed code names no
+  device, so while a pairing is open the inviter announces `_wasl-pair._udp` on the LAN (a random
+  per-boot token and the port, nothing derived from the code; withdrawn when the pairing closes),
+  and the joiner dials each device announcing it, with a fresh session each, until the proofs
+  fit. Where discovery is blocked the person can give the inviter's address (`ip:port`), which is
+  only a place to knock. A mistyped code uses up the invitation (one online guess), and the
+  joiner tells the inviter, so its screen does not wait on a dead code. Because the joiner dials
+  every device announcing a pairing, a typo can also use up another person's open code on the
+  same network. A device that answers but never shows the words gets 15 seconds before the
+  joiner moves on. The inviter's screen does not show an `ip:port`, so where discovery is off
+  the address must come from elsewhere (the other device's network settings). The Drive rendezvous-file route for a typed code is not built. Failures are
+  catalogue entries (`pair.bad_code`, `pair.wrong_code`, `pair.code_expired`, `pair.code_used`,
+  `pair.not_found`, `pair.device_removed`, `pair.cancelled`, `pair.timed_out`, `pair.own_code`,
+  `pair.other`), carried in `PairingStatus.failure`.
+
+  **A removed device tries again.** If the group lists the joiner's key as removed, the inviter
+  refuses its first Hello with `pair.device_removed` before the invitation is started, so the code
+  stays good. If the refusing device is a member of the joiner's own group, the joiner records
+  the removal and, at its next start, takes a new key and a group of its own with no rows left
+  about the old group (wasl#13); it then pairs as a new device. A member's refusal is trusted
+  because the joiner's group is all it knows: a removed device that the joiner's stale group
+  still lists could send it too, and the joiner would then start over with a new key (it loses
+  nothing the group did not already hold). Joining another group clears the note.
+
 ## 3. The group file (`wasl-net::group`)
 
 **As built (2026-10):** members exchange operations directly: on every link, after the Hello, each run and every minute, a device sends its heads (`Request::Group`) and receives the operations it lacks, parents first; `GroupChanged` asks a member to do it now. Trust updates at once, so a removed device is cut off by every member that has heard of the removal.
