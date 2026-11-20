@@ -588,12 +588,15 @@ impl OnDemandReader {
         }
         let got = match opened.hydrator.read(&f, offset, len).await {
             // A v2 file added since the listing is not known yet: list once more and retry.
-            Err(VfsError::Unavailable(first)) if opened.vault.as_ref().is_some_and(|s| s.v2) => {
-                let side = opened.vault.as_ref().expect("a vault");
-                if Self::list_vault(side).await.is_err() {
-                    return Err(vfs(VfsError::Unavailable(first)));
+            Err(VfsError::Unavailable(first)) => {
+                if let Some(side) = opened.vault.as_ref().filter(|s| s.v2) {
+                    if Self::list_vault(side).await.is_err() {
+                        return Err(vfs(VfsError::Unavailable(first)));
+                    }
+                    opened.hydrator.read(&f, offset, len).await.map_err(vfs)
+                } else {
+                    Err(vfs(VfsError::Unavailable(first)))
                 }
-                opened.hydrator.read(&f, offset, len).await.map_err(vfs)
             }
             other => other.map_err(vfs),
         };
@@ -652,7 +655,11 @@ impl OnDemandReader {
             return Err(locked());
         }
         let opened = self.open_origin(&origin).await?;
-        let side = opened.vault.as_ref().expect("a vault origin opens a vault");
+        let Some(side) = opened.vault.as_ref() else {
+            return Err(WaslError::Other {
+                detail: "Vault origin did not open a vault".into(),
+            });
+        };
         let entries = Self::list_vault(side).await?;
         Ok(entries
             .iter()

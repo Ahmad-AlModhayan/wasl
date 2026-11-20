@@ -119,7 +119,9 @@ impl MemoryRemote {
         let name = name_of(path).to_owned();
         if let Some(id) = child(&s, &parent, &name) {
             let t = tick(&mut s);
-            s.nodes.get_mut(&id).unwrap().new_version(content.to_vec(), t);
+            if let Some(node) = s.nodes.get_mut(&id) {
+                node.new_version(content.to_vec(), t);
+            }
             return id;
         }
         insert(&mut s, &parent, &name, false, content.to_vec(), None, false)
@@ -171,7 +173,9 @@ impl MemoryRemote {
         let mut s = self.st();
         let Some(id) = resolve(&s, from) else { return false };
         let parent = ensure_dirs(&mut s, parent_path(to));
-        let n = s.nodes.get_mut(&id).unwrap();
+        let Some(n) = s.nodes.get_mut(&id) else {
+            return false;
+        };
         n.parent = Some(parent);
         n.name = name_of(to).to_owned();
         n.version += 1;
@@ -181,13 +185,12 @@ impl MemoryRemote {
     /// Moves the item at `path` to the bin, as a user would on the web.
     pub fn trash_path(&self, path: &str) -> bool {
         let mut s = self.st();
-        match resolve(&s, path) {
-            Some(id) => {
-                s.nodes.get_mut(&id).unwrap().trashed = true;
-                true
-            }
-            None => false,
-        }
+        let Some(id) = resolve(&s, path) else { return false };
+        let Some(n) = s.nodes.get_mut(&id) else {
+            return false;
+        };
+        n.trashed = true;
+        true
     }
 
     /// Content of the live file at `path`.
@@ -541,15 +544,20 @@ impl Remote for MemoryRemote {
                     return Err(DriveError::NotFound(format!("parent {}", spec.parent_id)));
                 }
                 let id = insert(&mut s, spec.parent_id, spec.name, false, content, None, false);
-                s.nodes.get_mut(&id).unwrap().mtime = spec.mtime_ms.max(1);
+                if let Some(n) = s.nodes.get_mut(&id) {
+                    n.mtime = spec.mtime_ms.max(1);
+                }
                 id
             }
         };
-        let n = s.nodes.get_mut(&id).unwrap();
+        let n = s
+            .nodes
+            .get_mut(&id)
+            .ok_or_else(|| DriveError::NotFound(id.clone()))?;
         for (k, v) in properties {
             n.properties.insert((*k).into(), (*v).into());
         }
-        Ok(info(&id, &s.nodes[&id]))
+        Ok(info(&id, n))
     }
 
     async fn create_folder(&self, parent_id: &str, name: &str) -> Result<RemoteInfo> {
@@ -568,11 +576,14 @@ impl Remote for MemoryRemote {
             return Err(DriveError::NotFound(format!("parent {parent_id}")));
         }
         let id = insert(&mut s, parent_id, name, true, Vec::new(), None, false);
-        let n = s.nodes.get_mut(&id).unwrap();
+        let n = s
+            .nodes
+            .get_mut(&id)
+            .ok_or_else(|| DriveError::NotFound(id.clone()))?;
         for (k, v) in properties {
             n.properties.insert((*k).into(), (*v).into());
         }
-        Ok(info(&id, &s.nodes[&id]))
+        Ok(info(&id, n))
     }
 
     async fn update_item(&self, id: &str, update: ItemUpdate<'_>) -> Result<RemoteInfo> {

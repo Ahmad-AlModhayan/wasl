@@ -1,5 +1,7 @@
 //! Sync planner, model and safety guards. Pure: no I/O, no clock, no randomness (SRS FR-E2).
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 #[cfg(feature = "ffi")]
 uniffi::setup_scaffolding!();
 

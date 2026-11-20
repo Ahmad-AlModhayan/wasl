@@ -1,9 +1,14 @@
 [package]
 name = "wasl-core"
+description = "Pure three-way merge planner, N-way version vectors, safety guards, and cross-OS name identity for Wasl"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 publish.workspace = true
 
 [dependencies]

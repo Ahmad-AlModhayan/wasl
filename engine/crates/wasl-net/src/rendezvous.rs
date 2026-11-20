@@ -465,19 +465,27 @@ impl MemoryRendezvous {
 #[async_trait]
 impl Rendezvous for MemoryRendezvous {
     async fn put(&self, name: &str, bytes: Vec<u8>) -> Result<(), RendezvousError> {
-        self.files.lock().expect("lock").insert(name.to_string(), bytes);
+        self.files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(name.to_string(), bytes);
         Ok(())
     }
 
     async fn get(&self, name: &str) -> Result<Option<Vec<u8>>, RendezvousError> {
-        Ok(self.files.lock().expect("lock").get(name).cloned())
+        Ok(self
+            .files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(name)
+            .cloned())
     }
 
     async fn list(&self, prefix: &str) -> Result<Vec<String>, RendezvousError> {
         Ok(self
             .files
             .lock()
-            .expect("lock")
+            .unwrap_or_else(|e| e.into_inner())
             .keys()
             .filter(|k| k.starts_with(prefix))
             .cloned()
@@ -485,7 +493,7 @@ impl Rendezvous for MemoryRendezvous {
     }
 
     async fn delete(&self, name: &str) -> Result<(), RendezvousError> {
-        self.files.lock().expect("lock").remove(name);
+        self.files.lock().unwrap_or_else(|e| e.into_inner()).remove(name);
         Ok(())
     }
 }

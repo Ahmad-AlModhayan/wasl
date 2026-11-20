@@ -7,6 +7,8 @@
 //!
 //! Name mapping is pure, so it lives in `wasl-core` (the planner needs it); it is re-exported here.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 mod hash;
 mod local;
 mod scan;

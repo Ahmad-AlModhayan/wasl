@@ -1,5 +1,6 @@
 //! Public wire DTOs, protocol constants, and schema rules for Wasl.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![forbid(unsafe_code)]
 
 #[cfg(feature = "ffi")]

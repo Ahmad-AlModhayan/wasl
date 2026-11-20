@@ -37,6 +37,8 @@
 //! rolling hash, or long runs without candidates (zeros, where cuts fall every `max` bytes), can
 //! keep two versions out of step to the end of the file.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 mod assemble;
 mod cdc;
 mod hex;

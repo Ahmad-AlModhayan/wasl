@@ -402,24 +402,26 @@ impl PeerService for Host {
         }
         let (msgs, paired, ended) = {
             let mut guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
-            if guard.is_none() {
-                let mut inv = self.invitation.lock().unwrap_or_else(|e| e.into_inner());
-                let started = match inv
-                    .as_mut()
-                    .ok_or_else(refuse)?
-                    .start(self.devices.public_key(), now())
-                {
-                    Ok(s) => s,
-                    Err(e) => {
-                        drop(inv);
-                        drop(guard);
-                        self.devices.close_pairing();
-                        return Err(PeerError::Remote(e.to_string()));
-                    }
-                };
-                *guard = Some(started);
-            }
-            let s = guard.as_mut().expect("started");
+            let s = match guard.as_mut() {
+                Some(s) => s,
+                None => {
+                    let mut inv = self.invitation.lock().unwrap_or_else(|e| e.into_inner());
+                    let started = match inv
+                        .as_mut()
+                        .ok_or_else(refuse)?
+                        .start(self.devices.public_key(), now())
+                    {
+                        Ok(s) => s,
+                        Err(e) => {
+                            drop(inv);
+                            drop(guard);
+                            self.devices.close_pairing();
+                            return Err(PeerError::Remote(e.to_string()));
+                        }
+                    };
+                    guard.insert(started)
+                }
+            };
             let mut out = std::mem::take(&mut *self.outbox.lock().unwrap_or_else(|e| e.into_inner()));
             for m in &round.msgs {
                 out.extend(s.handle(m, now()));

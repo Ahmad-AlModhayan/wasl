@@ -1,6 +1,8 @@
 //! The Wasl sync engine: runs pairs end to end on top of the planner, file access, the store and
 //! the remote (SRS FR-E4). Platform apps call [`Engine`]; they never decide what to sync (FR-E3).
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 #[cfg(feature = "ffi")]
 uniffi::setup_scaffolding!();
 

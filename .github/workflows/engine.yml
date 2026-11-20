@@ -52,6 +52,7 @@ jobs:
             python scripts/check-license-boundaries.py
           fi
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --lib --bins --examples -- -D warnings -D clippy::unwrap_used
       # The on-demand FUSE mount tests (wasl-vfs-fuse/tests/mount.rs) mount for real: fuse3 gives
       # the fusermount3 helper; /dev/fuse is opened as the runner user. Linux only, a few seconds.
       - name: FUSE for the mount tests

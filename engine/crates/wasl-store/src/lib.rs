@@ -8,6 +8,8 @@
 //! implements the Drive crate's [`wasl_drive::NodeStore`] and [`wasl_drive::SessionStore`], so the
 //! Drive metadata cache and resumable uploads survive restarts.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 #[cfg(feature = "ffi")]
 uniffi::setup_scaffolding!();
 

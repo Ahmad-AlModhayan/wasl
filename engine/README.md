@@ -33,15 +33,27 @@ cd engine
 cargo build --workspace --release
 ```
 
-## Tests
+To package ready-to-run `wasl` and `wasld` release archives with SHA-256 checksums for the host target (from `engine/`):
 
 ```sh
+python3 scripts/package-release.py
+```
+
+## Tests & benchmarks
+
+```sh
+cd engine
+cargo fmt --all --check
+python3 scripts/check-license-boundaries.py
+cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --lib --bins --examples -- -D warnings -D clippy::unwrap_used
 cargo test --workspace
 cargo test -p wasl-ffi --all-features
 cargo test -p wasl-engine --test killpoints   # a run stopped at every point of the apply path, then run again
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all --check
+cargo run --release -p wasl-engine --example bench
 ```
+
+`[workspace.lints.rust]` forbids `unsafe_code` everywhere except `wasl-vfs-windows` (where `undocumented_unsafe_blocks = "deny"` applies), and every shipping crate root enforces `#![cfg_attr(not(test), deny(clippy::unwrap_used))]`.
 
 The kill-point tests use a fault plan (`wasl_engine::fault`), compiled only under `cfg(test)` or the
 `test-support` feature, which the engine's own tests enable; a release build has no such point. The harness is

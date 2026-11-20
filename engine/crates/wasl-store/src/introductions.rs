@@ -405,12 +405,13 @@ impl Store {
                 else {
                     break;
                 };
-                let share = removable
-                    .get_mut(&from)
-                    .and_then(VecDeque::pop_front)
-                    .expect("a device with removable offers");
+                let Some(share) = removable.get_mut(&from).and_then(VecDeque::pop_front) else {
+                    break;
+                };
                 del.execute(params![share, from])?;
-                *held.get_mut(&from).expect("counted") -= 1;
+                if let Some(count) = held.get_mut(&from) {
+                    *count = count.saturating_sub(1);
+                }
                 all -= 1;
             }
         }

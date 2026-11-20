@@ -9,6 +9,8 @@
 //! peer records and offers through shared storage, and [`holepunch`] turns them into ordered
 //! candidates and races QUIC connections to them.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub mod compress;
 pub mod discover;
 pub mod group;

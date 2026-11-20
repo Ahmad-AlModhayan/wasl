@@ -2,6 +2,8 @@
 //! this OS user, runs pairs on schedule and on change, and answers the `wasl` CLI and the tray app
 //! over `wasl-ipc`.
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub mod daemon;
 pub mod disk;
 pub mod env;
