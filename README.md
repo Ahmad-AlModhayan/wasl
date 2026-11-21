@@ -8,37 +8,48 @@ Every sync decision, conflict rule, safety guard, cryptographic format, and erro
 
 ## Architecture & Sync Design Tradeoffs
 
-```text
-  Clients (`wasl` CLI [Apache-2.0], desktop UI, scripts)     Mobile clients
-               | local socket / named pipe                        | UniFFI (`wasl-ffi`)
-               | mutual HMAC + version-range (`wasl-ipc`)         |
-               v                                                  v
-        +---------------------------------------------------------------+
-        | `wasld` daemon · `wasl-pairs` (rules) · `wasl-devices` (mesh) |
-        +-------------------------------+-------------------------------+
-                                        | shared per-pair `PairLocks`
-                                        v
-        +---------------------------------------------------------------+
-        | `wasl-engine` (Drive executor, P2P pull, safe `Apply`, agent) |
-        +---------------+-------------------------------+---------------+
-                        |                               |
-                        v                               v
-        +-------------------------------+   +---------------------------+
-        | `wasl-core` (pure, zero I/O)  |   | `wasl-store` (SQLite)     |
-        | - 3-way Drive `Planner`       |   | - baselines & chunk table |
-        | - N-way `VersionVector`       |   | - pre-migration backups   |
-        | - `name_key` (NFC+lower)      |   | - append-only `oplog`     |
-        | - safety `guards`             |   | - 30-day recycle bin      |
-        +-------------------------------+   +---------------------------+
-                        |
-        +---------------+---------------+---------------+
-        v                               v               v
-   Google Drive                   P2P QUIC        Files on Demand
-   `wasl-drive` + `wasl-crypto`   `wasl-net` +    `wasl-vfs` +
-   (Changes API, Vault v1/v2.1)   `wasl-chunk`    Cloud Files / FUSE 3
-```
+### System Context (C4 Level 1)
 
-Full component map and module boundaries: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/c4-context.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/c4-context.light.svg">
+  <img alt="Wasl System Context (C4 Level 1)" src="docs/diagrams/c4-context.light.svg" width="100%">
+</picture>
+
+### Containers & Open-Core Boundary (C4 Level 2)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/c4-containers.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/c4-containers.light.svg">
+  <img alt="Wasl Decoupled Open-Core Containers (C4 Level 2)" src="docs/diagrams/c4-containers.light.svg" width="100%">
+</picture>
+
+### Runtime Safety: Crash-Safe Apply & Agent Changeset Lifecycle (UML)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/uml-apply-sequence.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/uml-apply-sequence.light.svg">
+  <img alt="Wasl Crash-Safe Apply Boundary (UML Sequence)" src="docs/diagrams/uml-apply-sequence.light.svg" width="100%">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/uml-agent-state.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/uml-agent-state.light.svg">
+  <img alt="Wasl AI Agent Changeset Lifecycle (UML State Machine)" src="docs/diagrams/uml-agent-state.light.svg" width="100%">
+</picture>
+
+<details>
+<summary>Level 3 — Component Diagram: Rust Sync Engine Workspace (19 Crates)</summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/c4-components-engine.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/c4-components-engine.light.svg">
+  <img alt="Wasl Rust Sync Engine Workspace Components (C4 Level 3)" src="docs/diagrams/c4-components-engine.light.svg" width="100%">
+</picture>
+
+</details>
+
+Full component map and module boundaries: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · Diagram source: [`docs/diagrams/architecture.json`](docs/diagrams/architecture.json).
 
 ### Key design decisions and tradeoffs
 

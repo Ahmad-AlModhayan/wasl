@@ -1,0 +1,251 @@
+{
+  "product": "wasl",
+  "title": "Wasl Architecture Diagrams (C4 + UML)",
+  "diagrams": [
+    {
+      "id": "c4-context",
+      "kind": "c4",
+      "badge": "C4 · LEVEL 1 · SYSTEM CONTEXT",
+      "title": "Wasl — System Context",
+      "subtitle": "Local-first Rust folder synchronization engine with Google Drive sync, direct P2P QUIC, Vault v2.1, and held AI agent changesets",
+      "rowGap": 56,
+      "rows": [
+        {
+          "nodes": [
+            { "id": "user", "shape": "person", "icon": "person", "title": "User", "tech": "Person · CLI / UI", "desc": "Syncs folders with 30-day undo & optional encrypted vaults" },
+            { "id": "clients", "ext": true, "icon": "desktop", "title": "Desktop & Mobile UI Clients", "tech": "External Native Apps", "desc": "Integrate strictly via wasl-ipc or UniFFI" },
+            { "id": "agent", "ext": true, "shape": "person", "icon": "agent", "title": "Local AI Agent", "tech": "External Actor · Hooks", "desc": "Edits files inside held changeset sessions" }
+          ]
+        },
+        {
+          "nodes": [
+            { "id": "wasl", "emphasis": "solid", "icon": "shield", "title": "Wasl Sync Engine", "tech": "Software System · 19-Crate Rust Workspace", "desc": "wasld daemon, wasl CLI, UniFFI bindings, pure planners, crash-safe Apply & P2P QUIC" }
+          ],
+          "maxCardW": 500
+        },
+        {
+          "nodes": [
+            { "id": "drive", "ext": true, "icon": "cloud", "title": "Google Drive", "tech": "HTTPS · Drive v3 & Changes", "desc": "Cloud folders, Docs exports & Vault ciphertext" },
+            { "id": "peers", "ext": true, "icon": "web", "title": "Peer Wasl Devices", "tech": "QUIC · TLS 1.3 · Ed25519", "desc": "Direct causal-DAG & FastCDC chunk peers" },
+            { "id": "relay", "ext": true, "icon": "cloud", "title": "STUN / Optional Relay", "tech": "UDP · STUN · TURN", "desc": "NAT discovery or encrypted relay fallback" }
+          ]
+        }
+      ],
+      "edges": [
+        { "from": "user", "to": "clients", "label": "Native UI" },
+        { "from": "user", "to": "wasl", "label": "CLI & previews" },
+        { "from": "clients", "to": "wasl", "label": "Sync [wasl-ipc / UniFFI]" },
+        { "from": "agent", "to": "wasl", "label": "Held sessions [wasl agent]" },
+        { "from": "wasl", "to": "drive", "label": "Files & Vault v2.1 [HTTPS]" },
+        { "from": "wasl", "to": "peers", "label": "DAG & FastCDC [QUIC]", "bi": true, "tone": "primary" },
+        { "from": "wasl", "to": "relay", "label": "NAT / relay [UDP]" }
+      ],
+      "legend": [
+        { "kind": "emphasis", "label": "Wasl Sync Engine (Open-Core Rust)" },
+        { "kind": "ext", "label": "External Client / Actor / Remote Peer" }
+      ]
+    },
+    {
+      "id": "c4-containers",
+      "kind": "c4",
+      "badge": "C4 · LEVEL 2 · CONTAINERS",
+      "title": "Wasl — Decoupled Open-Core Containers",
+      "subtitle": "Strict Apache-2.0 interface boundary (zero AGPL deps, CI-verified) separating CLI/IPC from the AGPL-3.0-only Rust sync engine",
+      "rowGap": 54,
+      "rows": [
+        {
+          "nodes": [
+            { "id": "user", "shape": "person", "icon": "person", "title": "User & AI Agent", "tech": "CLI · Hooks", "desc": "Pairs, previews, agent sessions" },
+            { "id": "desktop_ui", "ext": true, "icon": "desktop", "title": "Desktop UI Client", "tech": "External Native App", "desc": "Connects across local IPC" },
+            { "id": "mobile_ui", "ext": true, "icon": "mobile", "title": "Mobile UI Client", "tech": "External Native App", "desc": "Links engine in-process" }
+          ]
+        },
+        {
+          "topSpace": 44,
+          "inset": 36,
+          "nodes": [
+            { "id": "cli", "tone": "positive", "icon": "cli", "title": "wasl CLI", "tech": "wasl-cli · Rust Binary", "desc": "Daemon control, previews, agent sessions" },
+            { "id": "ipc", "tone": "positive", "icon": "bridge", "title": "IPC & Protocol", "tech": "wasl-ipc · wasl-proto", "desc": "Local socket/pipe, mutual HMAC, EN/AR DTOs" }
+          ]
+        },
+        {
+          "topSpace": 34,
+          "inset": 36,
+          "nodes": [
+            { "id": "wasld", "icon": "core", "title": "Background Daemon", "tech": "wasld · Rust Binary", "desc": "Watcher, scheduler, OS keychain, IPC server" },
+            { "id": "ffi", "icon": "bridge", "title": "Mobile FFI Bridge", "tech": "wasl-ffi · UniFFI", "desc": "Engine, pair rules, mesh & hydration bindings" }
+          ]
+        },
+        {
+          "inset": 36,
+          "bottomGap": 58,
+          "nodes": [
+            { "id": "vfs", "icon": "desktop", "title": "Files on Demand", "tech": "wasl-vfs* · CfApi · FUSE 3", "desc": "1 MiB LRU block cache, pins & views" },
+            { "id": "store", "shape": "db", "icon": "db", "title": "Local State Store", "tech": "wasl-store · SQLite", "desc": "Baselines, chunks, oplog & 30-day bin" },
+            { "id": "core", "emphasis": "solid", "icon": "shield", "title": "Sync Engine & Planners", "tech": "wasl-engine · core · net", "desc": "3-way/N-way planners, Apply, Vault, QUIC" }
+          ]
+        },
+        {
+          "topSpace": 14,
+          "nodes": [
+            { "id": "drive", "ext": true, "icon": "cloud", "title": "Google Drive API", "tech": "HTTPS · Drive v3", "desc": "Cloud folders, Docs exports, Vault ciphertext" },
+            { "id": "peers", "ext": true, "icon": "web", "title": "Peer Wasl Devices", "tech": "QUIC · TLS 1.3", "desc": "Pinned-Ed25519 FastCDC & causal DAG peers" },
+            { "id": "relay", "ext": true, "icon": "cloud", "title": "STUN / Optional Relay", "tech": "UDP · STUN · TURN", "desc": "NAT discovery or encrypted relay fallback" }
+          ]
+        }
+      ],
+      "boundaries": [
+        { "id": "repo", "depth": 0, "label": "Wasl Public Repository · engine/", "children": ["apache", "agpl"], "padX": 16, "padTop": 32, "padBot": 16 },
+        { "id": "apache", "depth": 1, "tone": "positive", "fill": "tinted", "label": "Apache-2.0 Interface Layer · zero AGPL deps", "nodes": ["cli", "ipc"], "padX": 14, "padTop": 30, "padBot": 14 },
+        { "id": "agpl", "depth": 1, "tone": "primary", "fill": "tinted", "label": "AGPL-3.0-only Core Layer", "nodes": ["wasld", "ffi", "vfs", "store", "core"], "padX": 14, "padTop": 30, "padBot": 14 }
+      ],
+      "edges": [
+        { "from": "user", "to": "cli", "label": "CLI commands" },
+        { "from": "cli", "to": "ipc", "label": "Frames" },
+        { "from": "desktop_ui", "to": "ipc", "label": "Mutual HMAC [IPC]", "tone": "positive" },
+        { "from": "mobile_ui", "to": "ffi", "label": "In-process [UniFFI]", "laneX": 938, "labelPos": "top" },
+        { "from": "ipc", "to": "wasld", "label": "Authenticated IPC" },
+        { "from": "wasld", "to": "vfs", "label": "Hydration" },
+        { "from": "wasld", "to": "core", "label": "Guarded sync" },
+        { "from": "ffi", "to": "core", "label": "Sync & mesh" },
+        { "from": "vfs", "to": "store", "label": "Pin index" },
+        { "from": "core", "to": "store", "label": "Commits state" },
+        { "from": "core", "to": "drive", "label": "Drive v3 [HTTPS]" },
+        { "from": "core", "to": "peers", "label": "FastCDC [QUIC]", "bi": true, "tone": "primary" },
+        { "from": "core", "to": "relay", "label": "NAT / relay [UDP]" }
+      ],
+      "legend": [
+        { "kind": "positive", "label": "Apache-2.0 Layer (zero AGPL)" },
+        { "kind": "emphasis", "label": "Primary Sync Core (AGPL-3.0)" },
+        { "kind": "db", "label": "SQLite State Store" },
+        { "kind": "ext", "label": "External Client / Remote Peer" }
+      ]
+    },
+    {
+      "id": "uml-apply-sequence",
+      "kind": "sequence",
+      "badge": "UML · SEQUENCE",
+      "title": "Wasl — Crash-Safe Apply Boundary",
+      "subtitle": "Single serialization point per pair: stage → fsync → re-stat vs plan → copy old file to 30-day bin → atomic rename → commit baseline",
+      "participants": [
+        { "id": "plan", "label": "Planner / P2P", "sub": "wasl-core", "tone": "info" },
+        { "id": "locks", "label": "PairLocks", "sub": "Per-Pair Mutex", "tone": "warning" },
+        { "id": "apply", "label": "Apply Boundary", "sub": "wasl-engine::apply", "tone": "primary" },
+        { "id": "fs", "label": "Local FS", "sub": "wasl-fs · Disk" },
+        { "id": "store", "label": "wasl-store", "sub": "SQLite + Bin Index" }
+      ],
+      "steps": [
+        { "from": "plan", "to": "locks", "label": "Acquire per-pair mutex" },
+        { "from": "locks", "to": "apply", "label": "Execute planned write / delete" },
+        { "from": "apply", "to": "apply", "label": "Validate path (NameRules NFC)" },
+        { "from": "apply", "to": "fs", "label": "Write staged temp file + fsync" },
+        { "from": "apply", "to": "fs", "label": "Re-stat target (as_planned check)" },
+        { "type": "frame_start", "kind": "ALT", "label": "Target modified after planning", "tone": "warning" },
+        { "from": "apply", "to": "plan", "label": "Abort untouched (CHANGED_SINCE_PLANNED)", "dashed": true, "tone": "warning" },
+        { "type": "frame_else", "label": "Target unchanged since plan" },
+        { "from": "apply", "to": "fs", "label": "Copy previous file to 30-day bin" },
+        { "from": "apply", "to": "store", "label": "Index bin entry (<= 5 versions/key)" },
+        { "from": "apply", "to": "fs", "label": "Atomic rename staged -> target", "tone": "positive" },
+        { "from": "apply", "to": "store", "label": "Commit updated baseline row", "tone": "positive" },
+        { "type": "frame_end" },
+        { "from": "locks", "to": "plan", "label": "Release per-pair mutex", "dashed": true }
+      ]
+    },
+    {
+      "id": "uml-agent-state",
+      "kind": "state",
+      "badge": "UML · STATE MACHINE",
+      "title": "Wasl — AI Agent Changeset Lifecycle",
+      "subtitle": "Edits made inside wasl agent sessions stay held off-sync with BLAKE3 backups until human confirmation; post-session user edits always win",
+      "height": 335,
+      "states": [
+        { "id": "start", "kind": "start", "cx": 42, "cy": 184, "caption": "begin" },
+        { "id": "open", "cx": 196, "cy": 184, "w": 142, "h": 66, "tone": "info", "label": "open", "sub": "Agent session active" },
+        { "id": "staged", "cx": 484, "cy": 184, "w": 184, "h": 72, "tone": "warning", "label": "staged (held)", "sub": "Off-sync · BLAKE3 backups" },
+        { "id": "committed", "cx": 760, "cy": 124, "w": 180, "h": 66, "tone": "positive", "label": "committed", "sub": "Sync resumes for keys" },
+        { "id": "reverted", "cx": 760, "cy": 264, "w": 180, "h": 66, "tone": "neutral", "label": "reverted", "sub": "Bytes & mtimes restored" },
+        { "id": "end1", "kind": "end", "cx": 916, "cy": 124 },
+        { "id": "end2", "kind": "end", "cx": 916, "cy": 264 }
+      ],
+      "transitions": [
+        { "from": "start", "to": "open", "label": "wasl agent run", "lx": 84, "ly": 136 },
+        { "from": "open", "to": "staged", "label": "Agent exits\n(backups saved)", "lx": 330, "ly": 144 },
+        { "from": "staged", "to": "committed", "fromSide": "top", "toSide": "left", "via": [{ "x": 484, "y": 124 }], "label": "Out-of-band confirm (256-bit)", "tone": "positive", "lx": 566, "ly": 98 },
+        { "from": "staged", "to": "reverted", "fromSide": "bottom", "toSide": "left", "via": [{ "x": 484, "y": 264 }], "label": "wasl agent revert (skip user edits)", "tone": "neutral", "lx": 560, "ly": 294 },
+        { "from": "committed", "to": "reverted", "fromSide": "bottom", "toSide": "top", "label": "Inverse oplog revert", "dashed": true, "lx": 760, "ly": 194 },
+        { "from": "committed", "to": "end1", "fromSide": "right", "toSide": "left" },
+        { "from": "reverted", "to": "end2", "fromSide": "right", "toSide": "left" }
+      ]
+    },
+    {
+      "id": "c4-components-engine",
+      "kind": "c4",
+      "badge": "C4 · LEVEL 3 · COMPONENTS",
+      "title": "Wasl — Rust Sync Engine Workspace (19 Crates)",
+      "subtitle": "Pure zero-I/O planners separated from crash-safe Apply, Drive/Vault crypto, FastCDC/QUIC networking, and platform VFS",
+      "rowGap": 52,
+      "rows": [
+        {
+          "nodes": [
+            { "id": "ipc_c", "ext": true, "icon": "cli", "title": "CLI & Desktop", "tech": "wasl-ipc · Apache-2.0", "desc": "Authenticated local IPC" },
+            { "id": "mob_c", "ext": true, "icon": "mobile", "title": "Mobile Clients", "tech": "UniFFI · In-Process", "desc": "Direct native bindings" }
+          ]
+        },
+        {
+          "topSpace": 28,
+          "inset": 32,
+          "nodes": [
+            { "id": "host", "icon": "core", "title": "Daemon & FFI Entry", "tech": "wasld · wasl-ffi", "desc": "IPC server, watcher, scheduler, keychain" },
+            { "id": "rules", "icon": "lock", "title": "Pair Rules & Mesh", "tech": "wasl-pairs · wasl-devices", "desc": "Validation, preview holds, peer offers" }
+          ]
+        },
+        {
+          "inset": 32,
+          "nodes": [
+            { "id": "pure", "icon": "code", "title": "Pure Decision Core", "tech": "wasl-core · wasl-ignore", "desc": "3-way/N-way planners & safety guards" },
+            { "id": "exec", "emphasis": "solid", "icon": "shield", "title": "Execution & Apply", "tech": "wasl-engine", "desc": "PairLocks, Apply, agent changeset hold" },
+            { "id": "db", "shape": "db", "icon": "db", "title": "SQLite Store", "tech": "wasl-store", "desc": "Baselines, chunks, oplog & 30-day bin" }
+          ]
+        },
+        {
+          "inset": 32,
+          "bottomGap": 56,
+          "nodes": [
+            { "id": "fsvfs", "icon": "desktop", "title": "Local FS & VFS", "tech": "wasl-fs · wasl-vfs*", "desc": "Staging, atomic rename, CfApi & FUSE 3" },
+            { "id": "dc", "icon": "lock", "title": "Drive & Vault Crypto", "tech": "wasl-drive · wasl-crypto", "desc": "Drive v3, Vault v1/v2.1, Padmé, AES-GCM" },
+            { "id": "p2p", "icon": "web", "title": "P2P & Chunking", "tech": "wasl-net · wasl-chunk", "desc": "QUIC, causal DAG, FastCDC & zstd" }
+          ]
+        },
+        {
+          "topSpace": 12,
+          "nodes": [
+            { "id": "drive", "ext": true, "icon": "cloud", "title": "Google Drive v3", "tech": "External · HTTPS", "desc": "REST & Changes API" },
+            { "id": "peers", "ext": true, "icon": "web", "title": "Peer Devices", "tech": "External · QUIC / STUN", "desc": "Pinned-Ed25519 mesh peers" }
+          ]
+        }
+      ],
+      "boundaries": [
+        { "id": "engine_ws", "depth": 0, "label": "engine/ · AGPL-3.0-only Core Crates", "nodes": ["host", "rules", "pure", "exec", "db", "fsvfs", "dc", "p2p"], "padX": 16, "padTop": 30, "padBot": 14 }
+      ],
+      "edges": [
+        { "from": "ipc_c", "to": "host", "label": "Commands [IPC]" },
+        { "from": "mob_c", "to": "host", "label": "Calls [UniFFI]" },
+        { "from": "host", "to": "rules", "label": "Validates pairs" },
+        { "from": "host", "to": "exec", "label": "Triggers runs" },
+        { "from": "exec", "to": "pure", "label": "Plans [pure]" },
+        { "from": "exec", "to": "db", "label": "Commits rows" },
+        { "from": "exec", "to": "fsvfs", "label": "Safe Apply" },
+        { "from": "exec", "to": "dc", "label": "Drive & Vault" },
+        { "from": "exec", "to": "p2p", "label": "Chunk sync" },
+        { "from": "dc", "to": "drive", "label": "REST [HTTPS]" },
+        { "from": "p2p", "to": "peers", "label": "CBOR [QUIC]", "bi": true, "tone": "primary" }
+      ],
+      "legend": [
+        { "kind": "emphasis", "label": "Execution & Apply Boundary" },
+        { "kind": "solid", "label": "Rust Core Crate Group" },
+        { "kind": "db", "label": "SQLite Store Crate" },
+        { "kind": "ext", "label": "External Interface / Remote Peer" }
+      ]
+    }
+  ]
+}
