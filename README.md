@@ -10,166 +10,46 @@ Every sync decision, conflict rule, safety guard, cryptographic format, and erro
 
 ### System Context (C4 Level 1)
 
-```mermaid
-flowchart TB
-    user(["<b>User</b><br/><i>Person</i><br/>Syncs folders with 30-day undo<br/>&amp; optional vault encryption"])
-    agent(["<b>Local AI Agent</b><br/><i>External Actor</i><br/>Edits files inside held changesets"]):::ext
-    clients("<b>Desktop &amp; Mobile UI Clients</b><br/><i>[External Native Apps]</i><br/>Integrate over IPC or UniFFI"):::ext
-
-    wasl("<b>Wasl Sync Engine</b><br/><i>[Software System]</i><br/>Local-first Rust engine, wasld daemon,<br/>wasl CLI &amp; UniFFI bindings")
-
-    drive("<b>Google Drive</b><br/><i>[External System]</i><br/>Drive v3 &amp; Changes API"):::ext
-    peers("<b>Peer Wasl Devices</b><br/><i>[External System]</i><br/>Pinned-Ed25519 QUIC peers"):::ext
-    relay("<b>STUN / Optional Relay</b><br/><i>[External System]</i><br/>NAT discovery &amp; relay fallback"):::ext
-
-    user -->|"CLI &amp; previews"| wasl
-    user -->|"Native UI"| clients
-    clients -->|"Sync &amp; hydration<br/>[wasl-ipc / UniFFI]"| wasl
-    agent -->|"Held sessions<br/>[wasl agent CLI]"| wasl
-    wasl -->|"Files &amp; Vault v2.1<br/>[HTTPS]"| drive
-    wasl <-->|"DAG &amp; FastCDC chunks<br/>[QUIC / TLS 1.3]"| peers
-    wasl -->|"NAT / relay<br/>[UDP / STUN / TURN]"| relay
-
-    classDef ext stroke-dasharray:5 5,stroke-width:1.5px;
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/c4-context.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/c4-context.light.svg">
+  <img alt="Wasl System Context (C4 Level 1)" src="docs/diagrams/c4-context.light.svg" width="100%">
+</picture>
 
 ### Containers & Open-Core Boundary (C4 Level 2)
 
-```mermaid
-flowchart TB
-    user(["<b>User &amp; AI Agent</b><br/><i>CLI / Hooks</i>"])
-    desktop_ui("<b>Desktop UI Client</b><br/><i>[External Native App]</i>"):::ext
-    mobile_ui("<b>Mobile UI Client</b><br/><i>[External Native App]</i>"):::ext
-
-    subgraph wasl_repo["Wasl Public Repository (engine/)"]
-        direction TB
-        subgraph apache_tier["Apache-2.0 Interface Layer (zero AGPL deps)"]
-            direction LR
-            cli("<b>wasl CLI</b><br/><i>[wasl-cli]</i><br/>Daemon, previews, agent")
-            ipc("<b>IPC &amp; Protocol</b><br/><i>[wasl-ipc, wasl-proto]</i><br/>Socket/pipe, HMAC, DTOs")
-        end
-
-        subgraph agpl_tier["AGPL-3.0-only Core Layer"]
-            direction TB
-            wasld("<b>Background Daemon</b><br/><i>[wasld]</i><br/>Watcher, scheduler, IPC")
-            ffi("<b>Mobile FFI</b><br/><i>[wasl-ffi — UniFFI]</i><br/>In-process bindings")
-            vfs("<b>Files on Demand VFS</b><br/><i>[wasl-vfs*]</i><br/>CfApi / FUSE 3 cache")
-            core("<b>Sync Engine &amp; Planners</b><br/><i>[wasl-engine, core, net, drive, crypto]</i><br/>Planners, Apply, Vault v2.1, QUIC")
-            store[("<b>Local State Store</b><br/><i>[wasl-store — SQLite]</i><br/>Baselines, chunks, oplog, bin")]
-        end
-    end
-
-    drive("<b>Google Drive API</b><br/><i>[External]</i>"):::ext
-    peers("<b>Peer Wasl Devices</b><br/><i>[External]</i>"):::ext
-    relay("<b>STUN / Optional Relay</b><br/><i>[External]</i>"):::ext
-
-    user -->|"Commands"| cli
-    cli -->|"Frames"| ipc
-    desktop_ui -->|"HMAC [IPC]"| ipc
-    ipc -->|"Authenticated calls"| wasld
-    mobile_ui -->|"In-process [UniFFI]"| ffi
-    wasld -->|"Hydration"| vfs
-    wasld -->|"Guarded sync"| core
-    ffi -->|"Sync &amp; mesh"| core
-    vfs -->|"Pin/chunk index"| store
-    core -->|"Commits state"| store
-    store ~~~ drive
-    store ~~~ peers
-    store ~~~ relay
-    core -->|"Drive v3 [HTTPS]"| drive
-    core <-->|"FastCDC [QUIC]"| peers
-    core -->|"NAT / relay [UDP]"| relay
-
-    style wasl_repo fill:none,stroke:#8b949e,stroke-width:1.5px,stroke-dasharray:5 3
-    style apache_tier fill:none,stroke:#8b949e,stroke-width:1.5px,stroke-dasharray:4 2
-    style agpl_tier fill:none,stroke:#8b949e,stroke-width:1.5px,stroke-dasharray:4 2
-    classDef ext stroke-dasharray:5 5,stroke-width:1.5px;
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/c4-containers.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/c4-containers.light.svg">
+  <img alt="Wasl Decoupled Open-Core Containers (C4 Level 2)" src="docs/diagrams/c4-containers.light.svg" width="100%">
+</picture>
 
 ### Runtime Safety: Crash-Safe Apply & Agent Changeset Lifecycle (UML)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Plan as Planner / P2P
-    participant Locks as PairLocks
-    participant Apply as Apply Boundary
-    participant FS as Local FS
-    participant Store as wasl-store
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/uml-apply-sequence.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/uml-apply-sequence.light.svg">
+  <img alt="Wasl Crash-Safe Apply Boundary (UML Sequence)" src="docs/diagrams/uml-apply-sequence.light.svg" width="100%">
+</picture>
 
-    Plan->>Locks: Acquire per-pair mutex
-    Locks->>Apply: Execute planned write/delete
-    Apply->>Apply: Validate path (NameRules)
-    Apply->>FS: Write staged temp + fsync
-    Apply->>FS: Re-stat target (as_planned)
-
-    alt Target modified after plan
-        Apply-->>Plan: Abort (CHANGED_SINCE_PLANNED)
-    else Target unchanged
-        Apply->>FS: Copy old file to 30-day bin
-        Apply->>Store: Index bin (<= 5 versions/key)
-        Apply->>FS: Atomic rename staged -> target
-        Apply->>Store: Commit updated baseline
-    end
-
-    Locks-->>Plan: Release per-pair mutex
-```
-
-```mermaid
-stateDiagram-v2
-    state "staged (held off-sync)" as staged
-
-    [*] --> open : wasl agent begin / run
-    open --> staged : Agent exits (BLAKE3 pre-edit backups saved)
-    staged --> committed : Human confirms via out-of-band dialog (256-bit token)
-    staged --> reverted : wasl agent revert (skip user-edited files)
-    committed --> reverted : Revert accepted changeset (inverse oplog ops)
-    committed --> [*] : Sync resumes for committed keys
-    reverted --> [*] : Original bytes & mtimes restored
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/uml-agent-state.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/uml-agent-state.light.svg">
+  <img alt="Wasl AI Agent Changeset Lifecycle (UML State Machine)" src="docs/diagrams/uml-agent-state.light.svg" width="100%">
+</picture>
 
 <details>
 <summary>Level 3 — Component Diagram: Rust Sync Engine Workspace (19 Crates)</summary>
 
-```mermaid
-flowchart TB
-    ipc_c("<b>CLI &amp; Desktop</b><br/><i>[wasl-ipc]</i>"):::ext
-    mob_c("<b>Mobile Clients</b><br/><i>[UniFFI]</i>"):::ext
-
-    subgraph engine_ws["engine/ (AGPL-3.0-only Core Crates)"]
-        direction TB
-        host("<b>Daemon &amp; FFI Entry</b><br/><i>[wasld, wasl-ffi]</i><br/>IPC, watcher, scheduler, keychain")
-        rules("<b>Pair Rules &amp; Mesh</b><br/><i>[wasl-pairs, wasl-devices]</i><br/>Validation, holds, offers")
-        exec("<b>Execution &amp; Apply</b><br/><i>[wasl-engine]</i><br/>PairLocks, Apply, agent hold")
-        pure("<b>Pure Decision Core</b><br/><i>[wasl-core, wasl-ignore]</i><br/>3-way/N-way planners, guards")
-        db[("<b>SQLite Store</b><br/><i>[wasl-store]</i><br/>Baselines, oplog, bin")]
-        fsvfs("<b>Local FS &amp; VFS</b><br/><i>[wasl-fs, wasl-vfs*]</i><br/>Staging, CfApi, FUSE")
-        dc("<b>Drive &amp; Vault Crypto</b><br/><i>[wasl-drive, wasl-crypto]</i><br/>Drive v3, Vault v1/v2.1")
-        p2p("<b>P2P &amp; Chunking</b><br/><i>[wasl-net, wasl-chunk]</i><br/>QUIC, DAG, FastCDC, zstd")
-    end
-
-    drive("<b>Google Drive v3</b><br/><i>[HTTPS]</i>"):::ext
-    peers("<b>Peer Devices</b><br/><i>[QUIC / STUN]</i>"):::ext
-
-    ipc_c -->|"Commands [IPC]"| host
-    mob_c -->|"Calls [UniFFI]"| host
-    host -->|"Validates pairs"| rules
-    host -->|"Triggers runs"| exec
-    exec -->|"Plans [pure]"| pure
-    exec -->|"Commits rows"| db
-    exec -->|"Safe Apply"| fsvfs
-    exec -->|"Drive ops"| dc
-    exec -->|"Chunk sync"| p2p
-    dc -->|"REST [HTTPS]"| drive
-    p2p <-->|"CBOR [QUIC]"| peers
-
-    style engine_ws fill:none,stroke:#8b949e,stroke-width:1.5px,stroke-dasharray:5 3
-    classDef ext stroke-dasharray:5 5,stroke-width:1.5px;
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/c4-components-engine.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/c4-components-engine.light.svg">
+  <img alt="Wasl Rust Sync Engine Workspace Components (C4 Level 3)" src="docs/diagrams/c4-components-engine.light.svg" width="100%">
+</picture>
 
 </details>
 
-Full component map and module boundaries: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Full component map and module boundaries: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · Diagram source: [`docs/diagrams/architecture.json`](docs/diagrams/architecture.json).
 
 ### Key design decisions and tradeoffs
 

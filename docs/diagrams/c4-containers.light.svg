@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 931" width="960" height="931" role="img" aria-label="Wasl — Decoupled Open-Core Containers">
+  <title>Wasl — Decoupled Open-Core Containers</title>
+  <defs>
+    <clipPath id="canvas-clip">
+      <rect x="0.5" y="0.5" width="959" height="930" rx="12"/>
+    </clipPath>
+    <filter id="card-shadow" x="-6%" y="-6%" width="112%" height="118%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2.2" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <marker id="arrow-default" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#6f6b63"/>
+    </marker>
+    <marker id="arrow-start-default" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 9 1.5 L 1 5 L 9 8.5 z" fill="#6f6b63"/>
+    </marker>
+    <marker id="arrow-primary" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#1f3d6b"/>
+    </marker>
+    <marker id="arrow-start-primary" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 9 1.5 L 1 5 L 9 8.5 z" fill="#1f3d6b"/>
+    </marker>
+    <marker id="arrow-positive" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#0b7550"/>
+    </marker>
+    <marker id="arrow-start-positive" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 9 1.5 L 1 5 L 9 8.5 z" fill="#0b7550"/>
+    </marker>
+    <marker id="arrow-info" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#0a6b8f"/>
+    </marker>
+    <marker id="arrow-start-info" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 9 1.5 L 1 5 L 9 8.5 z" fill="#0a6b8f"/>
+    </marker>
+    <marker id="arrow-warning" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#9a5e00"/>
+    </marker>
+    <marker id="arrow-start-warning" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 9 1.5 L 1 5 L 9 8.5 z" fill="#9a5e00"/>
+    </marker>
+    <marker id="arrow-critical" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#c4322a"/>
+    </marker>
+    <marker id="arrow-start-critical" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 9 1.5 L 1 5 L 9 8.5 z" fill="#c4322a"/>
+    </marker>
+    <marker id="arrow-neutral" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 1 1.5 L 9 5 L 1 8.5 z" fill="#5f5c57"/>
+    </marker>
+    <marker id="arrow-start-neutral" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 9 1.5 L 1 5 L 9 8.5 z" fill="#5f5c57"/>
+    </marker>
+  </defs>
+  <rect x="0.5" y="0.5" width="959" height="930" rx="12" fill="#f5f4f0" stroke="#e2dfd7" stroke-width="1"/>
+  
+  <g clip-path="url(#canvas-clip)">
+    <rect x="0" y="0" width="960" height="69" fill="#fbfaf7"/>
+    <line x1="0" y1="69" x2="960" y2="69" stroke="#e2dfd7" stroke-width="1"/>
+    <rect x="20" y="16" width="3.5" height="36" rx="1.75" fill="#1f3d6b"/>
+    <rect x="34" y="14" width="169" height="18" rx="9" fill="#e4ebf6" stroke="#b8cae6" stroke-width="0.8"/>
+    <text x="118.5" y="26" text-anchor="middle" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.5" font-weight="600" letter-spacing="0.6" fill="#142c52">C4 · LEVEL 2 · CONTAINERS</text>
+    <text x="215" y="28" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#1b1a17">Wasl — Decoupled Open-Core Containers</text>
+    <text x="34" y="50" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#656159">Strict Apache-2.0 interface boundary (zero AGPL deps, CI-verified) separating CLI/IPC from the AGPL-3.0-only Rust sync engine</text>
+  </g>
+  
+  <g class="boundary">
+    <rect x="34.0" y="214.5" width="891.0" height="517.0" rx="12" fill="#efede8" fill-opacity="0.52" stroke="#b8b3a8" stroke-width="1.25" stroke-dasharray="5 3.5"/>
+    <rect x="46.0" y="221.5" width="199" height="17" rx="4" fill="#efede8" stroke="#dcd8cf" stroke-width="0.8"/>
+    <text x="145.5" y="233.0" text-anchor="middle" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9" font-weight="600" letter-spacing="0.4" fill="#47443e">WASL PUBLIC REPOSITORY · ENGINE/</text>
+  </g>
+  <g class="boundary">
+    <rect x="50.0" y="420.0" width="859.0" height="295.5" rx="12" fill="#e4ebf6" fill-opacity="0.42" stroke="#b8cae6" stroke-width="1.25" stroke-dasharray="5 3.5"/>
+    <rect x="62.0" y="427.0" width="154" height="17" rx="4" fill="#e4ebf6" stroke="#b8cae6" stroke-width="0.8"/>
+    <text x="139.0" y="438.5" text-anchor="middle" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9" font-weight="600" letter-spacing="0.4" fill="#142c52">AGPL-3.0-ONLY CORE LAYER</text>
+  </g>
+  <g class="boundary">
+    <rect x="51.0" y="246.5" width="857.0" height="129.5" rx="12" fill="#e2f1e9" fill-opacity="0.42" stroke="#a3d6ba" stroke-width="1.25" stroke-dasharray="5 3.5"/>
+    <rect x="63.0" y="253.5" width="262" height="17" rx="4" fill="#e2f1e9" stroke="#a3d6ba" stroke-width="0.8"/>
+    <text x="194.0" y="265.0" text-anchor="middle" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9" font-weight="600" letter-spacing="0.4" fill="#05432d">APACHE-2.0 INTERFACE LAYER · ZERO AGPL DEPS</text>
+  </g>
+  <g class="edges">
+    <path d="M 182.0 178.5 L 182.0 183.5 Q 182.0 188.6 187.0 188.6 L 347.8 188.6 Q 355.8 188.6 355.8 196.6 L 355.8 276.5" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 440.0 319.3 L 519.0 319.3" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 480.0 178.5 L 480.0 196.4 Q 480.0 204.4 488.0 204.4 L 698.5 204.4 Q 706.5 204.4 706.5 212.4 L 706.5 276.5" fill="none" stroke="#0b7550" stroke-width="1.45" marker-end="url(#arrow-positive)"/>
+    <path d="M 778.0 178.5 L 778.0 186.0 Q 778.0 193.5 785.5 193.5 L 930.0 193.5 Q 938.0 193.5 938.0 201.5 L 938.0 426.0 Q 938.0 434.0 930.0 434.0 L 684.5 434.0 Q 676.5 434.0 676.5 442.0 L 676.5 450.0" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 706.5 362.0 L 706.5 390.0 Q 706.5 398.0 698.5 398.0 L 324.8 398.0 Q 316.8 398.0 316.8 406.0 L 316.8 450.0" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 243.5 535.5 L 243.5 543.1 Q 243.5 550.6 235.9 550.6 L 177.5 550.6 Q 169.5 550.6 169.5 558.6 L 169.5 595.5" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 323.5 535.5 L 323.5 554.5 Q 323.5 562.5 331.5 562.5 L 759.0 562.5 Q 767.0 562.5 767.0 570.5 L 767.0 595.5" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 676.5 535.5 L 676.5 566.4 Q 676.5 574.4 684.5 574.4 L 804.0 574.4 Q 812.0 574.4 812.0 582.4 L 812.0 595.5" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 275.0 645.5 L 362.0 645.5" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 684.0 645.5 L 573.0 645.5" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 755.7 695.5 L 755.7 735.3 Q 755.7 743.3 747.7 743.3 L 190.0 743.3 Q 182.0 743.3 182.0 751.3 L 182.0 773.5" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+    <path d="M 789.5 695.5 L 789.5 744.5 Q 789.5 752.5 781.5 752.5 L 488.0 752.5 Q 480.0 752.5 480.0 760.5 L 480.0 773.5" fill="none" stroke="#1f3d6b" stroke-width="1.45" marker-end="url(#arrow-primary)" marker-start="url(#arrow-start-primary)"/>
+    <path d="M 823.3 695.5 L 823.3 753.7 Q 823.3 761.7 815.3 761.7 L 783.9 761.7 Q 778.0 761.7 778.0 767.6 L 778.0 773.5" fill="none" stroke="#6f6b63" stroke-width="1.45" marker-end="url(#arrow-default)"/>
+  </g>
+  
+  <g class="node" data-id="user">
+    <rect x="42" y="93" width="280" height="85.5" rx="20" fill="#ffffff" stroke="#dcd8cf" stroke-width="1.35" filter="url(#card-shadow)"/>
+    <g transform="translate(54,104)"><circle cx="8" cy="5" r="2.8" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M2.8 14c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="76" y="116.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">User &amp; AI Agent</text>
+    <rect x="56" y="124" width="77" height="16.5" rx="4" fill="#efede8"/>
+    <text x="62" y="135.2" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">CLI · Hooks</text>
+    <text x="56" y="154.0" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Pairs, previews, agent sessions</text>
+  </g>
+  <g class="node" data-id="desktop_ui">
+    <rect x="340" y="93" width="280" height="85.5" rx="10" fill="#f9f8f5" stroke="#aba69c" stroke-width="1.25" stroke-dasharray="4.5 3.5"/>
+    <g transform="translate(352,104)"><rect x="2" y="2.5" width="12" height="8.5" rx="1.5" stroke="#7e7970" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M5.5 13.5h5M8 11v2.5" stroke="#7e7970" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="374" y="116.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">Desktop UI Client</text>
+    <rect x="354" y="124" width="125" height="16.5" rx="4" fill="#efede8"/>
+    <text x="360" y="135.2" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">External Native App</text>
+    <text x="354" y="154.0" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Connects across local IPC</text>
+  </g>
+  <g class="node" data-id="mobile_ui">
+    <rect x="638" y="93" width="280" height="85.5" rx="10" fill="#f9f8f5" stroke="#aba69c" stroke-width="1.25" stroke-dasharray="4.5 3.5"/>
+    <g transform="translate(650,104)"><rect x="4.5" y="1.8" width="7" height="12.4" rx="1.6" stroke="#7e7970" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M7.2 12h1.6" stroke="#7e7970" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="672" y="116.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">Mobile UI Client</text>
+    <rect x="652" y="124" width="125" height="16.5" rx="4" fill="#efede8"/>
+    <text x="658" y="135.2" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">External Native App</text>
+    <text x="652" y="154.0" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Links engine in-process</text>
+  </g>
+  <g class="node" data-id="cli">
+    <rect x="65" y="276.5" width="375" height="85.5" rx="10" fill="#e2f1e9" stroke="#a3d6ba" stroke-width="1.25" filter="url(#card-shadow)"/>
+    <rect x="66" y="285.5" width="3.2" height="67.5" rx="1.6" fill="#0b7550"/>
+    <g transform="translate(77,287.5)"><rect x="2" y="2.5" width="12" height="11" rx="1.8" stroke="#0b7550" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M5 6.5l2 1.8-2 1.8M8.5 10.2h2.8" stroke="#0b7550" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="99" y="300" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#05432d">wasl CLI</text>
+    <rect x="79" y="307.5" width="142" height="16.5" rx="4" fill="#ffffff"/>
+    <text x="85" y="318.7" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#0b7550">wasl-cli · Rust Binary</text>
+    <text x="79" y="337.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Daemon control, previews, agent sessions</text>
+  </g>
+  <g class="node" data-id="ipc">
+    <rect x="519" y="276.5" width="375" height="85.5" rx="10" fill="#e2f1e9" stroke="#a3d6ba" stroke-width="1.25" filter="url(#card-shadow)"/>
+    <rect x="520" y="285.5" width="3.2" height="67.5" rx="1.6" fill="#0b7550"/>
+    <g transform="translate(531,287.5)"><path d="M2.5 8h11M5.5 5l-3 3 3 3M10.5 5l3 3-3 3" stroke="#0b7550" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="553" y="300" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#05432d">IPC &amp; Protocol</text>
+    <rect x="533" y="307.5" width="137" height="16.5" rx="4" fill="#ffffff"/>
+    <text x="539" y="318.7" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#0b7550">wasl-ipc · wasl-proto</text>
+    <text x="533" y="337.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Local socket/pipe, mutual HMAC, EN/AR DTOs</text>
+  </g>
+  <g class="node" data-id="wasld">
+    <rect x="96" y="450" width="375" height="85.5" rx="10" fill="#ffffff" stroke="#dcd8cf" stroke-width="1.25" filter="url(#card-shadow)"/>
+    <rect x="97" y="459" width="3.2" height="67.5" rx="1.6" fill="#1f3d6b"/>
+    <g transform="translate(108,461)"><rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M5.5 6h5M5.5 9.5h3.5" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="130" y="473.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">Background Daemon</text>
+    <rect x="110" y="481" width="125" height="16.5" rx="4" fill="#efede8"/>
+    <text x="116" y="492.2" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">wasld · Rust Binary</text>
+    <text x="110" y="511.0" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Watcher, scheduler, OS keychain, IPC server</text>
+  </g>
+  <g class="node" data-id="ffi">
+    <rect x="489" y="450" width="375" height="85.5" rx="10" fill="#ffffff" stroke="#dcd8cf" stroke-width="1.25" filter="url(#card-shadow)"/>
+    <rect x="490" y="459" width="3.2" height="67.5" rx="1.6" fill="#1f3d6b"/>
+    <g transform="translate(501,461)"><path d="M2.5 8h11M5.5 5l-3 3 3 3M10.5 5l3 3-3 3" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="523" y="473.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">Mobile FFI Bridge</text>
+    <rect x="503" y="481" width="113" height="16.5" rx="4" fill="#efede8"/>
+    <text x="509" y="492.2" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">wasl-ffi · UniFFI</text>
+    <text x="503" y="511.0" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Engine, pair rules, mesh &amp; hydration bindings</text>
+  </g>
+  <g class="node" data-id="vfs">
+    <rect x="64" y="595.5" width="211" height="100" rx="10" fill="#ffffff" stroke="#dcd8cf" stroke-width="1.25" filter="url(#card-shadow)"/>
+    <rect x="65" y="604.5" width="3.2" height="82" rx="1.6" fill="#1f3d6b"/>
+    <g transform="translate(76,606.5)"><rect x="2" y="2.5" width="12" height="8.5" rx="1.5" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M5.5 13.5h5M8 11v2.5" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="98" y="619" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">Files on Demand</text>
+    <rect x="78" y="626.5" width="166" height="16.5" rx="4" fill="#efede8"/>
+    <text x="84" y="637.7" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">wasl-vfs* · CfApi · FUSE 3</text>
+    <text x="78" y="656.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">1 MiB LRU block cache, pins &amp;</text>
+    <text x="78" y="671.0" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">views</text>
+  </g>
+  <g class="node" data-id="store">
+    
+    <path d="M 362 597.5 L 362 693.5 A 105.5 8 0 0 0 573 693.5 L 573 597.5 Z" fill="#ffffff" stroke="#dcd8cf" stroke-width="1.25" filter="url(#card-shadow)"/>
+    <ellipse cx="467.5" cy="597.5" rx="105.5" ry="8" fill="#efede8" stroke="#dcd8cf" stroke-width="1.25"/>
+    <g transform="translate(374,611.5)"><ellipse cx="8" cy="4.2" rx="5.2" ry="2" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M2.8 4.2v7.6c0 1.1 2.3 2 5.2 2s5.2-.9 5.2-2V4.2" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M2.8 8c0 1.1 2.3 2 5.2 2s5.2-.9 5.2-2" stroke="#1f3d6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="396" y="624" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">Local State Store</text>
+    <rect x="376" y="631.5" width="125" height="16.5" rx="4" fill="#efede8"/>
+    <text x="382" y="642.7" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">wasl-store · SQLite</text>
+    <text x="376" y="661.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Baselines, chunks, oplog &amp; 30-day</text>
+    <text x="376" y="676.0" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">bin</text>
+  </g>
+  <g class="node" data-id="core">
+    <rect x="684" y="595.5" width="211" height="100" rx="10" fill="#1f3d6b" stroke="#162d50" stroke-width="1.5" filter="url(#card-shadow)"/>
+    <g transform="translate(696,606.5)"><path d="M8 2l5 2v4.2c0 3-2.1 5.1-5 6-2.9-.9-5-3-5-6V4l5-2z" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M6 8.2l1.4 1.4 2.8-3" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="718" y="619" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#ffffff">Sync Engine &amp; Planners</text>
+    <rect x="698" y="626.5" width="154" height="16.5" rx="4" fill="rgba(255,255,255,0.18)"/>
+    <text x="704" y="637.7" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#ffffff">wasl-engine · core · net</text>
+    <text x="698" y="656.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#ffffff" opacity="0.92">3-way/N-way planners, Apply,</text>
+    <text x="698" y="671.0" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#ffffff" opacity="0.92">Vault, QUIC</text>
+  </g>
+  <g class="node" data-id="drive">
+    <rect x="42" y="773.5" width="280" height="85.5" rx="10" fill="#f9f8f5" stroke="#aba69c" stroke-width="1.25" stroke-dasharray="4.5 3.5"/>
+    <g transform="translate(54,784.5)"><path d="M4.8 12.8h6.8a2.7 2.7 0 0 0 .5-5.3A4 4 0 0 0 4.5 6.4a2.8 2.8 0 0 0 .3 6.4z" stroke="#7e7970" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="76" y="797" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">Google Drive API</text>
+    <rect x="56" y="804.5" width="107" height="16.5" rx="4" fill="#efede8"/>
+    <text x="62" y="815.7" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">HTTPS · Drive v3</text>
+    <text x="56" y="834.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Cloud folders, Docs exports, Vault ciphertext</text>
+  </g>
+  <g class="node" data-id="peers">
+    <rect x="340" y="773.5" width="280" height="85.5" rx="10" fill="#f9f8f5" stroke="#aba69c" stroke-width="1.25" stroke-dasharray="4.5 3.5"/>
+    <g transform="translate(352,784.5)"><circle cx="8" cy="8" r="5.8" stroke="#7e7970" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M2.5 8h11M8 2.2c1.7 1.7 2.5 3.7 2.5 5.8S9.7 12.1 8 13.8M8 2.2C6.3 3.9 5.5 5.9 5.5 8s.8 4.1 2.5 5.8" stroke="#7e7970" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="374" y="797" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">Peer Wasl Devices</text>
+    <rect x="354" y="804.5" width="95" height="16.5" rx="4" fill="#efede8"/>
+    <text x="360" y="815.7" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">QUIC · TLS 1.3</text>
+    <text x="354" y="834.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">Pinned-Ed25519 FastCDC &amp; causal DAG peers</text>
+  </g>
+  <g class="node" data-id="relay">
+    <rect x="638" y="773.5" width="280" height="85.5" rx="10" fill="#f9f8f5" stroke="#aba69c" stroke-width="1.25" stroke-dasharray="4.5 3.5"/>
+    <g transform="translate(650,784.5)"><path d="M4.8 12.8h6.8a2.7 2.7 0 0 0 .5-5.3A4 4 0 0 0 4.5 6.4a2.8 2.8 0 0 0 .3 6.4z" stroke="#7e7970" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>
+    <text x="672" y="797" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12.2" font-weight="700" fill="#1b1a17">STUN / Optional Relay</text>
+    <rect x="652" y="804.5" width="113" height="16.5" rx="4" fill="#efede8"/>
+    <text x="658" y="815.7" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="9.3" font-weight="500" fill="#47443e">UDP · STUN · TURN</text>
+    <text x="652" y="834.5" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.6" fill="#656159" opacity="1">NAT discovery or encrypted relay fallback</text>
+  </g>
+  <g class="edge-labels">
+    
+    <rect x="226.9" y="193.6" width="84" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="268.9" y="206.0" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">CLI commands</text>
+    
+    <rect x="454.0" y="310.3" width="51" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="479.5" y="322.6" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Frames</text>
+    
+    <rect x="538.3" y="195.4" width="110" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="593.3" y="207.8" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Mutual HMAC [IPC]</text>
+    
+    <rect x="801.0" y="184.5" width="114" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="858.0" y="196.9" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">In-process [UniFFI]</text>
+    
+    <rect x="462.1" y="389.0" width="99" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="511.6" y="401.4" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Authenticated IPC</text>
+    
+    <rect x="176.0" y="541.6" width="61" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="206.5" y="554.0" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Hydration</text>
+    
+    <rect x="505.7" y="553.5" width="79" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="545.2" y="565.9" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Guarded sync</text>
+    
+    <rect x="706.8" y="565.4" width="75" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="744.3" y="577.8" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Sync &amp; mesh</text>
+    
+    <rect x="289.0" y="636.5" width="59" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="318.5" y="648.9" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Pin index</text>
+    
+    <rect x="587.0" y="636.5" width="83" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="628.5" y="648.9" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Commits state</text>
+    
+    <rect x="417.4" y="734.3" width="103" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="468.9" y="746.7" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">Drive v3 [HTTPS]</text>
+    
+    <rect x="587.8" y="743.5" width="94" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="634.8" y="755.9" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">FastCDC [QUIC]</text>
+    
+    <rect x="747.1" y="738.7" width="107" height="18" rx="4.5" fill="#ffffff" stroke="#d8d4ca" stroke-width="0.9"/>
+    <text x="800.6" y="751.1" text-anchor="middle" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.6" font-weight="600" fill="#33302b">NAT / relay [UDP]</text>
+  </g>
+  <g clip-path="url(#canvas-clip)">
+    <rect x="0" y="893" width="960" height="38" fill="#fbfaf7"/>
+    <line x1="0" y1="893" x2="960" y2="893" stroke="#e2dfd7" stroke-width="1"/>
+    <rect x="24" y="905" width="14" height="14" rx="3.5" fill="#e2f1e9" stroke="#a3d6ba" stroke-width="1.2"/>
+    <text x="44" y="916" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#656159">Apache-2.0 Layer (zero AGPL)</text>
+    <rect x="225" y="905" width="14" height="14" rx="3.5" fill="#1f3d6b" stroke="#162d50" stroke-width="1.2"/>
+    <text x="245" y="916" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#656159">Primary Sync Core (AGPL-3.0)</text>
+    <path d="M 429 908 v 7.5 a 6 2.3 0 0 0 12 0 v -7.5 z" fill="#ffffff" stroke="#656159" stroke-width="1.15"/><ellipse cx="435" cy="908" rx="6" ry="2.3" fill="#efede8" stroke="#656159" stroke-width="1.15"/>
+    <text x="448" y="916" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#656159">SQLite State Store</text>
+    <rect x="565" y="905" width="14" height="14" rx="3.5" fill="#f9f8f5" stroke="#aba69c" stroke-width="1.2" stroke-dasharray="3 2"/>
+    <text x="585" y="916" font-family="'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#656159">External Client / Remote Peer</text>
+  </g>
+</svg>
