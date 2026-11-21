@@ -78,3 +78,13 @@ on one tap; a fix that would change files only opens the place to do it.
 **Details**: the raw text behind an error, collapsed under the entry and copyable for support. It
 never holds tokens or account IDs, shows paths only from the pair's folder down, and is never
 sent anywhere by Wasl.
+
+## Parked at 0.5.0 (2026-11-21)
+
+- **Shipped**: engine v0.5.0 (`ea362a0`), GitHub release with the Windows `x86_64` archive. The Kahf Labs apps build on
+  this tag through a pinned git dependency.
+- **Accepted limitations**: macOS and Linux archives and the crates.io publish are still to come; hosted CI is paused,
+  so checks run on our own machines and results are pasted in each pull request.
+- **Top `next-release` items**: #53 (a partial device sync retries), #60 item 2 (one connect loop), #66 (machine-readable
+  CLI errors), #68 (keychain errors), #9 (nearby pairing, with a security review), #1 (event hooks), #2 (relay).
+- **Next entry point**: the next direction is being worked out in the internal tracker; engine work resumes from it.
