@@ -215,4 +215,4 @@ Wasl uses a **decoupled open-core** model ([`docs/OPEN_MODEL.md`](docs/OPEN_MODE
 
 [ARCHITECTURE](docs/ARCHITECTURE.md) · [OPEN_MODEL](docs/OPEN_MODEL.md) · [DEVICE_SYNC](docs/DEVICE_SYNC.md) · [ENCRYPTION](docs/ENCRYPTION.md) · [COMPRESSION](docs/COMPRESSION.md) · [ON_DEMAND](docs/ON_DEMAND.md) · [AGENT_CHANGES](docs/AGENT_CHANGES.md) · [ERRORS](docs/ERRORS.md) · [SECURITY](docs/SECURITY.md) · [SETUP](docs/SETUP.md) · [USER_GUIDE](docs/USER_GUIDE.md) · [ADRs](docs/adr/)
 
-Contributions require a one-time [CLA](CLA.md) (contributors keep copyright); see [CONTRIBUTING.md](CONTRIBUTING.md). Forks may not use the Kahf or Wasl names or logos ([TRADEMARKS.md](TRADEMARKS.md)). Report security vulnerabilities privately ([SECURITY.md](SECURITY.md)), and review third-party notices in [NOTICE.md](NOTICE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Contributions require a one-time [CLA](CLA.md) (contributors keep copyright); see [CONTRIBUTING.md](CONTRIBUTING.md). Forks may not use the Kahf or Wasl names or logos ([TRADEMARKS.md](TRADEMARKS.md)). Report security vulnerabilities privately ([SECURITY.md](SECURITY.md)).
