@@ -1,0 +1,42 @@
+{
+  "image": "kahf-runner-wasl@sha256:5fc8fb213f6ebd3e30daf354f47277b1912135bb07a32ad4acf5681a87dcd233",
+  "legs": [
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "mergeRequires": [
+    "linux"
+  ],
+  "releaseRequires": [
+    "linux",
+    "windows",
+    "macos",
+    "nat-lab"
+  ],
+  "extras": [
+    {
+      "name": "nat-lab",
+      "script": "ci/run.sh",
+      "privileged": true,
+      "release": true,
+      "timeoutMinutes": 20
+    }
+  ],
+  "allow": [
+    "Ahmad-AlModhayan",
+    "dependabot[bot]",
+    "github-actions[bot]"
+  ],
+  "cache": [
+    "engine/.cargo",
+    "engine/target"
+  ],
+  "timeoutMinutes": 45,
+  "contributorCheck": "cla",
+  "cla": {
+    "branch": "cla-signatures",
+    "signaturesPath": "signatures/cla.json",
+    "document": "CLA.md"
+  }
+}
